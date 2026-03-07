@@ -4,15 +4,18 @@ import { createActionMapper } from "../../src/main/action-mapper";
 const createSettings = () => ({
   smoothing: 0.35,
   clickPinchThreshold: 0.78,
+  dragHoldThresholdMs: 220,
   rightClickGesture: "thumb-middle-pinch",
   keyMappings: [{ gesture: "open-palm-hold", key: "Return" }],
 });
 
 describe("createActionMapper", () => {
-  test("maps primary pinch intents to left click actions", () => {
+  test("maps a short primary pinch to left click actions", () => {
+    let time = 100;
     const mapper = createActionMapper(
       () => createSettings(),
       (x, y) => ({ x: Math.round(x * 100), y: Math.round(y * 100) }),
+      () => time,
     );
 
     expect(
@@ -22,6 +25,8 @@ describe("createActionMapper", () => {
         phase: "start",
       }),
     ).toEqual([{ type: "pointer.down", button: "left" }]);
+
+    time += 120;
 
     expect(
       mapper.mapEvent({
@@ -33,6 +38,33 @@ describe("createActionMapper", () => {
       { type: "pointer.up", button: "left" },
       { type: "click", button: "left" },
     ]);
+  });
+
+  test("maps a held primary pinch to drag release without click", () => {
+    let time = 100;
+    const mapper = createActionMapper(
+      () => createSettings(),
+      (x, y) => ({ x: Math.round(x * 100), y: Math.round(y * 100) }),
+      () => time,
+    );
+
+    expect(
+      mapper.mapEvent({
+        type: "gesture.intent",
+        gesture: "primary-pinch",
+        phase: "start",
+      }),
+    ).toEqual([{ type: "pointer.down", button: "left" }]);
+
+    time += 320;
+
+    expect(
+      mapper.mapEvent({
+        type: "gesture.intent",
+        gesture: "primary-pinch",
+        phase: "end",
+      }),
+    ).toEqual([{ type: "pointer.up", button: "left" }]);
   });
 
   test("maps symbolic gestures to configurable actions", () => {

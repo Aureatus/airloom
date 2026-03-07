@@ -6,6 +6,6 @@
   - `status`: live debugging state used by the calibration UI
 - Action events inside the desktop layer:
   - `pointer.move`: screen-space cursor move
-  - `pointer.down` / `pointer.up`: press state for drag support
+  - `pointer.down` / `pointer.up`: press state for drag support, with click-vs-drag decided by the desktop mapper's hold threshold
   - `click`: discrete click action, including right click from the thumb-middle pinch gesture
   - `key.tap`: mapped keyboard action such as `Return`

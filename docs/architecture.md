@@ -12,3 +12,5 @@ Current flow:
 - vision -> `pointer.observed`, `gesture.intent`, `status`
 - action mapper -> `pointer.move`, `pointer.down`, `pointer.up`, `click`, `key.tap`
 - input adapter -> real OS mouse and keyboard injection
+
+The desktop action mapper is stateful: it uses a hold threshold to decide whether a `primary-pinch` release should become a click or a drag release.

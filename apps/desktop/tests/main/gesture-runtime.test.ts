@@ -31,6 +31,7 @@ const createTestSettings = (key = "Return") => {
   return {
     smoothing: 0.35,
     clickPinchThreshold: 0.78,
+    dragHoldThresholdMs: 220,
     rightClickGesture: "thumb-middle-pinch",
     keyMappings: [{ gesture: "open-palm-hold", key }],
   };

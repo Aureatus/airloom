@@ -56,7 +56,7 @@ export const SettingsPage = ({ settings, onSave }: SettingsPageProps) => {
         </div>
         <div className="mapping-row">
           <span>Drag</span>
-          <strong>Held pinch</strong>
+          <strong>{draft.dragHoldThresholdMs} ms hold</strong>
         </div>
         <div className="mapping-row">
           <span>Right click</span>
@@ -96,6 +96,22 @@ export const SettingsPage = ({ settings, onSave }: SettingsPageProps) => {
               setDraft((current) => ({
                 ...current,
                 clickPinchThreshold: Number(event.target.value),
+              }))
+            }
+          />
+        </label>
+        <label className="settings-field">
+          <span>Drag hold ms</span>
+          <input
+            type="number"
+            min="0"
+            max="2000"
+            step="10"
+            value={draft.dragHoldThresholdMs}
+            onChange={(event) =>
+              setDraft((current) => ({
+                ...current,
+                dragHoldThresholdMs: Number(event.target.value),
               }))
             }
           />

@@ -6,11 +6,15 @@ import type { AirloomSettings } from "@airloom/shared/settings-schema";
 
 type GetSettings = () => AirloomSettings;
 type NormalizePosition = (x: number, y: number) => { x: number; y: number };
+type Now = () => number;
 
 export const createActionMapper = (
   getSettings: GetSettings,
   normalizePosition: NormalizePosition,
+  now: Now = () => Date.now(),
 ) => {
+  let primaryPinchStartedAt: number | null = null;
+
   const mapEvent = (event: AirloomInputEvent): AirloomActionEvent[] => {
     switch (event.type) {
       case "pointer.observed": {
@@ -26,14 +30,23 @@ export const createActionMapper = (
         const settings = getSettings();
 
         if (event.gesture === "primary-pinch" && event.phase === "start") {
+          primaryPinchStartedAt = now();
           return [{ type: "pointer.down", button: "left" }];
         }
 
         if (event.gesture === "primary-pinch" && event.phase === "end") {
-          return [
-            { type: "pointer.up", button: "left" },
-            { type: "click", button: "left" },
-          ];
+          const heldForMs =
+            primaryPinchStartedAt === null
+              ? settings.dragHoldThresholdMs + 1
+              : now() - primaryPinchStartedAt;
+          primaryPinchStartedAt = null;
+
+          return heldForMs <= settings.dragHoldThresholdMs
+            ? [
+                { type: "pointer.up", button: "left" },
+                { type: "click", button: "left" },
+              ]
+            : [{ type: "pointer.up", button: "left" }];
         }
 
         if (
