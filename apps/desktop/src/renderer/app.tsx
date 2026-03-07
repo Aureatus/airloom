@@ -57,7 +57,7 @@ const initialStatus: ServiceStatus = {
 };
 
 const defaultSettings: AirloomSettings = {
-  smoothing: 0.35,
+  smoothing: 0.72,
   clickPinchThreshold: 0.78,
   dragHoldThresholdMs: 220,
   rightClickGesture: "thumb-middle-pinch",

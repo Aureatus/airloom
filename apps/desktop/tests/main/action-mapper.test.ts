@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { createActionMapper } from "../../src/main/action-mapper";
 
 const createSettings = () => ({
-  smoothing: 0.35,
+  smoothing: 0.72,
   clickPinchThreshold: 0.78,
   dragHoldThresholdMs: 220,
   rightClickGesture: "thumb-middle-pinch",

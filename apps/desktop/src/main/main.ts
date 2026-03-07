@@ -129,6 +129,11 @@ const startVisionService = () => {
 
   serviceProcess = spawn("uv", args, {
     cwd: visionServiceDir,
+    env: {
+      ...process.env,
+      AIRLOOM_SMOOTHING_ALPHA: String(currentSettings.smoothing),
+      AIRLOOM_MIRROR_X: "1",
+    },
     stdio: "pipe",
   });
 

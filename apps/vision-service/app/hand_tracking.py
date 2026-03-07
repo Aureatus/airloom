@@ -3,6 +3,8 @@ from __future__ import annotations
 # pyright: reportMissingImports=false
 import importlib
 import importlib.util
+import os
+import time
 from dataclasses import dataclass, field
 from typing import Any, cast
 
@@ -14,7 +16,10 @@ from app.smoothing import ExponentialSmoother
 
 @dataclass
 class HandTracker:
-    smoothing_alpha: float = 0.35
+    smoothing_alpha: float = field(
+        default_factory=lambda: float(os.environ.get("AIRLOOM_SMOOTHING_ALPHA", "0.72"))
+    )
+    mirror_x: bool = field(default_factory=lambda: os.environ.get("AIRLOOM_MIRROR_X", "1") != "0")
     _smoother: ExponentialSmoother = field(init=False)
     _hands: Any | None = field(init=False, default=None)
     _mediapipe: Any | None = field(init=False, default=None)
@@ -31,7 +36,7 @@ class HandTracker:
             model_path = ensure_hand_landmarker_model()
             options = vision.HandLandmarkerOptions(
                 base_options=tasks.BaseOptions(model_asset_path=str(model_path)),
-                running_mode=vision.RunningMode.IMAGE,
+                running_mode=vision.RunningMode.VIDEO,
                 num_hands=1,
                 min_hand_detection_confidence=0.55,
                 min_hand_presence_confidence=0.55,
@@ -56,7 +61,8 @@ class HandTracker:
             image_format=self._mediapipe.ImageFormat.SRGB,
             data=rgb_frame,
         )
-        result = self._hands.detect(image)
+        timestamp_ms = time.monotonic_ns() // 1_000_000
+        result = self._hands.detect_for_video(image, timestamp_ms)
         if not result.hand_landmarks:
             return {
                 "tracking": False,
@@ -71,7 +77,8 @@ class HandTracker:
         thumb_tip: Landmark = cast(Landmark, {"x": landmarks[4].x, "y": landmarks[4].y})
         middle_tip: Landmark = cast(Landmark, {"x": landmarks[12].x, "y": landmarks[12].y})
         wrist: Landmark = cast(Landmark, {"x": landmarks[0].x, "y": landmarks[0].y})
-        smooth_x, smooth_y = self._smoother.update(index_tip["x"], index_tip["y"])
+        pointer_x = 1 - index_tip["x"] if self.mirror_x else index_tip["x"]
+        smooth_x, smooth_y = self._smoother.update(pointer_x, index_tip["y"])
 
         return {
             "tracking": True,

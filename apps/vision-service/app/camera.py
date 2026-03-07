@@ -13,6 +13,10 @@ class Camera(AbstractContextManager["Camera"]):
         if not self._capture.isOpened():
             raise RuntimeError("Unable to open webcam")
 
+        self._capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        self._capture.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        self._capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+
     def read(self) -> Any:
         ok, frame = self._capture.read()
         if not ok:

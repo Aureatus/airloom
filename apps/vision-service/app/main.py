@@ -50,7 +50,6 @@ def run_live(max_frames: int) -> None:
             processed += 1
             if max_frames and processed >= max_frames:
                 return
-            time.sleep(1 / 30)
 
 
 def main() -> None:
