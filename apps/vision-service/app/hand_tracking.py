@@ -14,6 +14,10 @@ from app.protocol import FrameState, Landmark
 from app.smoothing import ExponentialSmoother
 
 
+def _clamp_unit(value: float) -> float:
+    return max(0.0, min(1.0, value))
+
+
 @dataclass
 class HandTracker:
     smoothing_alpha: float = field(
@@ -78,11 +82,13 @@ class HandTracker:
         middle_tip: Landmark = cast(Landmark, {"x": landmarks[12].x, "y": landmarks[12].y})
         wrist: Landmark = cast(Landmark, {"x": landmarks[0].x, "y": landmarks[0].y})
         pointer_x = 1 - index_tip["x"] if self.mirror_x else index_tip["x"]
-        smooth_x, smooth_y = self._smoother.update(pointer_x, index_tip["y"])
+        smooth_x, smooth_y = self._smoother.update(
+            _clamp_unit(pointer_x), _clamp_unit(index_tip["y"])
+        )
 
         return {
             "tracking": True,
-            "pointer": {"x": smooth_x, "y": smooth_y},
+            "pointer": {"x": _clamp_unit(smooth_x), "y": _clamp_unit(smooth_y)},
             "pinch_strength": compute_pinch_strength(thumb_tip, index_tip),
             "secondary_pinch_strength": compute_pinch_strength(thumb_tip, middle_tip),
             "open_palm_hold": middle_tip["y"] < wrist["y"],

@@ -152,6 +152,11 @@ const stopVisionService = () => {
   return getServiceStatus();
 };
 
+const restartVisionService = () => {
+  stopVisionService();
+  return startVisionService();
+};
+
 const createMainWindow = async () => {
   mainWindow = new BrowserWindow({
     width: 1180,
@@ -181,6 +186,10 @@ app.whenReady().then(async () => {
     "airloom:update-settings",
     async (_event, payload: unknown) => {
       currentSettings = await saveSettings(parseAirloomSettings(payload));
+      if (serviceProcess !== null) {
+        restartVisionService();
+      }
+      broadcastStatus();
       return currentSettings;
     },
   );
