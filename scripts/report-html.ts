@@ -5,7 +5,6 @@ import { resolve } from "node:path";
 const rootDir = resolve(import.meta.dirname, "..");
 const junitDir = resolve(rootDir, "reports/junit");
 const htmlDir = resolve(rootDir, "reports/html");
-const mergedXmlPath = resolve(rootDir, "reports/html/merged.xml");
 const htmlPath = resolve(rootDir, "reports/html/index.html");
 
 const hasFlag = (flag: string) => {
@@ -75,19 +74,15 @@ if (xmlFiles.length === 0) {
 
 mkdirSync(htmlDir, { recursive: true });
 
-if (xmlFiles.length === 1) {
-  run("uvx", ["--from", "junit2html", "junit2html", xmlFiles[0], htmlPath]);
-} else {
-  run("uvx", [
-    "--from",
-    "junit2html",
-    "junit2html",
-    "--merge",
-    mergedXmlPath,
-    ...xmlFiles,
-  ]);
-  run("uvx", ["--from", "junit2html", "junit2html", mergedXmlPath, htmlPath]);
-}
+run("bunx", [
+  "xunit-viewer",
+  "-r",
+  junitDir,
+  "-o",
+  htmlPath,
+  "-t",
+  "Airloom Test Report",
+]);
 
 console.log(`HTML report written to ${htmlPath}`);
 
