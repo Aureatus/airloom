@@ -11,7 +11,7 @@ Webcam-based computer control with gesture input.
 ## Commands
 
 ```bash
-bun install
+bun run setup
 bun run dev
 bun run test
 bun run test:report
@@ -22,6 +22,7 @@ bun run check
 
 ## Notes
 
+- `bun run setup` installs Bun deps, syncs the Python vision-service environment with `uv`, and builds the workspace.
 - Linux support starts with X11 input injection.
 - Wayland support is detected but intentionally limited in the first version.
 - The Python service supports replay fixtures so gesture behavior can be validated without a live webcam.

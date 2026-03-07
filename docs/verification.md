@@ -3,7 +3,7 @@
 ## Local commands
 
 ```bash
-bun install
+bun run setup
 bun run dev
 bun test apps/desktop/tests/main
 uv run --directory apps/vision-service pytest

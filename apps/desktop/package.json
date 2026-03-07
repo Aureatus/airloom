@@ -5,7 +5,7 @@
   "type": "module",
   "main": "dist/main/main.cjs",
   "scripts": {
-    "build:main": "tsdown src/main/main.ts src/preload/preload.ts --format cjs --out-dir dist --external electron",
+    "build:main": "tsdown src/main/main.ts --format cjs --out-dir dist/main --external electron && tsdown src/preload/preload.ts --format cjs --out-dir dist/preload --external electron",
     "build:renderer": "vite build",
     "build": "bun run build:main && bun run build:renderer",
     "dev": "bun run build && electron ."

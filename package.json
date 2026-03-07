@@ -5,6 +5,7 @@
   "packageManager": "bun@1.3.5",
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
+    "setup": "bun install && uv sync --directory apps/vision-service && bun run build",
     "dev": "bun run --cwd packages/shared build && bun run --cwd apps/desktop dev",
     "build": "bun run --cwd packages/shared build && bun run --cwd apps/desktop build",
     "test": "bun test apps/desktop/tests/main && uv run --directory apps/vision-service pytest",
