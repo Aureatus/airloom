@@ -1,0 +1,6 @@
+appId: dev.airloom.desktop
+productName: Airloom
+directories:
+  output: dist/package
+files:
+  - dist/**

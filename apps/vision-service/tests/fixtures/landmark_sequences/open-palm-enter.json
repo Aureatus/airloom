@@ -1,0 +1,98 @@
+[
+  {
+    "tracking": true,
+    "pointer": { "x": 0.32, "y": 0.24 },
+    "pinch_strength": 0.1,
+    "secondary_pinch_strength": 0.12,
+    "open_palm_hold": true,
+    "confidence": 0.9
+  },
+  {
+    "tracking": true,
+    "pointer": { "x": 0.32, "y": 0.24 },
+    "pinch_strength": 0.1,
+    "secondary_pinch_strength": 0.12,
+    "open_palm_hold": true,
+    "confidence": 0.9
+  },
+  {
+    "tracking": true,
+    "pointer": { "x": 0.32, "y": 0.24 },
+    "pinch_strength": 0.1,
+    "secondary_pinch_strength": 0.12,
+    "open_palm_hold": true,
+    "confidence": 0.9
+  },
+  {
+    "tracking": true,
+    "pointer": { "x": 0.32, "y": 0.24 },
+    "pinch_strength": 0.1,
+    "secondary_pinch_strength": 0.12,
+    "open_palm_hold": true,
+    "confidence": 0.9
+  },
+  {
+    "tracking": true,
+    "pointer": { "x": 0.32, "y": 0.24 },
+    "pinch_strength": 0.1,
+    "secondary_pinch_strength": 0.12,
+    "open_palm_hold": true,
+    "confidence": 0.9
+  },
+  {
+    "tracking": true,
+    "pointer": { "x": 0.32, "y": 0.24 },
+    "pinch_strength": 0.1,
+    "secondary_pinch_strength": 0.12,
+    "open_palm_hold": true,
+    "confidence": 0.9
+  },
+  {
+    "tracking": true,
+    "pointer": { "x": 0.32, "y": 0.24 },
+    "pinch_strength": 0.1,
+    "secondary_pinch_strength": 0.12,
+    "open_palm_hold": true,
+    "confidence": 0.9
+  },
+  {
+    "tracking": true,
+    "pointer": { "x": 0.32, "y": 0.24 },
+    "pinch_strength": 0.1,
+    "secondary_pinch_strength": 0.12,
+    "open_palm_hold": true,
+    "confidence": 0.9
+  },
+  {
+    "tracking": true,
+    "pointer": { "x": 0.32, "y": 0.24 },
+    "pinch_strength": 0.1,
+    "secondary_pinch_strength": 0.12,
+    "open_palm_hold": true,
+    "confidence": 0.9
+  },
+  {
+    "tracking": true,
+    "pointer": { "x": 0.32, "y": 0.24 },
+    "pinch_strength": 0.1,
+    "secondary_pinch_strength": 0.12,
+    "open_palm_hold": true,
+    "confidence": 0.9
+  },
+  {
+    "tracking": true,
+    "pointer": { "x": 0.32, "y": 0.24 },
+    "pinch_strength": 0.1,
+    "secondary_pinch_strength": 0.12,
+    "open_palm_hold": true,
+    "confidence": 0.9
+  },
+  {
+    "tracking": true,
+    "pointer": { "x": 0.32, "y": 0.24 },
+    "pinch_strength": 0.1,
+    "secondary_pinch_strength": 0.12,
+    "open_palm_hold": true,
+    "confidence": 0.9
+  }
+]
