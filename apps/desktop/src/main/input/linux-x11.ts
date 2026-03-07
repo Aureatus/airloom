@@ -1,5 +1,21 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import type { InputAdapter, PointerButton, PointerPosition } from "./types";
+
+export const isXdotoolInstalled = () => {
+  return spawnSync("xdotool", ["--version"], { stdio: "ignore" }).status === 0;
+};
+
+export const getLinuxX11DependencyWarning = () => {
+  if (process.platform !== "linux" || !process.env.DISPLAY) {
+    return null;
+  }
+
+  if (isXdotoolInstalled()) {
+    return null;
+  }
+
+  return "X11 control requires xdotool. Install it with `sudo apt install xdotool`.";
+};
 
 const runXdotool = async (args: string[]) => {
   await new Promise<void>((resolve, reject) => {

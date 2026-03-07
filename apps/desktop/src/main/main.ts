@@ -13,6 +13,7 @@ import {
 import { BrowserWindow, app, ipcMain } from "electron";
 import { type RuntimeState, createGestureRuntime } from "./gesture-runtime";
 import { normalizedToScreenPosition, resolveInputAdapter } from "./input";
+import { getLinuxX11DependencyWarning } from "./input/linux-x11";
 import { loadSettings, saveSettings } from "./settings-store";
 
 type ServiceStatus = {
@@ -20,6 +21,27 @@ type ServiceStatus = {
   adapter: string;
   lastEvent: GestureEvent | null;
   runtime: RuntimeState;
+  warnings: string[];
+};
+
+const getPlatformWarnings = () => {
+  const warnings: string[] = [];
+  const x11Warning = getLinuxX11DependencyWarning();
+
+  if (x11Warning) {
+    warnings.push(x11Warning);
+  }
+
+  if (
+    process.platform === "linux" &&
+    process.env.XDG_SESSION_TYPE === "wayland"
+  ) {
+    warnings.push(
+      "Wayland support is limited right now. X11 is the best-supported Linux path for Airloom.",
+    );
+  }
+
+  return warnings;
 };
 
 let mainWindow: BrowserWindow | null = null;
@@ -43,6 +65,7 @@ const getServiceStatus = (): ServiceStatus => {
     adapter: adapter.platform,
     lastEvent,
     runtime: runtime.getState(),
+    warnings: getPlatformWarnings(),
   };
 };
 

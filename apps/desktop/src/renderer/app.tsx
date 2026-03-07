@@ -16,6 +16,7 @@ type ServiceStatus = {
   adapter: string;
   lastEvent: GestureEvent | null;
   runtime: RuntimeState;
+  warnings: string[];
 };
 
 declare global {
@@ -42,6 +43,7 @@ const initialStatus: ServiceStatus = {
     pinchStrength: 0,
     lastError: null,
   },
+  warnings: [],
 };
 
 const defaultSettings: AirloomSettings = {
@@ -133,6 +135,11 @@ export const App = () => {
             </div>
           </div>
           <p className="panel-copy monospace">{lastEventLabel}</p>
+          {status.warnings.map((warning) => (
+            <p className="warning-text" key={warning}>
+              {warning}
+            </p>
+          ))}
           {status.runtime.lastError ? (
             <p className="error-text">{status.runtime.lastError}</p>
           ) : null}

@@ -17,3 +17,5 @@ bun run test:smoke:x11
 - Use Electron mock buttons to exercise click/key paths without a live webcam.
 - On Linux X11, install `xdotool` to enable real pointer and key injection.
 - `bun run test:smoke:x11` launches a Tk target window, replays pointer/click/key gestures through the real Electron runtime, and expects left click, right click, and `Return` to land in that window.
+- `xdotool` is the best current default for X11 because it is simple and battle-tested, but it is not usually installed by default on many distros.
+- Alternatives exist, such as `ydotool` and `xte`, but they are either less universal, more awkward to ship, or a worse fit for Airloom's current X11-first architecture.

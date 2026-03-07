@@ -175,6 +175,10 @@ button:hover {
   color: var(--error);
 }
 
+.warning-text {
+  color: var(--accent-strong);
+}
+
 @media (max-width: 900px) {
   .shell,
   .hero,

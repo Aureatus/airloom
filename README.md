@@ -23,3 +23,4 @@ bun run check
 - Wayland support is detected but intentionally limited in the first version.
 - The Python service supports replay fixtures so gesture behavior can be validated without a live webcam.
 - Default gestures are index tracking for pointer move, thumb-index pinch for click/drag, thumb-middle pinch for right click, and open-palm hold for mapped keybinds.
+- `xdotool` is the current Linux X11 backend; it is not guaranteed to be preinstalled, so Airloom now warns in-app when it is missing.
