@@ -150,7 +150,9 @@ export const CalibrationPage = ({
             />
             <p className="panel-copy camera-note">
               This preview is sourced from the Python vision service, so it
-              reflects the actual camera frames the backend is processing.
+              reflects the actual camera frames the backend is processing. Teal
+              dots show detected landmarks, amber marks the raw index pointer,
+              and coral marks the smoothed pointer output.
             </p>
           </div>
         </aside>

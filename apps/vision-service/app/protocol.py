@@ -51,10 +51,12 @@ GestureEvent = PointerObservedEvent | GestureIntentEvent | DebugFrameEvent | Sta
 class FrameState(TypedDict):
     tracking: bool
     pointer: NotRequired[Landmark]
+    raw_pointer: NotRequired[Landmark]
     pinch_strength: float
     secondary_pinch_strength: float
     open_palm_hold: bool
     closed_fist: NotRequired[bool]
     confidence: float
     brightness: NotRequired[float]
+    hand_landmarks: NotRequired[list[Landmark]]
     delay_ms: NotRequired[int]

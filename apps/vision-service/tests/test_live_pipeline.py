@@ -65,7 +65,7 @@ def test_live_pipeline_drops_stale_frames_under_slow_inference() -> None:
         time_source=monotonic,
         preview_interval_s=1.0,
         preview_enabled=False,
-        preview_emitter=lambda _frame: True,
+        preview_emitter=lambda _frame, _frame_state: True,
         max_frames=5,
     )
 
@@ -86,7 +86,7 @@ def test_live_pipeline_survives_preview_emitter_failure() -> None:
     events: list[object] = []
     preview_attempts = 0
 
-    def preview_emitter(_frame: object) -> bool:
+    def preview_emitter(_frame: object, _frame_state: FrameState | None) -> bool:
         nonlocal preview_attempts
         preview_attempts += 1
         raise RuntimeError("preview consumer disconnected")

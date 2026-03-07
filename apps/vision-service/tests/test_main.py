@@ -110,7 +110,21 @@ def test_run_live_emits_camera_unavailable_status_and_retries() -> None:
 
 def test_encode_debug_frame_emits_jpeg_payload() -> None:
     frame = np.zeros((120, 160, 3), dtype=np.uint8)
-    encoded = encode_debug_frame(frame)
+    encoded = encode_debug_frame(
+        frame,
+        {
+            "tracking": True,
+            "pointer": {"x": 0.5, "y": 0.4},
+            "raw_pointer": {"x": 0.45, "y": 0.4},
+            "pinch_strength": 0.4,
+            "secondary_pinch_strength": 0.1,
+            "open_palm_hold": False,
+            "closed_fist": False,
+            "confidence": 0.9,
+            "brightness": 0.4,
+            "hand_landmarks": [{"x": 0.4, "y": 0.4}, {"x": 0.5, "y": 0.5}],
+        },
+    )
 
     assert encoded is not None
     assert encoded[:2] == b"\xff\xd8"
@@ -121,7 +135,7 @@ def test_emit_preview_frame_writes_length_prefixed_jpeg() -> None:
     frame = np.zeros((120, 160, 3), dtype=np.uint8)
     output = BytesIO()
 
-    written = emit_preview_frame(frame, output)
+    written = emit_preview_frame(frame, None, output)
 
     assert written is True
     raw = output.getvalue()
@@ -145,7 +159,7 @@ def test_run_live_emits_preview_frames_when_enabled() -> None:
         tracker_factory=_FakeTracker,
         machine_factory=_FakeMachine,
         preview_enabled=True,
-        preview_emitter=lambda preview: preview_frames.append(preview) is None,
+        preview_emitter=lambda preview, _frame_state: preview_frames.append(preview) is None,
     )
 
     status_event = events[0]

@@ -139,6 +139,9 @@ class HandTracker:
             }
 
         landmarks = result.hand_landmarks[0]
+        hand_landmarks = [
+            cast(Landmark, {"x": landmark.x, "y": landmark.y}) for landmark in landmarks
+        ]
         index_tip: Landmark = cast(Landmark, {"x": landmarks[8].x, "y": landmarks[8].y})
         thumb_tip: Landmark = cast(Landmark, {"x": landmarks[4].x, "y": landmarks[4].y})
         middle_tip: Landmark = cast(Landmark, {"x": landmarks[12].x, "y": landmarks[12].y})
@@ -163,6 +166,7 @@ class HandTracker:
         return {
             "tracking": True,
             "pointer": {"x": _clamp_unit(smooth_x), "y": _clamp_unit(smooth_y)},
+            "raw_pointer": {"x": _clamp_unit(pointer_x), "y": _clamp_unit(index_tip["y"])},
             "pinch_strength": pinch_strength,
             "secondary_pinch_strength": secondary_pinch_strength,
             "open_palm_hold": middle_tip["y"] < wrist["y"],
@@ -185,4 +189,5 @@ class HandTracker:
             ),
             "confidence": 0.9,
             "brightness": brightness,
+            "hand_landmarks": hand_landmarks,
         }

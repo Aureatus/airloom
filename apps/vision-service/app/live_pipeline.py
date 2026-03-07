@@ -41,6 +41,7 @@ def run_live_pipeline(
     max_frames: int,
 ) -> int:
     latest_capture = LatestValue[CapturedFrame]()
+    latest_frame_state = LatestValue[FrameState]()
     stop_event = Event()
     processed_lock = Lock()
     processed_frames = 0
@@ -99,6 +100,7 @@ def run_live_pipeline(
 
                 last_seen_version, captured = update
                 frame_state = tracker.process(captured.frame)
+                latest_frame_state.publish(frame_state)
                 for event in machine.update(frame_state):
                     emit_event(event)
                 note_processed_frame()
@@ -126,8 +128,11 @@ def run_live_pipeline(
             if version == last_sent_version:
                 continue
 
+            state_snapshot = latest_frame_state.get_latest()
+            frame_state = state_snapshot[1] if state_snapshot is not None else None
+
             try:
-                emitted = preview_emitter(captured.frame)
+                emitted = preview_emitter(captured.frame, frame_state)
             except Exception:
                 return
 

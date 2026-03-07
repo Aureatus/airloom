@@ -13,6 +13,7 @@ from app.camera import Camera
 from app.gestures import GestureMachine
 from app.hand_tracking import HandTracker
 from app.live_pipeline import run_live_pipeline
+from app.protocol import FrameState, Landmark
 from app.replay import iter_replay, load_fixture
 
 DEBUG_PREVIEW_MAX_WIDTH = 320
@@ -56,24 +57,72 @@ def emit_camera_unavailable(message: str, emit_event: Callable[[object], None]) 
     )
 
 
-def encode_debug_frame(frame: Any) -> bytes | None:
+def _draw_marker(frame: Any, point: Landmark, color: tuple[int, int, int], radius: int) -> None:
+    import cv2
+
+    height, width = frame.shape[:2]
+    center = (int(point["x"] * width), int(point["y"] * height))
+    cv2.circle(frame, center, radius, color, thickness=-1)
+
+
+def annotate_debug_frame(frame: Any, frame_state: FrameState | None) -> Any:
+    import cv2
+
+    annotated = frame.copy()
+    height, width = annotated.shape[:2]
+
+    if frame_state is not None:
+        for point in frame_state.get("hand_landmarks", []):
+            _draw_marker(annotated, point, (94, 215, 190), 3)
+
+        raw_pointer = frame_state.get("raw_pointer")
+        if raw_pointer is not None:
+            _draw_marker(annotated, raw_pointer, (255, 209, 102), 6)
+
+        pointer = frame_state.get("pointer")
+        if pointer is not None:
+            _draw_marker(annotated, pointer, (255, 127, 107), 5)
+
+        label = (
+            f"tracking={frame_state['tracking']} pinch={frame_state['pinch_strength']:.2f} "
+            f"secondary={frame_state['secondary_pinch_strength']:.2f} "
+            f"fist={frame_state.get('closed_fist', False)}"
+        )
+        cv2.putText(
+            annotated,
+            label,
+            (14, 28),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.55,
+            (244, 248, 248),
+            2,
+            cv2.LINE_AA,
+        )
+
+    cv2.rectangle(annotated, (0, 0), (width - 1, height - 1), (94, 215, 190), 1)
+    return annotated
+
+
+def encode_debug_frame(frame: Any, frame_state: FrameState | None = None) -> bytes | None:
     import cv2
 
     if not hasattr(frame, "shape"):
         return None
 
-    height, width = frame.shape[:2]
+    preview_source = annotate_debug_frame(frame, frame_state)
+
+    height, width = preview_source.shape[:2]
     if width <= 0 or height <= 0:
         return None
 
     scale = min(1.0, DEBUG_PREVIEW_MAX_WIDTH / width)
-    preview = frame
+    preview = preview_source
     preview_width = width
     preview_height = height
     if scale < 1.0:
         preview_width = max(1, int(width * scale))
         preview_height = max(1, int(height * scale))
-        preview = cv2.resize(frame, (preview_width, preview_height))
+        preview = cv2.resize(preview_source, (preview_width, preview_height))
 
     ok, encoded = cv2.imencode(
         ".jpg",
@@ -95,11 +144,13 @@ def open_preview_pipe() -> BinaryIO | None:
     return os.fdopen(preview_fd, "wb", buffering=0)
 
 
-def emit_preview_frame(frame: Any, preview_pipe: BinaryIO | None) -> bool:
+def emit_preview_frame(
+    frame: Any, frame_state: FrameState | None, preview_pipe: BinaryIO | None
+) -> bool:
     if preview_pipe is None:
         return False
 
-    encoded = encode_debug_frame(frame)
+    encoded = encode_debug_frame(frame, frame_state)
     if encoded is None:
         return False
 
@@ -129,11 +180,13 @@ def run_live(
     tracker_factory: Callable[[], Any] = HandTracker,
     machine_factory: Callable[[], Any] = GestureMachine,
     preview_enabled: bool = DEBUG_PREVIEW_ENABLED,
-    preview_emitter: Callable[[Any], bool] | None = None,
+    preview_emitter: Callable[[Any, FrameState | None], bool] | None = None,
 ) -> None:
     processed = 0
     preview_pipe = open_preview_pipe() if preview_enabled and preview_emitter is None else None
-    emit_preview = preview_emitter or (lambda frame: emit_preview_frame(frame, preview_pipe))
+    emit_preview = preview_emitter or (
+        lambda frame, frame_state: emit_preview_frame(frame, frame_state, preview_pipe)
+    )
 
     try:
         while True:
