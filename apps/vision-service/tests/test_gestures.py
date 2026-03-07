@@ -32,9 +32,18 @@ def test_gesture_machine_click_cycle() -> None:
         }
     )
 
-    assert any(event["type"] == "pointer.down" for event in down_events)
-    assert any(event["type"] == "pointer.up" for event in up_events)
-    assert any(event["type"] == "click" for event in up_events)
+    assert any(
+        event["type"] == "gesture.intent"
+        and event["gesture"] == "primary-pinch"
+        and event["phase"] == "start"
+        for event in down_events
+    )
+    assert any(
+        event["type"] == "gesture.intent"
+        and event["gesture"] == "primary-pinch"
+        and event["phase"] == "end"
+        for event in up_events
+    )
 
 
 def test_open_palm_hold_emits_enter() -> None:
@@ -53,7 +62,9 @@ def test_open_palm_hold_emits_enter() -> None:
         )
 
     assert any(
-        event.get("type") == "gesture.trigger" and event.get("gesture") == "open-palm-hold"
+        event.get("type") == "gesture.intent"
+        and event.get("gesture") == "open-palm-hold"
+        and event.get("phase") == "instant"
         for event in trigger_events
     )
 
@@ -96,10 +107,11 @@ def test_secondary_pinch_emits_right_click_once_per_cycle() -> None:
         sum(
             1
             for event in armed_events
-            if event.get("type") == "gesture.trigger"
+            if event.get("type") == "gesture.intent"
             and event.get("gesture") == "thumb-middle-pinch"
+            and event.get("phase") == "instant"
         )
         == 1
     )
-    assert not any(event.get("type") == "gesture.trigger" for event in held_events)
-    assert not any(event.get("type") == "gesture.trigger" for event in release_events)
+    assert not any(event.get("type") == "gesture.intent" for event in held_events)
+    assert not any(event.get("type") == "gesture.intent" for event in release_events)

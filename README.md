@@ -25,3 +25,4 @@ bun run check
 - Default gestures are index tracking for pointer move, thumb-index pinch for click/drag, thumb-middle pinch for right click, and open-palm hold for mapped keybinds.
 - `xdotool` is the current Linux X11 backend; it is not guaranteed to be preinstalled, so Airloom now warns in-app when it is missing.
 - `bun run test:smoke:x11` now runs headlessly under `xvfb-run`, so it does not steal focus from your real desktop session.
+- The runtime boundary is now explicit: Python emits gesture intent, Electron maps intent to actions, and the adapter injects OS events.

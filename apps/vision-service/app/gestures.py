@@ -40,8 +40,6 @@ class GestureMachine:
         }
 
         if not tracking:
-            if self.drag_active:
-                events.append({"type": "pointer.up", "button": "left"})
             self.pinch_active = False
             self.drag_active = False
             self.secondary_pinch_active = False
@@ -54,7 +52,7 @@ class GestureMachine:
         if pointer is not None:
             events.append(
                 {
-                    "type": "pointer.move",
+                    "type": "pointer.observed",
                     "x": pointer["x"],
                     "y": pointer["y"],
                     "confidence": frame["confidence"],
@@ -65,21 +63,28 @@ class GestureMachine:
             self.pinch_active = True
             self.drag_active = True
             status_event["gesture"] = "pinch-start"
-            events.append({"type": "pointer.down", "button": "left"})
+            events.append({"type": "gesture.intent", "gesture": "primary-pinch", "phase": "start"})
         elif pinch_strength <= PINCH_OFF_THRESHOLD and self.pinch_active:
             self.pinch_active = False
             status_event["gesture"] = "pinch-release"
             if self.drag_active:
                 self.drag_active = False
-                events.append({"type": "pointer.up", "button": "left"})
-                events.append({"type": "click", "button": "left"})
+                events.append(
+                    {"type": "gesture.intent", "gesture": "primary-pinch", "phase": "end"}
+                )
         elif self.drag_active:
             status_event["gesture"] = "dragging"
 
         if secondary_pinch_strength >= RIGHT_CLICK_ON_THRESHOLD and not self.secondary_pinch_active:
             self.secondary_pinch_active = True
             status_event["gesture"] = "right-click"
-            events.append({"type": "gesture.trigger", "gesture": "thumb-middle-pinch"})
+            events.append(
+                {
+                    "type": "gesture.intent",
+                    "gesture": "thumb-middle-pinch",
+                    "phase": "instant",
+                }
+            )
         elif secondary_pinch_strength <= RIGHT_CLICK_OFF_THRESHOLD and self.secondary_pinch_active:
             self.secondary_pinch_active = False
 
@@ -87,7 +92,13 @@ class GestureMachine:
             self.open_palm_counter += 1
             if self.open_palm_counter == 12:
                 status_event["gesture"] = "open-palm-hold"
-                events.append({"type": "gesture.trigger", "gesture": "open-palm-hold"})
+                events.append(
+                    {
+                        "type": "gesture.intent",
+                        "gesture": "open-palm-hold",
+                        "phase": "instant",
+                    }
+                )
         else:
             self.open_palm_counter = 0
 

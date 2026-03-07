@@ -1,4 +1,4 @@
-import type { GestureEvent } from "@airloom/shared/gesture-events";
+import type { AirloomInputEvent } from "@airloom/shared/gesture-events";
 import type { AirloomSettings } from "@airloom/shared/settings-schema";
 import { useEffect, useMemo, useState } from "react";
 import { CalibrationPage } from "./pages/calibration";
@@ -14,7 +14,7 @@ type RuntimeState = {
 type ServiceStatus = {
   running: boolean;
   adapter: string;
-  lastEvent: GestureEvent | null;
+  lastEvent: AirloomInputEvent | null;
   runtime: RuntimeState;
   warnings: string[];
 };
@@ -27,7 +27,7 @@ declare global {
       updateSettings: (payload: AirloomSettings) => Promise<AirloomSettings>;
       startService: () => Promise<ServiceStatus>;
       stopService: () => Promise<ServiceStatus>;
-      sendEvent: (payload: GestureEvent) => Promise<ServiceStatus>;
+      sendEvent: (payload: AirloomInputEvent) => Promise<ServiceStatus>;
       onStatus: (listener: (value: ServiceStatus) => void) => () => void;
     };
   }
@@ -74,9 +74,16 @@ export const App = () => {
     return JSON.stringify(status.lastEvent);
   }, [status.lastEvent]);
 
-  const sendMockEvent = async (event: GestureEvent) => {
+  const sendMockEvent = async (event: AirloomInputEvent) => {
     const nextStatus = await window.airloom.sendEvent(event);
     setStatus(nextStatus);
+  };
+
+  const sendMockEvents = async (events: AirloomInputEvent[]) => {
+    for (const event of events) {
+      const nextStatus = await window.airloom.sendEvent(event);
+      setStatus(nextStatus);
+    }
   };
 
   const saveSettings = async (nextSettings: AirloomSettings) => {
@@ -153,7 +160,7 @@ export const App = () => {
               type="button"
               onClick={() =>
                 sendMockEvent({
-                  type: "pointer.move",
+                  type: "pointer.observed",
                   x: 0.62,
                   y: 0.42,
                   confidence: 0.91,
@@ -164,13 +171,32 @@ export const App = () => {
             </button>
             <button
               type="button"
-              onClick={() => sendMockEvent({ type: "click", button: "left" })}
+              onClick={() =>
+                sendMockEvents([
+                  {
+                    type: "gesture.intent",
+                    gesture: "primary-pinch",
+                    phase: "start",
+                  },
+                  {
+                    type: "gesture.intent",
+                    gesture: "primary-pinch",
+                    phase: "end",
+                  },
+                ])
+              }
             >
               Left click
             </button>
             <button
               type="button"
-              onClick={() => sendMockEvent({ type: "click", button: "right" })}
+              onClick={() =>
+                sendMockEvent({
+                  type: "gesture.intent",
+                  gesture: "thumb-middle-pinch",
+                  phase: "instant",
+                })
+              }
             >
               Right click
             </button>
@@ -178,8 +204,9 @@ export const App = () => {
               type="button"
               onClick={() =>
                 sendMockEvent({
-                  type: "gesture.trigger",
+                  type: "gesture.intent",
                   gesture: "open-palm-hold",
+                  phase: "instant",
                 })
               }
             >

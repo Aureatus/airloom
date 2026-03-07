@@ -2,8 +2,8 @@ import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import {
-  type GestureEvent,
-  parseGestureEvent,
+  type AirloomInputEvent,
+  parseInputEvent,
 } from "@airloom/shared/gesture-events";
 import {
   type AirloomSettings,
@@ -19,7 +19,7 @@ import { loadSettings, saveSettings } from "./settings-store";
 type ServiceStatus = {
   running: boolean;
   adapter: string;
-  lastEvent: GestureEvent | null;
+  lastEvent: AirloomInputEvent | null;
   runtime: RuntimeState;
   warnings: string[];
 };
@@ -47,7 +47,7 @@ const getPlatformWarnings = () => {
 let mainWindow: BrowserWindow | null = null;
 const adapter = resolveInputAdapter();
 let serviceProcess: ChildProcessWithoutNullStreams | null = null;
-let lastEvent: GestureEvent | null = null;
+let lastEvent: AirloomInputEvent | null = null;
 let currentSettings: AirloomSettings = settingsSchema.parse({});
 const runtime = createGestureRuntime(
   adapter,
@@ -89,7 +89,7 @@ const attachProcessReaders = (child: ChildProcessWithoutNullStreams) => {
       }
 
       try {
-        const event = parseGestureEvent(JSON.parse(line));
+        const event = parseInputEvent(JSON.parse(line));
         lastEvent = event;
         await runtime.handleEvent(event);
       } catch (error) {
@@ -177,7 +177,7 @@ app.whenReady().then(async () => {
   ipcMain.handle("airloom:stop-service", () => stopVisionService());
   ipcMain.handle(
     "airloom:send-event",
-    async (_event, payload: GestureEvent) => {
+    async (_event, payload: AirloomInputEvent) => {
       lastEvent = payload;
       await runtime.handleEvent(payload);
       broadcastStatus();

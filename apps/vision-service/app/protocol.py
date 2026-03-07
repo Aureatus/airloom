@@ -8,26 +8,17 @@ class Landmark(TypedDict):
     y: float
 
 
-class PointerMoveEvent(TypedDict):
-    type: Literal["pointer.move"]
+class PointerObservedEvent(TypedDict):
+    type: Literal["pointer.observed"]
     x: float
     y: float
     confidence: float
 
 
-class PointerButtonEvent(TypedDict):
-    type: Literal["pointer.down", "pointer.up", "click"]
-    button: Literal["left", "right"]
-
-
-class KeyTapEvent(TypedDict):
-    type: Literal["key.tap"]
-    key: str
-
-
-class GestureTriggerEvent(TypedDict):
-    type: Literal["gesture.trigger"]
+class GestureIntentEvent(TypedDict):
+    type: Literal["gesture.intent"]
     gesture: str
+    phase: Literal["start", "end", "instant"]
 
 
 class StatusEvent(TypedDict):
@@ -37,9 +28,7 @@ class StatusEvent(TypedDict):
     gesture: str
 
 
-GestureEvent = (
-    PointerMoveEvent | PointerButtonEvent | KeyTapEvent | GestureTriggerEvent | StatusEvent
-)
+GestureEvent = PointerObservedEvent | GestureIntentEvent | StatusEvent
 
 
 class FrameState(TypedDict):

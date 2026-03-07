@@ -1,5 +1,9 @@
-import type { GestureEvent } from "@airloom/shared/gesture-events";
+import type {
+  AirloomActionEvent,
+  AirloomInputEvent,
+} from "@airloom/shared/gesture-events";
 import type { AirloomSettings } from "@airloom/shared/settings-schema";
+import { createActionMapper } from "./action-mapper";
 import type { InputAdapter } from "./input/types";
 
 export type RuntimeState = {
@@ -24,6 +28,7 @@ export const createGestureRuntime = (
   normalizePosition: NormalizePosition,
   getSettings: GetSettings,
 ) => {
+  const actionMapper = createActionMapper(getSettings, normalizePosition);
   const state: RuntimeState = {
     tracking: false,
     gesture: "idle",
@@ -31,48 +36,49 @@ export const createGestureRuntime = (
     lastError: null,
   };
 
-  const handleEvent = async (event: GestureEvent) => {
+  const executeAction = async (event: AirloomActionEvent) => {
+    switch (event.type) {
+      case "pointer.move": {
+        await adapter.movePointer({ x: event.x, y: event.y });
+        return;
+      }
+
+      case "pointer.down": {
+        await adapter.pointerDown(event.button);
+        return;
+      }
+
+      case "pointer.up": {
+        await adapter.pointerUp(event.button);
+        return;
+      }
+
+      case "click": {
+        await adapter.click(event.button);
+        return;
+      }
+
+      case "key.tap": {
+        await adapter.tapKey(event.key);
+        return;
+      }
+    }
+  };
+
+  const handleEvent = async (event: AirloomInputEvent) => {
     try {
       switch (event.type) {
-        case "pointer.move": {
-          await adapter.movePointer(normalizePosition(event.x, event.y));
+        case "pointer.observed": {
+          for (const action of actionMapper.mapEvent(event)) {
+            await executeAction(action);
+          }
           state.tracking = event.confidence > 0;
           return state;
         }
 
-        case "pointer.down": {
-          await adapter.pointerDown(event.button);
-          return state;
-        }
-
-        case "pointer.up": {
-          await adapter.pointerUp(event.button);
-          return state;
-        }
-
-        case "click": {
-          await adapter.click(event.button);
-          return state;
-        }
-
-        case "key.tap": {
-          await adapter.tapKey(event.key);
-          return state;
-        }
-
-        case "gesture.trigger": {
-          const settings = getSettings();
-          if (event.gesture === settings.rightClickGesture) {
-            await adapter.click("right");
-            return state;
-          }
-
-          const mapping = settings.keyMappings.find(
-            (entry) => entry.gesture === event.gesture,
-          );
-
-          if (mapping) {
-            await adapter.tapKey(mapping.key);
+        case "gesture.intent": {
+          for (const action of actionMapper.mapEvent(event)) {
+            await executeAction(action);
           }
 
           return state;

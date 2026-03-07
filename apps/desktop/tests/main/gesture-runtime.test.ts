@@ -45,10 +45,23 @@ describe("createGestureRuntime", () => {
       () => createTestSettings(),
     );
 
-    await runtime.handleEvent({ type: "click", button: "left" });
-    await runtime.handleEvent({ type: "key.tap", key: "Return" });
+    await runtime.handleEvent({
+      type: "gesture.intent",
+      gesture: "primary-pinch",
+      phase: "start",
+    });
+    await runtime.handleEvent({
+      type: "gesture.intent",
+      gesture: "primary-pinch",
+      phase: "end",
+    });
+    await runtime.handleEvent({
+      type: "gesture.intent",
+      gesture: "open-palm-hold",
+      phase: "instant",
+    });
 
-    expect(calls).toEqual(["click:left", "key:Return"]);
+    expect(calls).toEqual(["down", "up", "click:left", "key:Return"]);
   });
 
   test("updates status state from status events", async () => {
@@ -83,8 +96,9 @@ describe("createGestureRuntime", () => {
     );
 
     await runtime.handleEvent({
-      type: "gesture.trigger",
+      type: "gesture.intent",
       gesture: "open-palm-hold",
+      phase: "instant",
     });
 
     expect(calls).toEqual(["key:space"]);
@@ -99,8 +113,9 @@ describe("createGestureRuntime", () => {
     );
 
     await runtime.handleEvent({
-      type: "gesture.trigger",
+      type: "gesture.intent",
       gesture: "thumb-middle-pinch",
+      phase: "instant",
     });
 
     expect(calls).toEqual(["click:right"]);

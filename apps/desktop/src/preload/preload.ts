@@ -1,4 +1,4 @@
-import type { GestureEvent } from "@airloom/shared/gesture-events";
+import type { AirloomInputEvent } from "@airloom/shared/gesture-events";
 import type { AirloomSettings } from "@airloom/shared/settings-schema";
 import { contextBridge, ipcRenderer } from "electron";
 
@@ -9,7 +9,7 @@ const api = {
     ipcRenderer.invoke("airloom:update-settings", payload),
   startService: () => ipcRenderer.invoke("airloom:start-service"),
   stopService: () => ipcRenderer.invoke("airloom:stop-service"),
-  sendEvent: (payload: GestureEvent) =>
+  sendEvent: (payload: AirloomInputEvent) =>
     ipcRenderer.invoke("airloom:send-event", payload),
   onStatus: (listener: (value: unknown) => void) => {
     const wrapped = (_event: unknown, value: unknown) => listener(value);
