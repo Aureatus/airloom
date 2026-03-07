@@ -1,7 +1,14 @@
 import { spawn, spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { type JUnitTestCase, writeJUnitReport } from "./lib/junit";
 
 type Geometry = {
   x: number;
@@ -129,7 +136,19 @@ const loadAdjustedFixture = (
   };
 };
 
+const getArgValue = (flag: string) => {
+  const index = process.argv.indexOf(flag);
+  if (index === -1) {
+    return null;
+  }
+
+  return process.argv[index + 1] ?? null;
+};
+
 const main = async () => {
+  const reportPath = getArgValue("--junit");
+  const testCases: JUnitTestCase[] = [];
+
   if (!process.env.DISPLAY) {
     throw new Error(
       "DISPLAY is not set. Run the smoke harness inside an X11 session.",
@@ -278,6 +297,23 @@ const main = async () => {
 
       if (!passed) {
         const summary = parseObservedSummary(targetOutput.slice(outputOffset));
+        testCases.push({
+          name: adjustedFixture.meta.name ?? scenario.name,
+          timeSeconds: (Date.now() - scenarioStartedAt) / 1000,
+          failureMessage: `summary=${JSON.stringify(summary)} ${desktopError || desktopOutput}`,
+          systemOut: [
+            `description=${adjustedFixture.meta.description ?? "n/a"}`,
+            `expected=${adjustedFixture.meta.expected ?? scenario.expectedLabel}`,
+          ].join(" | "),
+        });
+
+        if (reportPath) {
+          writeJUnitReport(reportPath, {
+            name: "airloom-pipeline-smoke",
+            testCases,
+          });
+        }
+
         throw new Error(
           `Pipeline smoke scenario failed: ${scenario.name}. Summary: ${JSON.stringify(summary)}\n${desktopError || desktopOutput}`,
         );
@@ -285,6 +321,16 @@ const main = async () => {
 
       const summary = parseObservedSummary(targetOutput.slice(outputOffset));
       const elapsedMs = Date.now() - scenarioStartedAt;
+      testCases.push({
+        name: adjustedFixture.meta.name ?? scenario.name,
+        timeSeconds: elapsedMs / 1000,
+        systemOut: [
+          `description=${adjustedFixture.meta.description ?? "n/a"}`,
+          `expected=${adjustedFixture.meta.expected ?? scenario.expectedLabel}`,
+          `observed=left:${summary.leftPresses},right:${summary.rightPresses},return:${summary.returns}`,
+          `elapsed_ms=${elapsedMs}`,
+        ].join(" | "),
+      });
       console.log(
         [
           `scenario: ${adjustedFixture.meta.name ?? scenario.name}`,
@@ -296,6 +342,13 @@ const main = async () => {
       );
     }
 
+    if (reportPath) {
+      writeJUnitReport(reportPath, {
+        name: "airloom-pipeline-smoke",
+        testCases,
+      });
+    }
+
     console.log("Airloom pipeline smoke harness passed.");
   } finally {
     desktopProcess?.kill();
@@ -305,6 +358,21 @@ const main = async () => {
 };
 
 main().catch((error) => {
+  const reportPath = getArgValue("--junit");
+  if (reportPath && !existsSync(reportPath)) {
+    writeJUnitReport(reportPath, {
+      name: "airloom-pipeline-smoke",
+      testCases: [
+        {
+          name: "pipeline smoke bootstrap",
+          timeSeconds: 0,
+          failureMessage:
+            error instanceof Error ? error.message : String(error),
+        },
+      ],
+    });
+  }
+
   console.error(error instanceof Error ? error.message : String(error));
   process.exitCode = 1;
 });

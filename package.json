@@ -9,6 +9,7 @@
     "build": "bun run --cwd packages/shared build && bun run --cwd apps/desktop build",
     "test": "bun test apps/desktop/tests/main && uv run --directory apps/vision-service pytest",
     "check": "bunx biome check . && bun test apps/desktop/tests/main && uv run --directory apps/vision-service ruff check . && uv run --directory apps/vision-service ty check",
+    "test:report": "bun scripts/test-report.ts",
     "test:smoke:x11": "xvfb-run -a bun scripts/x11-smoke.ts",
     "test:smoke:pipeline": "xvfb-run -a bun scripts/pipeline-smoke.ts"
   },

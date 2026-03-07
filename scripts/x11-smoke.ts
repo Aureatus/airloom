@@ -1,5 +1,6 @@
 import { spawn, spawnSync } from "node:child_process";
 import { createLinuxX11Adapter } from "../apps/desktop/src/main/input/linux-x11";
+import { writeJUnitReport } from "./lib/junit";
 
 type Geometry = {
   x: number;
@@ -94,7 +95,19 @@ const requireCommand = (command: string) => {
   return result.stdout.trim();
 };
 
+const getArgValue = (flag: string) => {
+  const index = process.argv.indexOf(flag);
+  if (index === -1) {
+    return null;
+  }
+
+  return process.argv[index + 1] ?? null;
+};
+
 const main = async () => {
+  const reportPath = getArgValue("--junit");
+  const startedAt = Date.now();
+
   if (!process.env.DISPLAY) {
     throw new Error(
       "DISPLAY is not set. Run the smoke harness inside an X11 session.",
@@ -160,6 +173,19 @@ const main = async () => {
         events.includes("right-click") &&
         events.includes("return")
       ) {
+        if (reportPath) {
+          writeJUnitReport(reportPath, {
+            name: "airloom-x11-smoke",
+            testCases: [
+              {
+                name: "adapter smoke",
+                timeSeconds: (Date.now() - startedAt) / 1000,
+                systemOut: `observed=${events.join(",")}`,
+              },
+            ],
+          });
+        }
+
         console.log("Airloom X11 smoke harness passed.");
         return;
       }
@@ -176,6 +202,21 @@ const main = async () => {
 };
 
 main().catch((error) => {
+  const reportPath = getArgValue("--junit");
+  if (reportPath) {
+    writeJUnitReport(reportPath, {
+      name: "airloom-x11-smoke",
+      testCases: [
+        {
+          name: "adapter smoke",
+          timeSeconds: 0,
+          failureMessage:
+            error instanceof Error ? error.message : String(error),
+        },
+      ],
+    });
+  }
+
   console.error(error instanceof Error ? error.message : String(error));
   process.exitCode = 1;
 });
