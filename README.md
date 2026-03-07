@@ -26,3 +26,4 @@ bun run check
 - `xdotool` is the current Linux X11 backend; it is not guaranteed to be preinstalled, so Airloom now warns in-app when it is missing.
 - `bun run test:smoke:x11` now runs headlessly under `xvfb-run`, so it does not steal focus from your real desktop session.
 - The runtime boundary is now explicit: Python emits gesture intent, Electron maps intent to actions, and the adapter injects OS events.
+- The calibration screen now shows live pinch hold time and a click-vs-drag preview from the desktop action mapper.

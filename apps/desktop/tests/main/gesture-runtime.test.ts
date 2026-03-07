@@ -84,6 +84,11 @@ describe("createGestureRuntime", () => {
       tracking: true,
       gesture: "short-pinch",
       pinchStrength: 0.82,
+      mapper: {
+        primaryPinchActive: false,
+        primaryPinchHeldMs: 0,
+        primaryPinchOutcome: "idle",
+      },
       lastError: null,
     });
   });

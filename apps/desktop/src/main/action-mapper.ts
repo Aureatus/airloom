@@ -8,12 +8,39 @@ type GetSettings = () => AirloomSettings;
 type NormalizePosition = (x: number, y: number) => { x: number; y: number };
 type Now = () => number;
 
+export type ActionMapperDebugState = {
+  primaryPinchActive: boolean;
+  primaryPinchHeldMs: number;
+  primaryPinchOutcome: "idle" | "click" | "drag";
+};
+
 export const createActionMapper = (
   getSettings: GetSettings,
   normalizePosition: NormalizePosition,
   now: Now = () => Date.now(),
 ) => {
   let primaryPinchStartedAt: number | null = null;
+
+  const getDebugState = (): ActionMapperDebugState => {
+    const settings = getSettings();
+
+    if (primaryPinchStartedAt === null) {
+      return {
+        primaryPinchActive: false,
+        primaryPinchHeldMs: 0,
+        primaryPinchOutcome: "idle",
+      };
+    }
+
+    const heldMs = Math.max(0, now() - primaryPinchStartedAt);
+
+    return {
+      primaryPinchActive: true,
+      primaryPinchHeldMs: heldMs,
+      primaryPinchOutcome:
+        heldMs <= settings.dragHoldThresholdMs ? "click" : "drag",
+    };
+  };
 
   const mapEvent = (event: AirloomInputEvent): AirloomActionEvent[] => {
     switch (event.type) {
@@ -74,6 +101,7 @@ export const createActionMapper = (
   };
 
   return {
+    getDebugState,
     mapEvent,
   };
 };

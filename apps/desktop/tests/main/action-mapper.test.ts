@@ -38,6 +38,12 @@ describe("createActionMapper", () => {
       { type: "pointer.up", button: "left" },
       { type: "click", button: "left" },
     ]);
+
+    expect(mapper.getDebugState()).toEqual({
+      primaryPinchActive: false,
+      primaryPinchHeldMs: 0,
+      primaryPinchOutcome: "idle",
+    });
   });
 
   test("maps a held primary pinch to drag release without click", () => {
@@ -65,6 +71,35 @@ describe("createActionMapper", () => {
         phase: "end",
       }),
     ).toEqual([{ type: "pointer.up", button: "left" }]);
+  });
+
+  test("reports click-vs-drag preview while pinch is active", () => {
+    let time = 100;
+    const mapper = createActionMapper(
+      () => createSettings(),
+      (x, y) => ({ x: Math.round(x * 100), y: Math.round(y * 100) }),
+      () => time,
+    );
+
+    mapper.mapEvent({
+      type: "gesture.intent",
+      gesture: "primary-pinch",
+      phase: "start",
+    });
+
+    time += 120;
+    expect(mapper.getDebugState()).toEqual({
+      primaryPinchActive: true,
+      primaryPinchHeldMs: 120,
+      primaryPinchOutcome: "click",
+    });
+
+    time += 200;
+    expect(mapper.getDebugState()).toEqual({
+      primaryPinchActive: true,
+      primaryPinchHeldMs: 320,
+      primaryPinchOutcome: "drag",
+    });
   });
 
   test("maps symbolic gestures to configurable actions", () => {

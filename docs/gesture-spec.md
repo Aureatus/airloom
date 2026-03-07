@@ -9,3 +9,6 @@
   - `pointer.down` / `pointer.up`: press state for drag support, with click-vs-drag decided by the desktop mapper's hold threshold
   - `click`: discrete click action, including right click from the thumb-middle pinch gesture
   - `key.tap`: mapped keyboard action such as `Return`
+- Calibration/debug view:
+  - shows live primary pinch hold time
+  - shows whether the mapper currently predicts `click` or `drag`

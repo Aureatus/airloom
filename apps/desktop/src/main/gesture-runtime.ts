@@ -3,13 +3,17 @@ import type {
   AirloomInputEvent,
 } from "@airloom/shared/gesture-events";
 import type { AirloomSettings } from "@airloom/shared/settings-schema";
-import { createActionMapper } from "./action-mapper";
+import {
+  type ActionMapperDebugState,
+  createActionMapper,
+} from "./action-mapper";
 import type { InputAdapter } from "./input/types";
 
 export type RuntimeState = {
   tracking: boolean;
   gesture: string;
   pinchStrength: number;
+  mapper: ActionMapperDebugState;
   lastError: string | null;
 };
 
@@ -33,7 +37,12 @@ export const createGestureRuntime = (
     tracking: false,
     gesture: "idle",
     pinchStrength: 0,
+    mapper: actionMapper.getDebugState(),
     lastError: null,
+  };
+
+  const syncMapperState = () => {
+    state.mapper = actionMapper.getDebugState();
   };
 
   const executeAction = async (event: AirloomActionEvent) => {
@@ -73,6 +82,7 @@ export const createGestureRuntime = (
             await executeAction(action);
           }
           state.tracking = event.confidence > 0;
+          syncMapperState();
           return state;
         }
 
@@ -81,6 +91,7 @@ export const createGestureRuntime = (
             await executeAction(action);
           }
 
+          syncMapperState();
           return state;
         }
 
@@ -88,6 +99,7 @@ export const createGestureRuntime = (
           state.tracking = event.tracking;
           state.gesture = event.gesture;
           state.pinchStrength = event.pinchStrength;
+          syncMapperState();
           return state;
         }
       }

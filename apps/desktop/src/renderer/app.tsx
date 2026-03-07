@@ -8,6 +8,11 @@ type RuntimeState = {
   tracking: boolean;
   gesture: string;
   pinchStrength: number;
+  mapper: {
+    primaryPinchActive: boolean;
+    primaryPinchHeldMs: number;
+    primaryPinchOutcome: "idle" | "click" | "drag";
+  };
   lastError: string | null;
 };
 
@@ -41,6 +46,11 @@ const initialStatus: ServiceStatus = {
     tracking: false,
     gesture: "idle",
     pinchStrength: 0,
+    mapper: {
+      primaryPinchActive: false,
+      primaryPinchHeldMs: 0,
+      primaryPinchOutcome: "idle",
+    },
     lastError: null,
   },
   warnings: [],
@@ -253,6 +263,10 @@ export const App = () => {
           tracking={status.runtime.tracking}
           gesture={status.runtime.gesture}
           pinchStrength={status.runtime.pinchStrength}
+          primaryPinchActive={status.runtime.mapper.primaryPinchActive}
+          primaryPinchHeldMs={status.runtime.mapper.primaryPinchHeldMs}
+          primaryPinchOutcome={status.runtime.mapper.primaryPinchOutcome}
+          dragHoldThresholdMs={settings.dragHoldThresholdMs}
         />
       ) : (
         <SettingsPage settings={settings} onSave={saveSettings} />
