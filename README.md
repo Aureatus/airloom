@@ -15,6 +15,8 @@ bun install
 bun run dev
 bun run test
 bun run test:report
+bun run report:open
+bun run test:report:open
 bun run check
 ```
 
@@ -28,5 +30,7 @@ bun run check
 - `bun run test:smoke:x11` now runs headlessly under `xvfb-run`, so it does not steal focus from your real desktop session.
 - `bun run test:smoke:pipeline` adds a higher-order headless smoke suite that runs Electron + Python replay fixtures + the real X11 adapter together.
 - `bun run test:report` writes JUnit XML reports to `reports/junit`, which keeps the project compatible with open-source JUnit viewers and CI parsers.
+- `bun run report:open` renders an HTML report from the JUnit XML set using the open-source `junit2html` tool and opens it when possible.
+- `bun run test:report:open` regenerates the reports and then opens the HTML view.
 - The runtime boundary is now explicit: Python emits gesture intent, Electron maps intent to actions, and the adapter injects OS events.
 - The calibration screen now shows live pinch hold time and a click-vs-drag preview from the desktop action mapper.
