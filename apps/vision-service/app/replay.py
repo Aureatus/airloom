@@ -21,3 +21,9 @@ def run_replay(frames: Iterable[FrameState]) -> list[GestureEvent]:
     for frame in frames:
         events.extend(machine.update(frame))
     return events
+
+
+def iter_replay(frames: Iterable[FrameState]) -> Iterable[tuple[FrameState, list[GestureEvent]]]:
+    machine = GestureMachine()
+    for frame in frames:
+        yield frame, machine.update(frame)

@@ -18,6 +18,6 @@ bun run test:smoke:pipeline
 - Use Electron mock buttons to exercise click/key paths without a live webcam.
 - On Linux X11, install `xdotool` to enable real pointer and key injection.
 - `bun run test:smoke:x11` runs inside `xvfb-run`, launches an isolated X11 session, drives the real Linux X11 adapter against an `xev` target window, and expects left click, right click, and `Return` to land there without stealing focus from your real session.
-- `bun run test:smoke:pipeline` is a higher-order headless smoke test: it launches Electron without a window, runs the Python replay fixture through the real vision-service process, and checks that the full pipeline still produces left click, right click, and `Return` on an isolated X11 target.
+- `bun run test:smoke:pipeline` is a higher-order headless smoke suite: it launches Electron without a window, runs multiple realistic Python replay fixtures through the real vision-service process, and checks click, drag-release, right click, and `Return` behavior on an isolated X11 target.
 - `xdotool` is the best current default for X11 because it is simple and battle-tested, but it is not usually installed by default on many distros.
 - Alternatives exist, such as `ydotool` and `xte`, but they are either less universal, more awkward to ship, or a worse fit for Airloom's current X11-first architecture.

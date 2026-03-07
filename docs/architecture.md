@@ -20,4 +20,4 @@ The calibration UI also surfaces the mapper's live debug state so you can see pi
 For smoke coverage, the project now has two X11 layers:
 
 - adapter smoke: verifies the raw Linux X11 adapter can move/click/type in isolation
-- pipeline smoke: verifies Electron main + Python replay + mapper + X11 adapter together, still headlessly
+- pipeline smoke: verifies Electron main + Python replay fixture suite + mapper + X11 adapter together, still headlessly

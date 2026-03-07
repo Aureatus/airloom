@@ -38,3 +38,4 @@ class FrameState(TypedDict):
     secondary_pinch_strength: float
     open_palm_hold: bool
     confidence: float
+    delay_ms: NotRequired[int]

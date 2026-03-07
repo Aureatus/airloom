@@ -1,0 +1,47 @@
+[
+  {
+    "tracking": true,
+    "pointer": { "x": 0.5, "y": 0.5 },
+    "pinch_strength": 0.1,
+    "secondary_pinch_strength": 0.1,
+    "open_palm_hold": false,
+    "confidence": 0.95,
+    "delay_ms": 40
+  },
+  {
+    "tracking": true,
+    "pointer": { "x": 0.5, "y": 0.5 },
+    "pinch_strength": 0.82,
+    "secondary_pinch_strength": 0.1,
+    "open_palm_hold": false,
+    "confidence": 0.95,
+    "delay_ms": 90
+  },
+  {
+    "tracking": true,
+    "pointer": { "x": 0.52, "y": 0.51 },
+    "pinch_strength": 0.84,
+    "secondary_pinch_strength": 0.1,
+    "open_palm_hold": false,
+    "confidence": 0.95,
+    "delay_ms": 90
+  },
+  {
+    "tracking": true,
+    "pointer": { "x": 0.54, "y": 0.52 },
+    "pinch_strength": 0.85,
+    "secondary_pinch_strength": 0.1,
+    "open_palm_hold": false,
+    "confidence": 0.95,
+    "delay_ms": 90
+  },
+  {
+    "tracking": true,
+    "pointer": { "x": 0.56, "y": 0.54 },
+    "pinch_strength": 0.33,
+    "secondary_pinch_strength": 0.1,
+    "open_palm_hold": false,
+    "confidence": 0.95,
+    "delay_ms": 40
+  }
+]

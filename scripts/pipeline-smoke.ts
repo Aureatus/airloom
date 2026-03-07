@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -8,6 +8,16 @@ type Geometry = {
   y: number;
   width: number;
   height: number;
+};
+
+type PipelineScenario = {
+  name: string;
+  fixtureFile: string;
+  assert: (summary: {
+    leftPresses: number;
+    rightPresses: number;
+    returns: number;
+  }) => boolean;
 };
 
 const wait = (ms: number) => {
@@ -79,22 +89,30 @@ const parseShellGeometry = (shellOutput: string): Geometry => {
   };
 };
 
-const parseObservedEvents = (output: string) => {
-  const events: string[] = [];
+const parseObservedSummary = (output: string) => {
+  return {
+    leftPresses: (output.match(/button 1,/g) ?? []).length,
+    rightPresses: (output.match(/button 3,/g) ?? []).length,
+    returns: (output.match(/keysym 0xff0d, Return/g) ?? []).length,
+  };
+};
 
-  if (output.includes("button 1,")) {
-    events.push("left-click");
-  }
+const loadAdjustedFixture = (
+  fixturePath: string,
+  pointerX: number,
+  pointerY: number,
+) => {
+  const frames = JSON.parse(readFileSync(fixturePath, "utf8")) as Array<
+    Record<string, unknown>
+  >;
 
-  if (output.includes("button 3,")) {
-    events.push("right-click");
-  }
-
-  if (output.includes("keysym 0xff0d, Return")) {
-    events.push("return");
-  }
-
-  return events;
+  return frames.map((frame) => ({
+    ...frame,
+    pointer:
+      frame.pointer && typeof frame.pointer === "object"
+        ? { x: pointerX, y: pointerY }
+        : frame.pointer,
+  }));
 };
 
 const main = async () => {
@@ -118,8 +136,37 @@ const main = async () => {
     "apps/desktop/node_modules/.bin/electron",
   );
   const tempRoot = mkdtempSync(join(tmpdir(), "airloom-pipeline-smoke-"));
-  const fixturePath = join(tempRoot, "frame-fixture.json");
   const targetTitle = "Airloom Pipeline Smoke Target";
+  const fixtureRoot = join(
+    rootDir,
+    "apps/vision-service/tests/fixtures/landmark_sequences",
+  );
+  const scenarios: PipelineScenario[] = [
+    {
+      name: "combo click right enter",
+      fixtureFile: "combo-click-right-enter.json",
+      assert: (summary) =>
+        summary.leftPresses >= 2 &&
+        summary.rightPresses >= 1 &&
+        summary.returns >= 1,
+    },
+    {
+      name: "drag release",
+      fixtureFile: "drag-release.json",
+      assert: (summary) =>
+        summary.leftPresses === 1 &&
+        summary.rightPresses === 0 &&
+        summary.returns === 0,
+    },
+    {
+      name: "enter only",
+      fixtureFile: "enter-only.json",
+      assert: (summary) =>
+        summary.leftPresses === 0 &&
+        summary.rightPresses === 0 &&
+        summary.returns >= 1,
+    },
+  ];
 
   const targetProcess = spawn(
     "xev",
@@ -156,97 +203,76 @@ const main = async () => {
     const pointerX = (geometry.x + geometry.width / 2) / screenWidth;
     const pointerY = (geometry.y + geometry.height / 2) / screenHeight;
 
-    const fixture = [
-      {
-        tracking: true,
-        pointer: { x: pointerX, y: pointerY },
-        pinch_strength: 0.1,
-        secondary_pinch_strength: 0.1,
-        open_palm_hold: false,
-        confidence: 0.95,
-      },
-      {
-        tracking: true,
-        pointer: { x: pointerX, y: pointerY },
-        pinch_strength: 0.81,
-        secondary_pinch_strength: 0.1,
-        open_palm_hold: false,
-        confidence: 0.95,
-      },
-      {
-        tracking: true,
-        pointer: { x: pointerX, y: pointerY },
-        pinch_strength: 0.32,
-        secondary_pinch_strength: 0.1,
-        open_palm_hold: false,
-        confidence: 0.95,
-      },
-      {
-        tracking: true,
-        pointer: { x: pointerX, y: pointerY },
-        pinch_strength: 0.1,
-        secondary_pinch_strength: 0.84,
-        open_palm_hold: false,
-        confidence: 0.95,
-      },
-      ...Array.from({ length: 12 }, () => ({
-        tracking: true,
-        pointer: { x: pointerX, y: pointerY },
-        pinch_strength: 0.1,
-        secondary_pinch_strength: 0.1,
-        open_palm_hold: true,
-        confidence: 0.95,
-      })),
-    ];
-
-    writeFileSync(fixturePath, JSON.stringify(fixture, null, 2));
-
     runCommand("bun", ["run", "build"], rootDir);
 
-    desktopProcess = spawn(electronBinary, ["apps/desktop"], {
-      cwd: rootDir,
-      env: {
-        ...process.env,
-        AIRLOOM_HEADLESS: "1",
-        AIRLOOM_STARTUP_DELAY_MS: "500",
-        AIRLOOM_FIXTURE: fixturePath,
-      },
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+    for (const scenario of scenarios) {
+      const fixturePath = join(tempRoot, scenario.fixtureFile);
+      writeFileSync(
+        fixturePath,
+        JSON.stringify(
+          loadAdjustedFixture(
+            join(fixtureRoot, scenario.fixtureFile),
+            pointerX,
+            pointerY,
+          ),
+          null,
+          2,
+        ),
+      );
 
-    desktopProcess.stdout.on("data", (chunk) => {
-      desktopOutput += chunk.toString();
-    });
-    desktopProcess.stderr.on("data", (chunk) => {
-      desktopError += chunk.toString();
-    });
+      const outputOffset = targetOutput.length;
+      desktopOutput = "";
+      desktopError = "";
+      desktopProcess = spawn(electronBinary, ["apps/desktop"], {
+        cwd: rootDir,
+        env: {
+          ...process.env,
+          AIRLOOM_HEADLESS: "1",
+          AIRLOOM_STARTUP_DELAY_MS: "500",
+          AIRLOOM_FIXTURE: fixturePath,
+        },
+        stdio: ["ignore", "pipe", "pipe"],
+      });
 
-    await wait(200);
-    runCommand("xdotool", ["windowfocus", "--sync", windowId]);
+      desktopProcess.stdout.on("data", (chunk) => {
+        desktopOutput += chunk.toString();
+      });
+      desktopProcess.stderr.on("data", (chunk) => {
+        desktopError += chunk.toString();
+      });
 
-    for (let attempt = 0; attempt < 120; attempt += 1) {
-      if (targetProcess.exitCode !== null) {
+      await wait(200);
+      runCommand("xdotool", ["windowfocus", "--sync", windowId]);
+
+      let passed = false;
+      for (let attempt = 0; attempt < 180; attempt += 1) {
+        if (targetProcess.exitCode !== null) {
+          throw new Error(
+            "xev exited before the pipeline smoke harness completed.",
+          );
+        }
+
+        const summary = parseObservedSummary(targetOutput.slice(outputOffset));
+        if (scenario.assert(summary)) {
+          passed = true;
+          break;
+        }
+
+        await wait(100);
+      }
+
+      desktopProcess.kill();
+      desktopProcess = null;
+
+      if (!passed) {
+        const summary = parseObservedSummary(targetOutput.slice(outputOffset));
         throw new Error(
-          "xev exited before the pipeline smoke harness completed.",
+          `Pipeline smoke scenario failed: ${scenario.name}. Summary: ${JSON.stringify(summary)}\n${desktopError || desktopOutput}`,
         );
       }
-
-      const events = parseObservedEvents(targetOutput);
-      if (
-        events.includes("left-click") &&
-        events.includes("right-click") &&
-        events.includes("return")
-      ) {
-        console.log("Airloom pipeline smoke harness passed.");
-        return;
-      }
-
-      await wait(100);
     }
 
-    throw new Error(
-      `Pipeline smoke timed out. Observed events: ${parseObservedEvents(targetOutput).join(", ")}\n${desktopError || desktopOutput}`,
-    );
+    console.log("Airloom pipeline smoke harness passed.");
   } finally {
     desktopProcess?.kill();
     targetProcess.kill();

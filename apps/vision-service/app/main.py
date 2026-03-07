@@ -8,7 +8,7 @@ from pathlib import Path
 from app.camera import Camera
 from app.gestures import GestureMachine
 from app.hand_tracking import HandTracker
-from app.replay import load_fixture, run_replay
+from app.replay import iter_replay, load_fixture
 
 
 def parse_args() -> argparse.Namespace:
@@ -27,8 +27,13 @@ def emit(event: object) -> None:
 
 def run_fixture(path: Path) -> None:
     frames = load_fixture(path)
-    for event in run_replay(frames):
-        emit(event)
+    for frame, events in iter_replay(frames):
+        for event in events:
+            emit(event)
+
+        delay_ms = frame.get("delay_ms", 0)
+        if delay_ms > 0:
+            time.sleep(delay_ms / 1000)
 
 
 def run_live(max_frames: int) -> None:
