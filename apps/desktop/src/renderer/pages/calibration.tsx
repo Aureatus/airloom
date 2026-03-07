@@ -17,6 +17,11 @@ export const CalibrationPage = ({
   primaryPinchOutcome,
   dragHoldThresholdMs,
 }: CalibrationProps) => {
+  const progress =
+    dragHoldThresholdMs <= 0
+      ? 1
+      : Math.min(primaryPinchHeldMs / dragHoldThresholdMs, 1);
+
   return (
     <section className="panel">
       <div className="eyebrow">Calibration</div>
@@ -51,6 +56,22 @@ export const CalibrationPage = ({
         Use this screen while tuning thresholds. The Python service emits
         structured status updates even in replay mode.
       </p>
+      <div className="hold-preview">
+        <div className="hold-preview-copy">
+          <span>Click vs drag</span>
+          <strong>
+            {primaryPinchHeldMs} / {dragHoldThresholdMs} ms
+          </strong>
+        </div>
+        <div className="hold-track" aria-hidden="true">
+          <div
+            className={`hold-fill hold-fill-${primaryPinchOutcome}`}
+            style={{
+              width: `${Math.max(progress * 100, primaryPinchActive ? 6 : 0)}%`,
+            }}
+          />
+        </div>
+      </div>
       <p className="panel-copy">
         A primary pinch released before {dragHoldThresholdMs} ms becomes a
         click; held longer, it becomes a drag release.

@@ -179,6 +179,49 @@ button:hover {
   color: var(--accent-strong);
 }
 
+.hold-preview {
+  margin-top: 1rem;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.hold-preview-copy {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  color: var(--muted);
+}
+
+.hold-preview-copy strong {
+  color: var(--copy);
+}
+
+.hold-track {
+  height: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.hold-fill {
+  height: 100%;
+  transition: width 120ms linear, background-color 120ms linear;
+}
+
+.hold-fill-idle,
+.hold-fill-click {
+  background: linear-gradient(90deg, rgba(94, 215, 190, 0.4), var(--accent));
+}
+
+.hold-fill-drag {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 209, 102, 0.35),
+    var(--accent-strong)
+  );
+}
+
 @media (max-width: 900px) {
   .shell,
   .hero,

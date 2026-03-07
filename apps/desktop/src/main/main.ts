@@ -59,6 +59,8 @@ const rootDir = resolve(import.meta.dirname, "../../../../");
 const visionServiceDir = join(rootDir, "apps/vision-service");
 const rendererIndexPath = join(import.meta.dirname, "../renderer/index.html");
 const startupDelayMs = Number(process.env.AIRLOOM_STARTUP_DELAY_MS ?? "0");
+const headlessMode = process.env.AIRLOOM_HEADLESS === "1";
+const exitOnServiceExit = process.env.AIRLOOM_EXIT_ON_SERVICE_EXIT === "1";
 
 const getServiceStatus = (): ServiceStatus => {
   return {
@@ -107,6 +109,10 @@ const attachProcessReaders = (child: ChildProcessWithoutNullStreams) => {
   child.on("exit", () => {
     serviceProcess = null;
     broadcastStatus();
+
+    if (headlessMode && exitOnServiceExit) {
+      app.quit();
+    }
   });
 };
 
@@ -185,7 +191,10 @@ app.whenReady().then(async () => {
     },
   );
 
-  await createMainWindow();
+  if (!headlessMode) {
+    await createMainWindow();
+  }
+
   if (startupDelayMs > 0) {
     setTimeout(() => {
       startVisionService();
@@ -194,11 +203,13 @@ app.whenReady().then(async () => {
     startVisionService();
   }
 
-  app.on("activate", async () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      await createMainWindow();
-    }
-  });
+  if (!headlessMode) {
+    app.on("activate", async () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        await createMainWindow();
+      }
+    });
+  }
 });
 
 app.on("window-all-closed", () => {

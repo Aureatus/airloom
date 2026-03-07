@@ -16,3 +16,8 @@ Current flow:
 The desktop action mapper is stateful: it uses a hold threshold to decide whether a `primary-pinch` release should become a click or a drag release.
 
 The calibration UI also surfaces the mapper's live debug state so you can see pinch hold duration and the current click-vs-drag preview while tuning thresholds.
+
+For smoke coverage, the project now has two X11 layers:
+
+- adapter smoke: verifies the raw Linux X11 adapter can move/click/type in isolation
+- pipeline smoke: verifies Electron main + Python replay + mapper + X11 adapter together, still headlessly
