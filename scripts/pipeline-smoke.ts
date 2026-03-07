@@ -13,11 +13,21 @@ type Geometry = {
 type PipelineScenario = {
   name: string;
   fixtureFile: string;
+  expectedLabel: string;
   assert: (summary: {
     leftPresses: number;
     rightPresses: number;
     returns: number;
   }) => boolean;
+};
+
+type FixtureDocument = {
+  meta?: {
+    name?: string;
+    description?: string;
+    expected?: string;
+  };
+  frames: Array<Record<string, unknown>>;
 };
 
 const wait = (ms: number) => {
@@ -102,17 +112,21 @@ const loadAdjustedFixture = (
   pointerX: number,
   pointerY: number,
 ) => {
-  const frames = JSON.parse(readFileSync(fixturePath, "utf8")) as Array<
-    Record<string, unknown>
-  >;
+  const raw = JSON.parse(readFileSync(fixturePath, "utf8")) as
+    | FixtureDocument
+    | Array<Record<string, unknown>>;
+  const document = Array.isArray(raw) ? { meta: {}, frames: raw } : raw;
 
-  return frames.map((frame) => ({
-    ...frame,
-    pointer:
-      frame.pointer && typeof frame.pointer === "object"
-        ? { x: pointerX, y: pointerY }
-        : frame.pointer,
-  }));
+  return {
+    meta: document.meta ?? {},
+    frames: document.frames.map((frame) => ({
+      ...frame,
+      pointer:
+        frame.pointer && typeof frame.pointer === "object"
+          ? { x: pointerX, y: pointerY }
+          : frame.pointer,
+    })),
+  };
 };
 
 const main = async () => {
@@ -145,6 +159,7 @@ const main = async () => {
     {
       name: "combo click right enter",
       fixtureFile: "combo-click-right-enter.json",
+      expectedLabel: "left click + right click + Return",
       assert: (summary) =>
         summary.leftPresses >= 2 &&
         summary.rightPresses >= 1 &&
@@ -153,6 +168,7 @@ const main = async () => {
     {
       name: "drag release",
       fixtureFile: "drag-release.json",
+      expectedLabel: "single drag press/release without right click or Return",
       assert: (summary) =>
         summary.leftPresses === 1 &&
         summary.rightPresses === 0 &&
@@ -161,6 +177,7 @@ const main = async () => {
     {
       name: "enter only",
       fixtureFile: "enter-only.json",
+      expectedLabel: "Return only",
       assert: (summary) =>
         summary.leftPresses === 0 &&
         summary.rightPresses === 0 &&
@@ -207,22 +224,17 @@ const main = async () => {
 
     for (const scenario of scenarios) {
       const fixturePath = join(tempRoot, scenario.fixtureFile);
-      writeFileSync(
-        fixturePath,
-        JSON.stringify(
-          loadAdjustedFixture(
-            join(fixtureRoot, scenario.fixtureFile),
-            pointerX,
-            pointerY,
-          ),
-          null,
-          2,
-        ),
+      const adjustedFixture = loadAdjustedFixture(
+        join(fixtureRoot, scenario.fixtureFile),
+        pointerX,
+        pointerY,
       );
+      writeFileSync(fixturePath, JSON.stringify(adjustedFixture, null, 2));
 
       const outputOffset = targetOutput.length;
       desktopOutput = "";
       desktopError = "";
+      const scenarioStartedAt = Date.now();
       desktopProcess = spawn(electronBinary, ["apps/desktop"], {
         cwd: rootDir,
         env: {
@@ -270,6 +282,18 @@ const main = async () => {
           `Pipeline smoke scenario failed: ${scenario.name}. Summary: ${JSON.stringify(summary)}\n${desktopError || desktopOutput}`,
         );
       }
+
+      const summary = parseObservedSummary(targetOutput.slice(outputOffset));
+      const elapsedMs = Date.now() - scenarioStartedAt;
+      console.log(
+        [
+          `scenario: ${adjustedFixture.meta.name ?? scenario.name}`,
+          `description: ${adjustedFixture.meta.description ?? "n/a"}`,
+          `expected: ${adjustedFixture.meta.expected ?? scenario.expectedLabel}`,
+          `observed: left=${summary.leftPresses}, right=${summary.rightPresses}, return=${summary.returns}`,
+          `elapsed_ms: ${elapsedMs}`,
+        ].join(" | "),
+      );
     }
 
     console.log("Airloom pipeline smoke harness passed.");

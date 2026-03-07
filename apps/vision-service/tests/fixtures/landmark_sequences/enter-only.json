@@ -1,110 +1,117 @@
-[
-  {
-    "tracking": true,
-    "pointer": { "x": 0.5, "y": 0.5 },
-    "pinch_strength": 0.1,
-    "secondary_pinch_strength": 0.1,
-    "open_palm_hold": true,
-    "confidence": 0.95,
-    "delay_ms": 40
+{
+  "meta": {
+    "name": "enter only",
+    "description": "Open-palm hold sequence that should only emit the mapped Return key",
+    "expected": "Return only"
   },
-  {
-    "tracking": true,
-    "pointer": { "x": 0.5, "y": 0.5 },
-    "pinch_strength": 0.1,
-    "secondary_pinch_strength": 0.1,
-    "open_palm_hold": true,
-    "confidence": 0.95,
-    "delay_ms": 40
-  },
-  {
-    "tracking": true,
-    "pointer": { "x": 0.5, "y": 0.5 },
-    "pinch_strength": 0.1,
-    "secondary_pinch_strength": 0.1,
-    "open_palm_hold": true,
-    "confidence": 0.95,
-    "delay_ms": 40
-  },
-  {
-    "tracking": true,
-    "pointer": { "x": 0.5, "y": 0.5 },
-    "pinch_strength": 0.1,
-    "secondary_pinch_strength": 0.1,
-    "open_palm_hold": true,
-    "confidence": 0.95,
-    "delay_ms": 40
-  },
-  {
-    "tracking": true,
-    "pointer": { "x": 0.5, "y": 0.5 },
-    "pinch_strength": 0.1,
-    "secondary_pinch_strength": 0.1,
-    "open_palm_hold": true,
-    "confidence": 0.95,
-    "delay_ms": 40
-  },
-  {
-    "tracking": true,
-    "pointer": { "x": 0.5, "y": 0.5 },
-    "pinch_strength": 0.1,
-    "secondary_pinch_strength": 0.1,
-    "open_palm_hold": true,
-    "confidence": 0.95,
-    "delay_ms": 40
-  },
-  {
-    "tracking": true,
-    "pointer": { "x": 0.5, "y": 0.5 },
-    "pinch_strength": 0.1,
-    "secondary_pinch_strength": 0.1,
-    "open_palm_hold": true,
-    "confidence": 0.95,
-    "delay_ms": 40
-  },
-  {
-    "tracking": true,
-    "pointer": { "x": 0.5, "y": 0.5 },
-    "pinch_strength": 0.1,
-    "secondary_pinch_strength": 0.1,
-    "open_palm_hold": true,
-    "confidence": 0.95,
-    "delay_ms": 40
-  },
-  {
-    "tracking": true,
-    "pointer": { "x": 0.5, "y": 0.5 },
-    "pinch_strength": 0.1,
-    "secondary_pinch_strength": 0.1,
-    "open_palm_hold": true,
-    "confidence": 0.95,
-    "delay_ms": 40
-  },
-  {
-    "tracking": true,
-    "pointer": { "x": 0.5, "y": 0.5 },
-    "pinch_strength": 0.1,
-    "secondary_pinch_strength": 0.1,
-    "open_palm_hold": true,
-    "confidence": 0.95,
-    "delay_ms": 40
-  },
-  {
-    "tracking": true,
-    "pointer": { "x": 0.5, "y": 0.5 },
-    "pinch_strength": 0.1,
-    "secondary_pinch_strength": 0.1,
-    "open_palm_hold": true,
-    "confidence": 0.95,
-    "delay_ms": 40
-  },
-  {
-    "tracking": true,
-    "pointer": { "x": 0.5, "y": 0.5 },
-    "pinch_strength": 0.1,
-    "secondary_pinch_strength": 0.1,
-    "open_palm_hold": true,
-    "confidence": 0.95,
-    "delay_ms": 40
-  }
-]
+  "frames": [
+    {
+      "tracking": true,
+      "pointer": { "x": 0.5, "y": 0.5 },
+      "pinch_strength": 0.1,
+      "secondary_pinch_strength": 0.1,
+      "open_palm_hold": true,
+      "confidence": 0.95,
+      "delay_ms": 40
+    },
+    {
+      "tracking": true,
+      "pointer": { "x": 0.5, "y": 0.5 },
+      "pinch_strength": 0.1,
+      "secondary_pinch_strength": 0.1,
+      "open_palm_hold": true,
+      "confidence": 0.95,
+      "delay_ms": 40
+    },
+    {
+      "tracking": true,
+      "pointer": { "x": 0.5, "y": 0.5 },
+      "pinch_strength": 0.1,
+      "secondary_pinch_strength": 0.1,
+      "open_palm_hold": true,
+      "confidence": 0.95,
+      "delay_ms": 40
+    },
+    {
+      "tracking": true,
+      "pointer": { "x": 0.5, "y": 0.5 },
+      "pinch_strength": 0.1,
+      "secondary_pinch_strength": 0.1,
+      "open_palm_hold": true,
+      "confidence": 0.95,
+      "delay_ms": 40
+    },
+    {
+      "tracking": true,
+      "pointer": { "x": 0.5, "y": 0.5 },
+      "pinch_strength": 0.1,
+      "secondary_pinch_strength": 0.1,
+      "open_palm_hold": true,
+      "confidence": 0.95,
+      "delay_ms": 40
+    },
+    {
+      "tracking": true,
+      "pointer": { "x": 0.5, "y": 0.5 },
+      "pinch_strength": 0.1,
+      "secondary_pinch_strength": 0.1,
+      "open_palm_hold": true,
+      "confidence": 0.95,
+      "delay_ms": 40
+    },
+    {
+      "tracking": true,
+      "pointer": { "x": 0.5, "y": 0.5 },
+      "pinch_strength": 0.1,
+      "secondary_pinch_strength": 0.1,
+      "open_palm_hold": true,
+      "confidence": 0.95,
+      "delay_ms": 40
+    },
+    {
+      "tracking": true,
+      "pointer": { "x": 0.5, "y": 0.5 },
+      "pinch_strength": 0.1,
+      "secondary_pinch_strength": 0.1,
+      "open_palm_hold": true,
+      "confidence": 0.95,
+      "delay_ms": 40
+    },
+    {
+      "tracking": true,
+      "pointer": { "x": 0.5, "y": 0.5 },
+      "pinch_strength": 0.1,
+      "secondary_pinch_strength": 0.1,
+      "open_palm_hold": true,
+      "confidence": 0.95,
+      "delay_ms": 40
+    },
+    {
+      "tracking": true,
+      "pointer": { "x": 0.5, "y": 0.5 },
+      "pinch_strength": 0.1,
+      "secondary_pinch_strength": 0.1,
+      "open_palm_hold": true,
+      "confidence": 0.95,
+      "delay_ms": 40
+    },
+    {
+      "tracking": true,
+      "pointer": { "x": 0.5, "y": 0.5 },
+      "pinch_strength": 0.1,
+      "secondary_pinch_strength": 0.1,
+      "open_palm_hold": true,
+      "confidence": 0.95,
+      "delay_ms": 40
+    },
+    {
+      "tracking": true,
+      "pointer": { "x": 0.5, "y": 0.5 },
+      "pinch_strength": 0.1,
+      "secondary_pinch_strength": 0.1,
+      "open_palm_hold": true,
+      "confidence": 0.95,
+      "delay_ms": 40
+    }
+  ]
+}
