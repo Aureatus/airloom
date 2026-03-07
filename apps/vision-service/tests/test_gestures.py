@@ -115,3 +115,120 @@ def test_secondary_pinch_emits_right_click_once_per_cycle() -> None:
     )
     assert not any(event.get("type") == "gesture.intent" for event in held_events)
     assert not any(event.get("type") == "gesture.intent" for event in release_events)
+
+
+def test_closed_fist_emits_single_toggle_after_stable_hold() -> None:
+    machine = GestureMachine()
+    trigger_events = []
+
+    for _ in range(4):
+        trigger_events = machine.update(
+            {
+                "tracking": True,
+                "pointer": {"x": 0.5, "y": 0.4},
+                "pinch_strength": 0.18,
+                "secondary_pinch_strength": 0.16,
+                "open_palm_hold": False,
+                "closed_fist": True,
+                "confidence": 0.91,
+            }
+        )
+
+    assert any(
+        event.get("type") == "gesture.intent"
+        and event.get("gesture") == "closed-fist"
+        and event.get("phase") == "instant"
+        for event in trigger_events
+    )
+
+    held_events = machine.update(
+        {
+            "tracking": True,
+            "pointer": {"x": 0.5, "y": 0.4},
+            "pinch_strength": 0.18,
+            "secondary_pinch_strength": 0.16,
+            "open_palm_hold": False,
+            "closed_fist": True,
+            "confidence": 0.91,
+        }
+    )
+
+    assert not any(event.get("type") == "gesture.intent" for event in held_events)
+
+
+def test_closed_fist_requires_stable_release_before_next_toggle() -> None:
+    machine = GestureMachine()
+
+    for _ in range(4):
+        machine.update(
+            {
+                "tracking": True,
+                "pointer": {"x": 0.5, "y": 0.4},
+                "pinch_strength": 0.18,
+                "secondary_pinch_strength": 0.16,
+                "open_palm_hold": False,
+                "closed_fist": True,
+                "confidence": 0.91,
+            }
+        )
+
+    for _ in range(2):
+        machine.update(
+            {
+                "tracking": True,
+                "pointer": {"x": 0.5, "y": 0.4},
+                "pinch_strength": 0.18,
+                "secondary_pinch_strength": 0.16,
+                "open_palm_hold": False,
+                "closed_fist": False,
+                "confidence": 0.91,
+            }
+        )
+
+    partial_rearm_events = machine.update(
+        {
+            "tracking": True,
+            "pointer": {"x": 0.5, "y": 0.4},
+            "pinch_strength": 0.18,
+            "secondary_pinch_strength": 0.16,
+            "open_palm_hold": False,
+            "closed_fist": True,
+            "confidence": 0.91,
+        }
+    )
+
+    assert not any(event.get("type") == "gesture.intent" for event in partial_rearm_events)
+
+    for _ in range(3):
+        machine.update(
+            {
+                "tracking": True,
+                "pointer": {"x": 0.5, "y": 0.4},
+                "pinch_strength": 0.18,
+                "secondary_pinch_strength": 0.16,
+                "open_palm_hold": False,
+                "closed_fist": False,
+                "confidence": 0.91,
+            }
+        )
+
+    rearm_events = []
+    for _ in range(4):
+        rearm_events = machine.update(
+            {
+                "tracking": True,
+                "pointer": {"x": 0.5, "y": 0.4},
+                "pinch_strength": 0.18,
+                "secondary_pinch_strength": 0.16,
+                "open_palm_hold": False,
+                "closed_fist": True,
+                "confidence": 0.91,
+            }
+        )
+
+    assert any(
+        event.get("type") == "gesture.intent"
+        and event.get("gesture") == "closed-fist"
+        and event.get("phase") == "instant"
+        for event in rearm_events
+    )

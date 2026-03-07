@@ -18,6 +18,12 @@ describe("createActionMapper", () => {
       () => time,
     );
 
+    mapper.mapEvent({
+      type: "gesture.intent",
+      gesture: "closed-fist",
+      phase: "instant",
+    });
+
     expect(
       mapper.mapEvent({
         type: "gesture.intent",
@@ -40,6 +46,7 @@ describe("createActionMapper", () => {
     ]);
 
     expect(mapper.getDebugState()).toEqual({
+      pointerControlEnabled: true,
       primaryPinchActive: false,
       primaryPinchHeldMs: 0,
       primaryPinchOutcome: "idle",
@@ -53,6 +60,12 @@ describe("createActionMapper", () => {
       (x, y) => ({ x: Math.round(x * 100), y: Math.round(y * 100) }),
       () => time,
     );
+
+    mapper.mapEvent({
+      type: "gesture.intent",
+      gesture: "closed-fist",
+      phase: "instant",
+    });
 
     expect(
       mapper.mapEvent({
@@ -83,12 +96,19 @@ describe("createActionMapper", () => {
 
     mapper.mapEvent({
       type: "gesture.intent",
+      gesture: "closed-fist",
+      phase: "instant",
+    });
+
+    mapper.mapEvent({
+      type: "gesture.intent",
       gesture: "primary-pinch",
       phase: "start",
     });
 
     time += 120;
     expect(mapper.getDebugState()).toEqual({
+      pointerControlEnabled: true,
       primaryPinchActive: true,
       primaryPinchHeldMs: 120,
       primaryPinchOutcome: "click",
@@ -96,6 +116,7 @@ describe("createActionMapper", () => {
 
     time += 200;
     expect(mapper.getDebugState()).toEqual({
+      pointerControlEnabled: true,
       primaryPinchActive: true,
       primaryPinchHeldMs: 320,
       primaryPinchOutcome: "drag",
@@ -107,6 +128,12 @@ describe("createActionMapper", () => {
       () => createSettings(),
       (x, y) => ({ x: Math.round(x * 100), y: Math.round(y * 100) }),
     );
+
+    mapper.mapEvent({
+      type: "gesture.intent",
+      gesture: "closed-fist",
+      phase: "instant",
+    });
 
     expect(
       mapper.mapEvent({
@@ -123,5 +150,69 @@ describe("createActionMapper", () => {
         phase: "instant",
       }),
     ).toEqual([{ type: "key.tap", key: "Return" }]);
+  });
+
+  test("keeps pointer frozen until the closed-fist toggle arms control", () => {
+    const mapper = createActionMapper(
+      () => createSettings(),
+      (x, y) => ({ x: Math.round(x * 100), y: Math.round(y * 100) }),
+    );
+
+    expect(
+      mapper.mapEvent({
+        type: "pointer.observed",
+        x: 0.62,
+        y: 0.42,
+        confidence: 0.91,
+      }),
+    ).toEqual([]);
+
+    mapper.mapEvent({
+      type: "gesture.intent",
+      gesture: "closed-fist",
+      phase: "instant",
+    });
+
+    expect(
+      mapper.mapEvent({
+        type: "pointer.observed",
+        x: 0.62,
+        y: 0.42,
+        confidence: 0.91,
+      }),
+    ).toEqual([{ type: "pointer.move", x: 62, y: 42 }]);
+  });
+
+  test("releases an active drag when control is frozen again", () => {
+    const mapper = createActionMapper(
+      () => createSettings(),
+      (x, y) => ({ x: Math.round(x * 100), y: Math.round(y * 100) }),
+    );
+
+    mapper.mapEvent({
+      type: "gesture.intent",
+      gesture: "closed-fist",
+      phase: "instant",
+    });
+    mapper.mapEvent({
+      type: "gesture.intent",
+      gesture: "primary-pinch",
+      phase: "start",
+    });
+
+    expect(
+      mapper.mapEvent({
+        type: "gesture.intent",
+        gesture: "closed-fist",
+        phase: "instant",
+      }),
+    ).toEqual([{ type: "pointer.up", button: "left" }]);
+
+    expect(mapper.getDebugState()).toEqual({
+      pointerControlEnabled: false,
+      primaryPinchActive: false,
+      primaryPinchHeldMs: 0,
+      primaryPinchOutcome: "idle",
+    });
   });
 });

@@ -8,7 +8,16 @@ type RuntimeState = {
   tracking: boolean;
   gesture: string;
   pinchStrength: number;
+  pointerControlEnabled: boolean;
+  debug: {
+    confidence: number;
+    brightness: number;
+    closedFist: boolean;
+    openPalmHold: boolean;
+    secondaryPinchStrength: number;
+  };
   mapper: {
+    pointerControlEnabled: boolean;
     primaryPinchActive: boolean;
     primaryPinchHeldMs: number;
     primaryPinchOutcome: "idle" | "click" | "drag";
@@ -34,6 +43,7 @@ declare global {
       stopService: () => Promise<ServiceStatus>;
       sendEvent: (payload: AirloomInputEvent) => Promise<ServiceStatus>;
       onStatus: (listener: (value: ServiceStatus) => void) => () => void;
+      onPreviewFrame: (listener: (value: Uint8Array) => void) => () => void;
     };
   }
 }
@@ -46,7 +56,16 @@ const initialStatus: ServiceStatus = {
     tracking: false,
     gesture: "idle",
     pinchStrength: 0,
+    pointerControlEnabled: false,
+    debug: {
+      confidence: 0,
+      brightness: 0,
+      closedFist: false,
+      openPalmHold: false,
+      secondaryPinchStrength: 0,
+    },
     mapper: {
+      pointerControlEnabled: false,
       primaryPinchActive: false,
       primaryPinchHeldMs: 0,
       primaryPinchOutcome: "idle",
@@ -148,11 +167,17 @@ export const App = () => {
               <strong>{status.runtime.tracking ? "Yes" : "No"}</strong>
             </div>
             <div className="metric-card">
+              <span>Pointer</span>
+              <strong>
+                {status.runtime.pointerControlEnabled ? "Armed" : "Frozen"}
+              </strong>
+            </div>
+            <div className="metric-card">
               <span>Gesture</span>
               <strong>{status.runtime.gesture}</strong>
             </div>
           </div>
-          <p className="panel-copy monospace">{lastEventLabel}</p>
+          <div className="panel-copy monospace event-log">{lastEventLabel}</div>
           {status.warnings.map((warning) => (
             <p className="warning-text" key={warning}>
               {warning}
@@ -167,6 +192,18 @@ export const App = () => {
           <div className="eyebrow">Debug</div>
           <h2>Trigger mock actions</h2>
           <div className="mock-grid">
+            <button
+              type="button"
+              onClick={() =>
+                sendMockEvent({
+                  type: "gesture.intent",
+                  gesture: "closed-fist",
+                  phase: "instant",
+                })
+              }
+            >
+              Toggle pointer
+            </button>
             <button
               type="button"
               onClick={() =>
@@ -260,9 +297,12 @@ export const App = () => {
 
       {activeTab === "calibration" ? (
         <CalibrationPage
+          serviceRunning={status.running}
           tracking={status.runtime.tracking}
           gesture={status.runtime.gesture}
           pinchStrength={status.runtime.pinchStrength}
+          pointerControlEnabled={status.runtime.pointerControlEnabled}
+          debug={status.runtime.debug}
           primaryPinchActive={status.runtime.mapper.primaryPinchActive}
           primaryPinchHeldMs={status.runtime.mapper.primaryPinchHeldMs}
           primaryPinchOutcome={status.runtime.mapper.primaryPinchOutcome}

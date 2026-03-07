@@ -47,6 +47,10 @@ export const SettingsPage = ({ settings, onSave }: SettingsPageProps) => {
       <h2>Default gesture actions</h2>
       <div className="mapping-list">
         <div className="mapping-row">
+          <span>Pointer arm/freeze</span>
+          <strong>Closed fist</strong>
+        </div>
+        <div className="mapping-row">
           <span>Pointer tracking</span>
           <strong>Index motion</strong>
         </div>
@@ -182,6 +186,14 @@ export const SettingsPage = ({ settings, onSave }: SettingsPageProps) => {
       <p className="panel-copy">
         Gesture mapping is intentionally data-driven so new actions can be added
         without changing platform input adapters.
+      </p>
+      <p className="panel-copy">
+        Adaptive smoothing ignores tiny tremor, then ramps responsiveness up as
+        your hand moves farther. Higher values feel faster but can jitter more.
+      </p>
+      <p className="panel-copy">
+        Pointer motion now starts frozen so idle hand noise does not move the
+        cursor until you deliberately arm it with a closed fist.
       </p>
     </section>
   );

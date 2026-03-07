@@ -16,6 +16,11 @@ const api = {
     ipcRenderer.on("airloom:status", wrapped);
     return () => ipcRenderer.off("airloom:status", wrapped);
   },
+  onPreviewFrame: (listener: (value: Uint8Array) => void) => {
+    const wrapped = (_event: unknown, value: Uint8Array) => listener(value);
+    ipcRenderer.on("airloom:preview-frame", wrapped);
+    return () => ipcRenderer.off("airloom:preview-frame", wrapped);
+  },
 };
 
 contextBridge.exposeInMainWorld("airloom", api);

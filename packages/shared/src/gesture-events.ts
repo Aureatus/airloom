@@ -13,16 +13,34 @@ export const gestureIntentEventSchema = z.object({
   phase: z.enum(["start", "end", "instant"]),
 });
 
+export const debugFrameEventSchema = z.object({
+  type: z.literal("debug.frame"),
+  mimeType: z.literal("image/jpeg"),
+  data: z.string().min(1),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+});
+
+export const statusDebugSchema = z.object({
+  confidence: z.number().min(0).max(1),
+  brightness: z.number().min(0).max(1),
+  closedFist: z.boolean(),
+  openPalmHold: z.boolean(),
+  secondaryPinchStrength: z.number().min(0).max(1),
+});
+
 export const statusEventSchema = z.object({
   type: z.literal("status"),
   tracking: z.boolean(),
   pinchStrength: z.number().min(0).max(1),
   gesture: z.string(),
+  debug: statusDebugSchema.optional(),
 });
 
 export const inputEventSchema = z.discriminatedUnion("type", [
   pointerObservedEventSchema,
   gestureIntentEventSchema,
+  debugFrameEventSchema,
   statusEventSchema,
 ]);
 

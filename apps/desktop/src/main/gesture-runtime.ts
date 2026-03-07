@@ -13,6 +13,14 @@ export type RuntimeState = {
   tracking: boolean;
   gesture: string;
   pinchStrength: number;
+  pointerControlEnabled: boolean;
+  debug: {
+    confidence: number;
+    brightness: number;
+    closedFist: boolean;
+    openPalmHold: boolean;
+    secondaryPinchStrength: number;
+  };
   mapper: ActionMapperDebugState;
   lastError: string | null;
 };
@@ -37,12 +45,21 @@ export const createGestureRuntime = (
     tracking: false,
     gesture: "idle",
     pinchStrength: 0,
+    pointerControlEnabled: false,
+    debug: {
+      confidence: 0,
+      brightness: 0,
+      closedFist: false,
+      openPalmHold: false,
+      secondaryPinchStrength: 0,
+    },
     mapper: actionMapper.getDebugState(),
     lastError: null,
   };
 
   const syncMapperState = () => {
     state.mapper = actionMapper.getDebugState();
+    state.pointerControlEnabled = state.mapper.pointerControlEnabled;
   };
 
   const executeAction = async (event: AirloomActionEvent) => {
@@ -77,6 +94,11 @@ export const createGestureRuntime = (
   const handleEvent = async (event: AirloomInputEvent) => {
     try {
       switch (event.type) {
+        case "debug.frame": {
+          syncMapperState();
+          return state;
+        }
+
         case "pointer.observed": {
           for (const action of actionMapper.mapEvent(event)) {
             await executeAction(action);
@@ -99,6 +121,7 @@ export const createGestureRuntime = (
           state.tracking = event.tracking;
           state.gesture = event.gesture;
           state.pinchStrength = event.pinchStrength;
+          state.debug = event.debug ?? state.debug;
           syncMapperState();
           return state;
         }

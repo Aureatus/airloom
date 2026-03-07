@@ -21,14 +21,31 @@ class GestureIntentEvent(TypedDict):
     phase: Literal["start", "end", "instant"]
 
 
+class DebugFrameEvent(TypedDict):
+    type: Literal["debug.frame"]
+    mimeType: Literal["image/jpeg"]
+    data: str
+    width: int
+    height: int
+
+
 class StatusEvent(TypedDict):
     type: Literal["status"]
     tracking: bool
     pinchStrength: float
     gesture: str
+    debug: NotRequired[StatusDebug]
 
 
-GestureEvent = PointerObservedEvent | GestureIntentEvent | StatusEvent
+class StatusDebug(TypedDict):
+    confidence: float
+    brightness: float
+    closedFist: bool
+    openPalmHold: bool
+    secondaryPinchStrength: float
+
+
+GestureEvent = PointerObservedEvent | GestureIntentEvent | DebugFrameEvent | StatusEvent
 
 
 class FrameState(TypedDict):
@@ -37,5 +54,7 @@ class FrameState(TypedDict):
     pinch_strength: float
     secondary_pinch_strength: float
     open_palm_hold: bool
+    closed_fist: NotRequired[bool]
     confidence: float
+    brightness: NotRequired[float]
     delay_ms: NotRequired[int]

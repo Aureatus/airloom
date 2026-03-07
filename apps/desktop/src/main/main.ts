@@ -1,4 +1,4 @@
-import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import {
@@ -11,9 +11,11 @@ import {
   settingsSchema,
 } from "@airloom/shared/settings-schema";
 import { BrowserWindow, app, ipcMain } from "electron";
+import { createEventDispatcher } from "./event-dispatcher";
 import { type RuntimeState, createGestureRuntime } from "./gesture-runtime";
 import { normalizedToScreenPosition, resolveInputAdapter } from "./input";
 import { getLinuxX11DependencyWarning } from "./input/linux-x11";
+import { createPreviewStreamDecoder } from "./preview-stream";
 import { loadSettings, saveSettings } from "./settings-store";
 
 type ServiceStatus = {
@@ -46,8 +48,9 @@ const getPlatformWarnings = () => {
 
 let mainWindow: BrowserWindow | null = null;
 const adapter = resolveInputAdapter();
-let serviceProcess: ChildProcessWithoutNullStreams | null = null;
+let serviceProcess: ChildProcess | null = null;
 let lastEvent: AirloomInputEvent | null = null;
+let eventDispatcher: ReturnType<typeof createEventDispatcher> | null = null;
 let currentSettings: AirloomSettings = settingsSchema.parse({});
 const runtime = createGestureRuntime(
   adapter,
@@ -58,9 +61,15 @@ const runtime = createGestureRuntime(
 const rootDir = resolve(import.meta.dirname, "../../../../");
 const visionServiceDir = join(rootDir, "apps/vision-service");
 const rendererIndexPath = join(import.meta.dirname, "../renderer/index.html");
+const rendererDevUrl = process.env.AIRLOOM_RENDERER_URL;
 const startupDelayMs = Number(process.env.AIRLOOM_STARTUP_DELAY_MS ?? "0");
 const headlessMode = process.env.AIRLOOM_HEADLESS === "1";
 const exitOnServiceExit = process.env.AIRLOOM_EXIT_ON_SERVICE_EXIT === "1";
+const ignoredVisionLogPatterns = [
+  "WARNING: All log messages before absl::InitializeLog() is called are written to STDERR",
+  "inference_feedback_manager.cc:114",
+  "landmark_projection_calculator.cc:78",
+];
 
 const getServiceStatus = (): ServiceStatus => {
   return {
@@ -77,10 +86,18 @@ const broadcastStatus = () => {
   mainWindow?.webContents.send("airloom:status", status);
 };
 
-const attachProcessReaders = (child: ChildProcessWithoutNullStreams) => {
+const attachProcessReaders = (child: ChildProcess) => {
   let pending = "";
+  eventDispatcher = createEventDispatcher(
+    async (event) => {
+      await runtime.handleEvent(event);
+    },
+    () => {
+      broadcastStatus();
+    },
+  );
 
-  child.stdout.on("data", async (chunk) => {
+  child.stdout.on("data", (chunk) => {
     pending += chunk.toString();
     const lines = pending.split("\n");
     pending = lines.pop() ?? "";
@@ -93,20 +110,42 @@ const attachProcessReaders = (child: ChildProcessWithoutNullStreams) => {
       try {
         const event = parseInputEvent(JSON.parse(line));
         lastEvent = event;
-        await runtime.handleEvent(event);
+        eventDispatcher?.enqueue(event);
       } catch (error) {
         console.error("failed to process gesture event", error);
+        broadcastStatus();
       }
-
-      broadcastStatus();
     }
   });
 
   child.stderr.on("data", (chunk) => {
-    console.error(chunk.toString());
+    for (const line of chunk.toString().split("\n")) {
+      if (!line.trim()) {
+        continue;
+      }
+
+      if (ignoredVisionLogPatterns.some((pattern) => line.includes(pattern))) {
+        continue;
+      }
+
+      console.error(line);
+    }
   });
 
+  const previewStream = child.stdio[3];
+  if (previewStream !== null && previewStream !== undefined) {
+    const decodePreviewFrame = createPreviewStreamDecoder((frame) => {
+      mainWindow?.webContents.send("airloom:preview-frame", frame);
+    });
+
+    previewStream.on("data", (chunk) => {
+      decodePreviewFrame(Buffer.from(chunk));
+    });
+  }
+
   child.on("exit", () => {
+    eventDispatcher?.stop();
+    eventDispatcher = null;
     serviceProcess = null;
     broadcastStatus();
 
@@ -131,10 +170,14 @@ const startVisionService = () => {
     cwd: visionServiceDir,
     env: {
       ...process.env,
+      AIRLOOM_DEBUG_PREVIEW: "1",
+      AIRLOOM_DEBUG_PREVIEW_FPS: "12",
       AIRLOOM_SMOOTHING_ALPHA: String(currentSettings.smoothing),
       AIRLOOM_MIRROR_X: "1",
+      GLOG_minloglevel: process.env.GLOG_minloglevel ?? "2",
+      TF_CPP_MIN_LOG_LEVEL: process.env.TF_CPP_MIN_LOG_LEVEL ?? "2",
     },
-    stdio: "pipe",
+    stdio: ["pipe", "pipe", "pipe", "pipe"],
   });
 
   attachProcessReaders(serviceProcess);
@@ -167,11 +210,15 @@ const createMainWindow = async () => {
     },
   });
 
-  if (!existsSync(rendererIndexPath)) {
-    throw new Error(`Renderer build missing at ${rendererIndexPath}`);
-  }
+  if (rendererDevUrl) {
+    await mainWindow.loadURL(rendererDevUrl);
+  } else {
+    if (!existsSync(rendererIndexPath)) {
+      throw new Error(`Renderer build missing at ${rendererIndexPath}`);
+    }
 
-  await mainWindow.loadFile(rendererIndexPath);
+    await mainWindow.loadFile(rendererIndexPath);
+  }
   mainWindow.on("closed", () => {
     mainWindow = null;
   });

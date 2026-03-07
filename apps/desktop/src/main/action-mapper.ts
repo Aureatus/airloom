@@ -9,6 +9,7 @@ type NormalizePosition = (x: number, y: number) => { x: number; y: number };
 type Now = () => number;
 
 export type ActionMapperDebugState = {
+  pointerControlEnabled: boolean;
   primaryPinchActive: boolean;
   primaryPinchHeldMs: number;
   primaryPinchOutcome: "idle" | "click" | "drag";
@@ -20,12 +21,14 @@ export const createActionMapper = (
   now: Now = () => Date.now(),
 ) => {
   let primaryPinchStartedAt: number | null = null;
+  let pointerControlEnabled = false;
 
   const getDebugState = (): ActionMapperDebugState => {
     const settings = getSettings();
 
     if (primaryPinchStartedAt === null) {
       return {
+        pointerControlEnabled,
         primaryPinchActive: false,
         primaryPinchHeldMs: 0,
         primaryPinchOutcome: "idle",
@@ -35,6 +38,7 @@ export const createActionMapper = (
     const heldMs = Math.max(0, now() - primaryPinchStartedAt);
 
     return {
+      pointerControlEnabled,
       primaryPinchActive: true,
       primaryPinchHeldMs: heldMs,
       primaryPinchOutcome:
@@ -45,6 +49,10 @@ export const createActionMapper = (
   const mapEvent = (event: AirloomInputEvent): AirloomActionEvent[] => {
     switch (event.type) {
       case "pointer.observed": {
+        if (!pointerControlEnabled) {
+          return [];
+        }
+
         return [
           {
             type: "pointer.move",
@@ -55,6 +63,26 @@ export const createActionMapper = (
 
       case "gesture.intent": {
         const settings = getSettings();
+
+        if (event.gesture === "closed-fist" && event.phase === "instant") {
+          const nextActions: AirloomActionEvent[] = [];
+
+          if (pointerControlEnabled && primaryPinchStartedAt !== null) {
+            primaryPinchStartedAt = null;
+            nextActions.push({ type: "pointer.up", button: "left" });
+          }
+
+          pointerControlEnabled = !pointerControlEnabled;
+          return nextActions;
+        }
+
+        if (
+          !pointerControlEnabled &&
+          (event.gesture === "primary-pinch" ||
+            event.gesture === settings.rightClickGesture)
+        ) {
+          return [];
+        }
 
         if (event.gesture === "primary-pinch" && event.phase === "start") {
           primaryPinchStartedAt = now();

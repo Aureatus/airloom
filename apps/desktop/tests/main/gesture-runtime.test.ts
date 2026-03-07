@@ -48,6 +48,12 @@ describe("createGestureRuntime", () => {
 
     await runtime.handleEvent({
       type: "gesture.intent",
+      gesture: "closed-fist",
+      phase: "instant",
+    });
+
+    await runtime.handleEvent({
+      type: "gesture.intent",
       gesture: "primary-pinch",
       phase: "start",
     });
@@ -78,13 +84,29 @@ describe("createGestureRuntime", () => {
       tracking: true,
       pinchStrength: 0.82,
       gesture: "short-pinch",
+      debug: {
+        confidence: 0.74,
+        brightness: 0.21,
+        closedFist: true,
+        openPalmHold: false,
+        secondaryPinchStrength: 0.14,
+      },
     });
 
     expect(runtime.getState()).toEqual({
       tracking: true,
       gesture: "short-pinch",
       pinchStrength: 0.82,
+      pointerControlEnabled: false,
+      debug: {
+        confidence: 0.74,
+        brightness: 0.21,
+        closedFist: true,
+        openPalmHold: false,
+        secondaryPinchStrength: 0.14,
+      },
       mapper: {
+        pointerControlEnabled: false,
         primaryPinchActive: false,
         primaryPinchHeldMs: 0,
         primaryPinchOutcome: "idle",
@@ -120,10 +142,101 @@ describe("createGestureRuntime", () => {
 
     await runtime.handleEvent({
       type: "gesture.intent",
+      gesture: "closed-fist",
+      phase: "instant",
+    });
+
+    await runtime.handleEvent({
+      type: "gesture.intent",
       gesture: "thumb-middle-pinch",
       phase: "instant",
     });
 
     expect(calls).toEqual(["click:right"]);
+  });
+
+  test("ignores pointer movement until control is armed", async () => {
+    const { adapter, calls } = createTestAdapter();
+    const runtime = createGestureRuntime(
+      adapter,
+      (x, y) => ({ x, y }),
+      () => createTestSettings(),
+    );
+
+    await runtime.handleEvent({
+      type: "pointer.observed",
+      x: 0.4,
+      y: 0.5,
+      confidence: 0.92,
+    });
+    await runtime.handleEvent({
+      type: "gesture.intent",
+      gesture: "closed-fist",
+      phase: "instant",
+    });
+    await runtime.handleEvent({
+      type: "pointer.observed",
+      x: 0.4,
+      y: 0.5,
+      confidence: 0.92,
+    });
+
+    expect(calls).toEqual(["move"]);
+    expect(runtime.getState().pointerControlEnabled).toBe(true);
+  });
+
+  test("freezes pointer again after a second closed-fist toggle", async () => {
+    const { adapter, calls } = createTestAdapter();
+    const runtime = createGestureRuntime(
+      adapter,
+      (x, y) => ({ x, y }),
+      () => createTestSettings(),
+    );
+
+    await runtime.handleEvent({
+      type: "gesture.intent",
+      gesture: "closed-fist",
+      phase: "instant",
+    });
+    await runtime.handleEvent({
+      type: "pointer.observed",
+      x: 0.4,
+      y: 0.5,
+      confidence: 0.92,
+    });
+    await runtime.handleEvent({
+      type: "gesture.intent",
+      gesture: "closed-fist",
+      phase: "instant",
+    });
+    await runtime.handleEvent({
+      type: "pointer.observed",
+      x: 0.45,
+      y: 0.55,
+      confidence: 0.92,
+    });
+
+    expect(calls).toEqual(["move"]);
+    expect(runtime.getState().pointerControlEnabled).toBe(false);
+  });
+
+  test("ignores backend debug frame events for input actions", async () => {
+    const { adapter, calls } = createTestAdapter();
+    const runtime = createGestureRuntime(
+      adapter,
+      (x, y) => ({ x, y }),
+      () => createTestSettings(),
+    );
+
+    await runtime.handleEvent({
+      type: "debug.frame",
+      mimeType: "image/jpeg",
+      data: "abc123",
+      width: 160,
+      height: 120,
+    });
+
+    expect(calls).toEqual([]);
+    expect(runtime.getState().lastError).toBeNull();
   });
 });
