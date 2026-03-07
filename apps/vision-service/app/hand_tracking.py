@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import Any, cast
 
 from app.gestures import compute_pinch_strength
+from app.model_assets import ensure_hand_landmarker_model
 from app.protocol import FrameState, Landmark
 from app.smoothing import ExponentialSmoother
 
@@ -16,6 +17,7 @@ class HandTracker:
     smoothing_alpha: float = 0.35
     _smoother: ExponentialSmoother = field(init=False)
     _hands: Any | None = field(init=False, default=None)
+    _mediapipe: Any | None = field(init=False, default=None)
 
     def __post_init__(self) -> None:
         self._smoother = ExponentialSmoother(alpha=self.smoothing_alpha)
@@ -23,16 +25,22 @@ class HandTracker:
             importlib.import_module("mediapipe") if importlib.util.find_spec("mediapipe") else None
         )
         if mediapipe is not None:
-            solutions = cast(Any, mediapipe).solutions
-            self._hands = solutions.hands.Hands(
-                model_complexity=0,
-                min_detection_confidence=0.55,
+            self._mediapipe = cast(Any, mediapipe)
+            tasks = importlib.import_module("mediapipe.tasks.python")
+            vision = importlib.import_module("mediapipe.tasks.python.vision")
+            model_path = ensure_hand_landmarker_model()
+            options = vision.HandLandmarkerOptions(
+                base_options=tasks.BaseOptions(model_asset_path=str(model_path)),
+                running_mode=vision.RunningMode.IMAGE,
+                num_hands=1,
+                min_hand_detection_confidence=0.55,
+                min_hand_presence_confidence=0.55,
                 min_tracking_confidence=0.55,
-                max_num_hands=1,
             )
+            self._hands = vision.HandLandmarker.create_from_options(options)
 
     def process(self, frame: Any) -> FrameState:
-        if self._hands is None:
+        if self._hands is None or self._mediapipe is None:
             return {
                 "tracking": False,
                 "pinch_strength": 0.0,
@@ -44,8 +52,12 @@ class HandTracker:
         import cv2
 
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        result = self._hands.process(rgb_frame)
-        if not result.multi_hand_landmarks:
+        image = self._mediapipe.Image(
+            image_format=self._mediapipe.ImageFormat.SRGB,
+            data=rgb_frame,
+        )
+        result = self._hands.detect(image)
+        if not result.hand_landmarks:
             return {
                 "tracking": False,
                 "pinch_strength": 0.0,
@@ -54,7 +66,7 @@ class HandTracker:
                 "confidence": 0.0,
             }
 
-        landmarks = result.multi_hand_landmarks[0].landmark
+        landmarks = result.hand_landmarks[0]
         index_tip: Landmark = cast(Landmark, {"x": landmarks[8].x, "y": landmarks[8].y})
         thumb_tip: Landmark = cast(Landmark, {"x": landmarks[4].x, "y": landmarks[4].y})
         middle_tip: Landmark = cast(Landmark, {"x": landmarks[12].x, "y": landmarks[12].y})
