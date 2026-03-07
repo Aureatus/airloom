@@ -1,4 +1,43 @@
-from app.gestures import GestureMachine, compute_pinch_strength
+from typing import cast
+
+from app.gestures import GestureMachine
+from app.pose_features import compute_pinch_strength
+from app.protocol import FrameState, PoseScores, empty_pose_scores
+
+
+def pose_scores(pose: str = "neutral", confidence: float = 0.9, **overrides: float) -> PoseScores:
+    scores = empty_pose_scores()
+    if pose in scores:
+        scores[pose] = confidence
+    for key, value in overrides.items():
+        normalized_key = key.replace("_", "-")
+        if normalized_key in scores:
+            scores[normalized_key] = value
+    return scores
+
+
+def frame_state(**overrides: object) -> FrameState:
+    pose = cast(str, overrides.get("pose", "neutral"))
+    pose_confidence = float(cast(float | int, overrides.get("pose_confidence", 0.9)))
+    return cast(
+        FrameState,
+        {
+            "tracking": True,
+            "pointer": {"x": 0.5, "y": 0.4},
+            "pose": pose,
+            "pose_confidence": pose_confidence,
+            "pose_scores": cast(
+                PoseScores,
+                overrides.get("pose_scores", pose_scores(pose=pose, confidence=pose_confidence)),
+            ),
+            "pinch_strength": 0.1,
+            "secondary_pinch_strength": 0.1,
+            "open_palm_hold": False,
+            "closed_fist": False,
+            "confidence": 0.9,
+            **overrides,
+        },
+    )
 
 
 def test_compute_pinch_strength_increases_as_points_move_closer() -> None:
@@ -11,26 +50,43 @@ def test_compute_pinch_strength_increases_as_points_move_closer() -> None:
 def test_gesture_machine_click_cycle() -> None:
     machine = GestureMachine()
 
-    down_events = machine.update(
-        {
-            "tracking": True,
-            "pointer": {"x": 0.5, "y": 0.4},
-            "pinch_strength": 0.81,
-            "secondary_pinch_strength": 0.12,
-            "open_palm_hold": False,
-            "confidence": 0.93,
-        }
+    first_down_events = machine.update(
+        frame_state(
+            pose="primary-pinch",
+            pinch_strength=0.81,
+            secondary_pinch_strength=0.12,
+            confidence=0.93,
+        )
     )
-    up_events = machine.update(
-        {
-            "tracking": True,
-            "pointer": {"x": 0.51, "y": 0.41},
-            "pinch_strength": 0.34,
-            "secondary_pinch_strength": 0.12,
-            "open_palm_hold": False,
-            "confidence": 0.93,
-        }
+    second_down_events = machine.update(
+        frame_state(
+            pointer={"x": 0.51, "y": 0.41},
+            pose="primary-pinch",
+            pinch_strength=0.84,
+            secondary_pinch_strength=0.12,
+            confidence=0.93,
+        )
     )
+    down_events = first_down_events + second_down_events
+    first_up_events = machine.update(
+        frame_state(
+            pointer={"x": 0.51, "y": 0.41},
+            pose="neutral",
+            pinch_strength=0.34,
+            secondary_pinch_strength=0.12,
+            confidence=0.93,
+        )
+    )
+    second_up_events = machine.update(
+        frame_state(
+            pointer={"x": 0.51, "y": 0.41},
+            pose="neutral",
+            pinch_strength=0.34,
+            secondary_pinch_strength=0.12,
+            confidence=0.93,
+        )
+    )
+    up_events = first_up_events + second_up_events
 
     assert any(
         event["type"] == "gesture.intent"
@@ -51,14 +107,14 @@ def test_open_palm_hold_emits_enter() -> None:
     trigger_events = []
     for _ in range(12):
         trigger_events = machine.update(
-            {
-                "tracking": True,
-                "pointer": {"x": 0.3, "y": 0.2},
-                "pinch_strength": 0.12,
-                "secondary_pinch_strength": 0.18,
-                "open_palm_hold": True,
-                "confidence": 0.88,
-            }
+            frame_state(
+                pointer={"x": 0.3, "y": 0.2},
+                pose="open-palm",
+                pinch_strength=0.12,
+                secondary_pinch_strength=0.18,
+                open_palm_hold=True,
+                confidence=0.88,
+            )
         )
 
     assert any(
@@ -73,34 +129,28 @@ def test_secondary_pinch_emits_right_click_once_per_cycle() -> None:
     machine = GestureMachine()
 
     armed_events = machine.update(
-        {
-            "tracking": True,
-            "pointer": {"x": 0.4, "y": 0.3},
-            "pinch_strength": 0.2,
-            "secondary_pinch_strength": 0.84,
-            "open_palm_hold": False,
-            "confidence": 0.9,
-        }
+        frame_state(
+            pointer={"x": 0.4, "y": 0.3},
+            pose="secondary-pinch",
+            pinch_strength=0.2,
+            secondary_pinch_strength=0.84,
+        )
     )
     held_events = machine.update(
-        {
-            "tracking": True,
-            "pointer": {"x": 0.41, "y": 0.3},
-            "pinch_strength": 0.2,
-            "secondary_pinch_strength": 0.86,
-            "open_palm_hold": False,
-            "confidence": 0.9,
-        }
+        frame_state(
+            pointer={"x": 0.41, "y": 0.3},
+            pose="secondary-pinch",
+            pinch_strength=0.2,
+            secondary_pinch_strength=0.86,
+        )
     )
     release_events = machine.update(
-        {
-            "tracking": True,
-            "pointer": {"x": 0.42, "y": 0.31},
-            "pinch_strength": 0.2,
-            "secondary_pinch_strength": 0.2,
-            "open_palm_hold": False,
-            "confidence": 0.9,
-        }
+        frame_state(
+            pointer={"x": 0.42, "y": 0.31},
+            pose="neutral",
+            pinch_strength=0.2,
+            secondary_pinch_strength=0.2,
+        )
     )
 
     assert (
@@ -123,15 +173,13 @@ def test_closed_fist_emits_single_toggle_after_stable_hold() -> None:
 
     for _ in range(4):
         trigger_events = machine.update(
-            {
-                "tracking": True,
-                "pointer": {"x": 0.5, "y": 0.4},
-                "pinch_strength": 0.18,
-                "secondary_pinch_strength": 0.16,
-                "open_palm_hold": False,
-                "closed_fist": True,
-                "confidence": 0.91,
-            }
+            frame_state(
+                pose="closed-fist",
+                pinch_strength=0.18,
+                secondary_pinch_strength=0.16,
+                closed_fist=True,
+                confidence=0.91,
+            )
         )
 
     assert any(
@@ -142,15 +190,13 @@ def test_closed_fist_emits_single_toggle_after_stable_hold() -> None:
     )
 
     held_events = machine.update(
-        {
-            "tracking": True,
-            "pointer": {"x": 0.5, "y": 0.4},
-            "pinch_strength": 0.18,
-            "secondary_pinch_strength": 0.16,
-            "open_palm_hold": False,
-            "closed_fist": True,
-            "confidence": 0.91,
-        }
+        frame_state(
+            pose="closed-fist",
+            pinch_strength=0.18,
+            secondary_pinch_strength=0.16,
+            closed_fist=True,
+            confidence=0.91,
+        )
     )
 
     assert not any(event.get("type") == "gesture.intent" for event in held_events)
@@ -161,69 +207,51 @@ def test_closed_fist_requires_stable_release_before_next_toggle() -> None:
 
     for _ in range(4):
         machine.update(
-            {
-                "tracking": True,
-                "pointer": {"x": 0.5, "y": 0.4},
-                "pinch_strength": 0.18,
-                "secondary_pinch_strength": 0.16,
-                "open_palm_hold": False,
-                "closed_fist": True,
-                "confidence": 0.91,
-            }
+            frame_state(
+                pose="closed-fist",
+                pinch_strength=0.18,
+                secondary_pinch_strength=0.16,
+                closed_fist=True,
+                confidence=0.91,
+            )
         )
 
     for _ in range(2):
         machine.update(
-            {
-                "tracking": True,
-                "pointer": {"x": 0.5, "y": 0.4},
-                "pinch_strength": 0.18,
-                "secondary_pinch_strength": 0.16,
-                "open_palm_hold": False,
-                "closed_fist": False,
-                "confidence": 0.91,
-            }
+            frame_state(
+                pose="neutral", pinch_strength=0.18, secondary_pinch_strength=0.16, confidence=0.91
+            )
         )
 
     partial_rearm_events = machine.update(
-        {
-            "tracking": True,
-            "pointer": {"x": 0.5, "y": 0.4},
-            "pinch_strength": 0.18,
-            "secondary_pinch_strength": 0.16,
-            "open_palm_hold": False,
-            "closed_fist": True,
-            "confidence": 0.91,
-        }
+        frame_state(
+            pose="closed-fist",
+            pinch_strength=0.18,
+            secondary_pinch_strength=0.16,
+            closed_fist=True,
+            confidence=0.91,
+        )
     )
 
     assert not any(event.get("type") == "gesture.intent" for event in partial_rearm_events)
 
     for _ in range(3):
         machine.update(
-            {
-                "tracking": True,
-                "pointer": {"x": 0.5, "y": 0.4},
-                "pinch_strength": 0.18,
-                "secondary_pinch_strength": 0.16,
-                "open_palm_hold": False,
-                "closed_fist": False,
-                "confidence": 0.91,
-            }
+            frame_state(
+                pose="neutral", pinch_strength=0.18, secondary_pinch_strength=0.16, confidence=0.91
+            )
         )
 
     rearm_events = []
     for _ in range(4):
         rearm_events = machine.update(
-            {
-                "tracking": True,
-                "pointer": {"x": 0.5, "y": 0.4},
-                "pinch_strength": 0.18,
-                "secondary_pinch_strength": 0.16,
-                "open_palm_hold": False,
-                "closed_fist": True,
-                "confidence": 0.91,
-            }
+            frame_state(
+                pose="closed-fist",
+                pinch_strength=0.18,
+                secondary_pinch_strength=0.16,
+                closed_fist=True,
+                confidence=0.91,
+            )
         )
 
     assert any(
@@ -231,4 +259,90 @@ def test_closed_fist_requires_stable_release_before_next_toggle() -> None:
         and event.get("gesture") == "closed-fist"
         and event.get("phase") == "instant"
         for event in rearm_events
+    )
+
+
+def test_closed_fist_does_not_start_dragging() -> None:
+    machine = GestureMachine()
+
+    events = machine.update(
+        frame_state(
+            pose="closed-fist",
+            pinch_strength=0.92,
+            secondary_pinch_strength=0.22,
+            closed_fist=True,
+            confidence=0.91,
+        )
+    )
+
+    assert not any(
+        event.get("type") == "gesture.intent" and event.get("gesture") == "primary-pinch"
+        for event in events
+    )
+
+
+def test_primary_pinch_survives_single_unknown_frame_when_signal_stays_strong() -> None:
+    machine = GestureMachine()
+
+    machine.update(
+        frame_state(
+            pose="primary-pinch",
+            pose_confidence=0.86,
+            pose_scores=pose_scores(
+                pose="primary-pinch",
+                confidence=0.86,
+                open_palm=0.72,
+                closed_fist=0.14,
+            ),
+            pinch_strength=0.84,
+        )
+    )
+
+    noisy_events = machine.update(
+        frame_state(
+            pose="unknown",
+            pose_confidence=0.58,
+            pose_scores=pose_scores(
+                pose="neutral",
+                confidence=0.3,
+                primary_pinch=0.52,
+                open_palm=0.48,
+                closed_fist=0.18,
+            ),
+            pinch_strength=0.79,
+        )
+    )
+
+    assert not any(
+        event.get("type") == "gesture.intent" and event.get("phase") == "end"
+        for event in noisy_events
+    )
+
+
+def test_primary_pinch_releases_after_a_weak_non_pinch_frame() -> None:
+    machine = GestureMachine()
+
+    machine.update(
+        frame_state(
+            pose="primary-pinch",
+            pose_confidence=0.86,
+            pose_scores=pose_scores(pose="primary-pinch", confidence=0.86, open_palm=0.68),
+            pinch_strength=0.84,
+        )
+    )
+
+    release_events = machine.update(
+        frame_state(
+            pose="neutral",
+            pose_confidence=0.62,
+            pose_scores=pose_scores(pose="neutral", confidence=0.62, primary_pinch=0.18),
+            pinch_strength=0.22,
+        )
+    )
+
+    assert any(
+        event.get("type") == "gesture.intent"
+        and event.get("gesture") == "primary-pinch"
+        and event.get("phase") == "end"
+        for event in release_events
     )

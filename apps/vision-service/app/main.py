@@ -1,19 +1,22 @@
 from __future__ import annotations
 
 import argparse
+import inspect
 import json
 import os
 import sys
 import time
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, BinaryIO
+from threading import Thread
+from typing import Any, BinaryIO, cast
 
 from app.camera import Camera
+from app.capture_controller import CaptureController
 from app.gestures import GestureMachine
 from app.hand_tracking import HandTracker
 from app.live_pipeline import run_live_pipeline
-from app.protocol import FrameState, Landmark
+from app.protocol import FrameState, Landmark, PoseName, empty_pose_scores
 from app.replay import iter_replay, load_fixture
 
 DEBUG_PREVIEW_MAX_WIDTH = 320
@@ -22,6 +25,10 @@ DEBUG_PREVIEW_FPS = max(1, int(os.environ.get("AIRLOOM_DEBUG_PREVIEW_FPS", "12")
 DEBUG_PREVIEW_INTERVAL_S = 1 / DEBUG_PREVIEW_FPS
 DEBUG_PREVIEW_ENABLED = os.environ.get("AIRLOOM_DEBUG_PREVIEW", "0") == "1"
 DEBUG_PREVIEW_FD = 3
+DEFAULT_CAPTURE_DIR = Path(os.environ.get("AIRLOOM_CAPTURE_DIR", Path.cwd() / ".airloom-captures"))
+DEFAULT_CAPTURE_EXPORT_DIR = Path(
+    os.environ.get("AIRLOOM_CAPTURE_EXPORT_DIR", Path.cwd() / "data" / "pose-captures")
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -49,6 +56,13 @@ def emit_camera_unavailable(message: str, emit_event: Callable[[object], None]) 
             "debug": {
                 "confidence": 0.0,
                 "brightness": 0.0,
+                "pose": "unknown",
+                "poseConfidence": 0.0,
+                "poseScores": empty_pose_scores(),
+                "classifierMode": cast(
+                    str, os.environ.get("AIRLOOM_POSE_CLASSIFIER_MODE", "rules")
+                ),
+                "modelVersion": None,
                 "closedFist": False,
                 "openPalmHold": False,
                 "secondaryPinchStrength": 0.0,
@@ -84,9 +98,10 @@ def annotate_debug_frame(frame: Any, frame_state: FrameState | None) -> Any:
             _draw_marker(annotated, pointer, (255, 127, 107), 5)
 
         label = (
-            f"tracking={frame_state['tracking']} pinch={frame_state['pinch_strength']:.2f} "
-            f"secondary={frame_state['secondary_pinch_strength']:.2f} "
-            f"fist={frame_state.get('closed_fist', False)}"
+            f"pose={frame_state.get('pose', 'unknown')} "
+            f"pose_conf={frame_state.get('pose_confidence', 0.0):.2f} "
+            f"pinch={frame_state['pinch_strength']:.2f} "
+            f"secondary={frame_state['secondary_pinch_strength']:.2f}"
         )
         cv2.putText(
             annotated,
@@ -98,6 +113,41 @@ def annotate_debug_frame(frame: Any, frame_state: FrameState | None) -> Any:
             2,
             cv2.LINE_AA,
         )
+
+        pose_scores = frame_state.get("pose_scores") or empty_pose_scores()
+        classifier_label = (
+            f"scores p={pose_scores['primary-pinch']:.2f} "
+            f"f={pose_scores['closed-fist']:.2f} "
+            f"o={pose_scores['open-palm']:.2f} "
+            f"n={pose_scores['neutral']:.2f}"
+        )
+        cv2.putText(
+            annotated,
+            classifier_label,
+            (14, 52),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            (214, 226, 236),
+            1,
+            cv2.LINE_AA,
+        )
+
+        learned_pose = frame_state.get("learned_pose")
+        if learned_pose is not None:
+            learned_label = (
+                f"mode={frame_state.get('classifier_mode', 'rules')} "
+                f"learned={learned_pose} {frame_state.get('learned_pose_confidence', 0.0):.2f}"
+            )
+            cv2.putText(
+                annotated,
+                learned_label,
+                (14, 74),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.48,
+                (214, 226, 236),
+                1,
+                cv2.LINE_AA,
+            )
 
     cv2.rectangle(annotated, (0, 0), (width - 1, height - 1), (94, 215, 190), 1)
     return annotated
@@ -177,16 +227,58 @@ def run_live(
     sleep_for: Callable[[float], None] = time.sleep,
     time_source: Callable[[], float] = time.monotonic,
     camera_factory: Callable[[], Any] = Camera,
-    tracker_factory: Callable[[], Any] = HandTracker,
+    tracker_factory: Callable[..., Any] = HandTracker,
     machine_factory: Callable[[], Any] = GestureMachine,
     preview_enabled: bool = DEBUG_PREVIEW_ENABLED,
     preview_emitter: Callable[[Any, FrameState | None], bool] | None = None,
 ) -> None:
     processed = 0
+    capture_controller = CaptureController(
+        root_dir=DEFAULT_CAPTURE_DIR,
+        export_dir=DEFAULT_CAPTURE_EXPORT_DIR,
+        emit_event=emit_event,
+        mirror_x=os.environ.get("AIRLOOM_MIRROR_X", "1") != "0",
+    )
     preview_pipe = open_preview_pipe() if preview_enabled and preview_emitter is None else None
     emit_preview = preview_emitter or (
         lambda frame, frame_state: emit_preview_frame(frame, frame_state, preview_pipe)
     )
+
+    def build_tracker() -> Any:
+        if "capture_controller" in inspect.signature(tracker_factory).parameters:
+            return tracker_factory(capture_controller=capture_controller)
+        return tracker_factory()
+
+    def command_loop() -> None:
+        try:
+            for raw_line in sys.stdin:
+                line = raw_line.strip()
+                if not line:
+                    continue
+                try:
+                    payload = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+
+                command = payload.get("type")
+                if command == "capture.set-label":
+                    label = payload.get("label")
+                    if isinstance(label, str):
+                        capture_controller.set_label(cast(PoseName, label))
+                elif command == "capture.start":
+                    capture_controller.start()
+                elif command == "capture.stop":
+                    capture_controller.stop()
+                elif command == "capture.discard-last":
+                    capture_controller.discard_last()
+                elif command == "capture.export":
+                    capture_controller.export_session()
+        except OSError:
+            return
+
+    command_thread = Thread(target=command_loop, name="airloom-commands", daemon=True)
+    command_thread.start()
+    capture_controller.emit_state(None)
 
     try:
         while True:
@@ -195,7 +287,7 @@ def run_live(
                     processed += run_live_pipeline(
                         camera,
                         emit_event=emit_event,
-                        tracker_factory=tracker_factory,
+                        tracker_factory=build_tracker,
                         machine_factory=machine_factory,
                         time_source=time_source,
                         preview_interval_s=DEBUG_PREVIEW_INTERVAL_S,

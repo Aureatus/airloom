@@ -21,9 +21,43 @@ export const debugFrameEventSchema = z.object({
   height: z.number().int().positive(),
 });
 
+export const captureCountsSchema = z.object({
+  neutral: z.number().int().nonnegative(),
+  "open-palm": z.number().int().nonnegative(),
+  "closed-fist": z.number().int().nonnegative(),
+  "primary-pinch": z.number().int().nonnegative(),
+  "secondary-pinch": z.number().int().nonnegative(),
+});
+
+export const captureStateEventSchema = z.object({
+  type: z.literal("capture.state"),
+  sessionId: z.string().min(1),
+  activeLabel: z.string().min(1),
+  recording: z.boolean(),
+  takeCount: z.number().int().nonnegative(),
+  counts: captureCountsSchema,
+  lastTakeId: z.string().nullable(),
+  exportPath: z.string().nullable(),
+  message: z.string().nullable(),
+});
+
 export const statusDebugSchema = z.object({
   confidence: z.number().min(0).max(1),
   brightness: z.number().min(0).max(1),
+  pose: z.string().min(1),
+  poseConfidence: z.number().min(0).max(1),
+  poseScores: z.object({
+    neutral: z.number().min(0).max(1),
+    "open-palm": z.number().min(0).max(1),
+    "closed-fist": z.number().min(0).max(1),
+    "primary-pinch": z.number().min(0).max(1),
+    "secondary-pinch": z.number().min(0).max(1),
+  }),
+  classifierMode: z.enum(["rules", "shadow", "learned"]),
+  modelVersion: z.string().nullable(),
+  learnedPose: z.string().min(1).optional(),
+  learnedPoseConfidence: z.number().min(0).max(1).optional(),
+  shadowDisagreement: z.boolean().optional(),
   closedFist: z.boolean(),
   openPalmHold: z.boolean(),
   secondaryPinchStrength: z.number().min(0).max(1),
@@ -41,6 +75,7 @@ export const inputEventSchema = z.discriminatedUnion("type", [
   pointerObservedEventSchema,
   gestureIntentEventSchema,
   debugFrameEventSchema,
+  captureStateEventSchema,
   statusEventSchema,
 ]);
 
@@ -81,6 +116,7 @@ export const actionEventSchema = z.discriminatedUnion("type", [
 export type AirloomInputEvent = z.infer<typeof inputEventSchema>;
 export type AirloomActionEvent = z.infer<typeof actionEventSchema>;
 export type AirloomStatusEvent = z.infer<typeof statusEventSchema>;
+export type AirloomCaptureStateEvent = z.infer<typeof captureStateEventSchema>;
 
 export const parseInputEvent = (value: unknown): AirloomInputEvent => {
   return inputEventSchema.parse(value);

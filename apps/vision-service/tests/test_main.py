@@ -3,7 +3,7 @@ from io import BytesIO
 import numpy as np
 
 from app.main import emit_preview_frame, encode_debug_frame, run_live
-from app.protocol import FrameState, GestureEvent
+from app.protocol import FrameState, GestureEvent, empty_pose_scores, pose_scores_for_pose
 
 
 class _FakeCamera:
@@ -30,6 +30,9 @@ class _FakeTracker:
         return {
             "tracking": True,
             "pointer": {"x": 0.5, "y": 0.4},
+            "pose": "neutral",
+            "pose_confidence": 0.74,
+            "pose_scores": pose_scores_for_pose("neutral", 0.74),
             "pinch_strength": 0.0,
             "secondary_pinch_strength": 0.0,
             "open_palm_hold": False,
@@ -50,6 +53,11 @@ class _FakeMachine:
                 "debug": {
                     "confidence": frame["confidence"],
                     "brightness": frame.get("brightness", 0.0),
+                    "pose": frame.get("pose", "unknown"),
+                    "poseConfidence": frame.get("pose_confidence", 0.0),
+                    "poseScores": frame.get("pose_scores", empty_pose_scores()),
+                    "classifierMode": frame.get("classifier_mode", "rules"),
+                    "modelVersion": frame.get("model_version"),
                     "closedFist": frame.get("closed_fist", False),
                     "openPalmHold": frame["open_palm_hold"],
                     "secondaryPinchStrength": frame["secondary_pinch_strength"],
@@ -79,7 +87,10 @@ def test_run_live_emits_camera_unavailable_status_and_retries() -> None:
         machine_factory=_FakeMachine,
     )
 
-    assert events[0] == {
+    first_event = events[0]
+    assert isinstance(first_event, dict)
+    assert first_event["type"] == "capture.state"
+    assert events[1] == {
         "type": "status",
         "tracking": False,
         "pinchStrength": 0.0,
@@ -87,12 +98,17 @@ def test_run_live_emits_camera_unavailable_status_and_retries() -> None:
         "debug": {
             "confidence": 0.0,
             "brightness": 0.0,
+            "pose": "unknown",
+            "poseConfidence": 0.0,
+            "poseScores": empty_pose_scores(),
+            "classifierMode": "rules",
+            "modelVersion": None,
             "closedFist": False,
             "openPalmHold": False,
             "secondaryPinchStrength": 0.0,
         },
     }
-    assert events[1] == {
+    assert events[2] == {
         "type": "status",
         "tracking": True,
         "pinchStrength": 0.0,
@@ -100,6 +116,11 @@ def test_run_live_emits_camera_unavailable_status_and_retries() -> None:
         "debug": {
             "confidence": 0.9,
             "brightness": 0.4,
+            "pose": "neutral",
+            "poseConfidence": 0.74,
+            "poseScores": pose_scores_for_pose("neutral", 0.74),
+            "classifierMode": "rules",
+            "modelVersion": None,
             "closedFist": False,
             "openPalmHold": False,
             "secondaryPinchStrength": 0.0,
@@ -116,6 +137,9 @@ def test_encode_debug_frame_emits_jpeg_payload() -> None:
             "tracking": True,
             "pointer": {"x": 0.5, "y": 0.4},
             "raw_pointer": {"x": 0.45, "y": 0.4},
+            "pose": "primary-pinch",
+            "pose_confidence": 0.88,
+            "pose_scores": pose_scores_for_pose("primary-pinch", 0.88),
             "pinch_strength": 0.4,
             "secondary_pinch_strength": 0.1,
             "open_palm_hold": False,
@@ -162,7 +186,7 @@ def test_run_live_emits_preview_frames_when_enabled() -> None:
         preview_emitter=lambda preview, _frame_state: preview_frames.append(preview) is None,
     )
 
-    status_event = events[0]
+    status_event = events[1]
 
     assert isinstance(status_event, dict)
     assert status_event["type"] == "status"

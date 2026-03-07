@@ -9,9 +9,24 @@ type RuntimeState = {
   gesture: string;
   pinchStrength: number;
   pointerControlEnabled: boolean;
+  inputSuppressed: boolean;
   debug: {
     confidence: number;
     brightness: number;
+    pose: string;
+    poseConfidence: number;
+    poseScores: {
+      neutral: number;
+      "open-palm": number;
+      "closed-fist": number;
+      "primary-pinch": number;
+      "secondary-pinch": number;
+    };
+    classifierMode: "rules" | "shadow" | "learned";
+    modelVersion: string | null;
+    learnedPose?: string;
+    learnedPoseConfidence?: number;
+    shadowDisagreement?: boolean;
     closedFist: boolean;
     openPalmHold: boolean;
     secondaryPinchStrength: number;
@@ -25,11 +40,30 @@ type RuntimeState = {
   lastError: string | null;
 };
 
+type CaptureState = {
+  type: "capture.state";
+  sessionId: string;
+  activeLabel: string;
+  recording: boolean;
+  takeCount: number;
+  counts: {
+    neutral: number;
+    "open-palm": number;
+    "closed-fist": number;
+    "primary-pinch": number;
+    "secondary-pinch": number;
+  };
+  lastTakeId: string | null;
+  exportPath: string | null;
+  message: string | null;
+};
+
 type ServiceStatus = {
   running: boolean;
   adapter: string;
   lastEvent: AirloomInputEvent | null;
   runtime: RuntimeState;
+  capture: CaptureState;
   warnings: string[];
 };
 
@@ -41,6 +75,12 @@ declare global {
       updateSettings: (payload: AirloomSettings) => Promise<AirloomSettings>;
       startService: () => Promise<ServiceStatus>;
       stopService: () => Promise<ServiceStatus>;
+      setInputSuppressed: (suppressed: boolean) => Promise<ServiceStatus>;
+      setCaptureLabel: (label: string) => Promise<ServiceStatus>;
+      startCapture: () => Promise<ServiceStatus>;
+      stopCapture: () => Promise<ServiceStatus>;
+      discardLastCapture: () => Promise<ServiceStatus>;
+      exportCaptures: () => Promise<ServiceStatus>;
       sendEvent: (payload: AirloomInputEvent) => Promise<ServiceStatus>;
       onStatus: (listener: (value: ServiceStatus) => void) => () => void;
       onPreviewFrame: (listener: (value: Uint8Array) => void) => () => void;
@@ -57,9 +97,21 @@ const initialStatus: ServiceStatus = {
     gesture: "idle",
     pinchStrength: 0,
     pointerControlEnabled: false,
+    inputSuppressed: false,
     debug: {
       confidence: 0,
       brightness: 0,
+      pose: "unknown",
+      poseConfidence: 0,
+      poseScores: {
+        neutral: 0,
+        "open-palm": 0,
+        "closed-fist": 0,
+        "primary-pinch": 0,
+        "secondary-pinch": 0,
+      },
+      classifierMode: "rules",
+      modelVersion: null,
       closedFist: false,
       openPalmHold: false,
       secondaryPinchStrength: 0,
@@ -71,6 +123,23 @@ const initialStatus: ServiceStatus = {
       primaryPinchOutcome: "idle",
     },
     lastError: null,
+  },
+  capture: {
+    type: "capture.state",
+    sessionId: "pending",
+    activeLabel: "neutral",
+    recording: false,
+    takeCount: 0,
+    counts: {
+      neutral: 0,
+      "open-palm": 0,
+      "closed-fist": 0,
+      "primary-pinch": 0,
+      "secondary-pinch": 0,
+    },
+    lastTakeId: null,
+    exportPath: null,
+    message: null,
   },
   warnings: [],
 };
@@ -303,6 +372,16 @@ export const App = () => {
           pinchStrength={status.runtime.pinchStrength}
           pointerControlEnabled={status.runtime.pointerControlEnabled}
           debug={status.runtime.debug}
+          capture={status.capture}
+          onCaptureLabelChange={(label) =>
+            window.airloom.setCaptureLabel(label).then(setStatus)
+          }
+          onCaptureStart={() => window.airloom.startCapture().then(setStatus)}
+          onCaptureStop={() => window.airloom.stopCapture().then(setStatus)}
+          onDiscardLastCapture={() =>
+            window.airloom.discardLastCapture().then(setStatus)
+          }
+          onExportCaptures={() => window.airloom.exportCaptures().then(setStatus)}
           primaryPinchActive={status.runtime.mapper.primaryPinchActive}
           primaryPinchHeldMs={status.runtime.mapper.primaryPinchHeldMs}
           primaryPinchOutcome={status.runtime.mapper.primaryPinchOutcome}

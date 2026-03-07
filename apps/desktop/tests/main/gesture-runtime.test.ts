@@ -87,6 +87,17 @@ describe("createGestureRuntime", () => {
       debug: {
         confidence: 0.74,
         brightness: 0.21,
+        pose: "closed-fist",
+        poseConfidence: 0.88,
+        poseScores: {
+          neutral: 0.12,
+          "open-palm": 0.18,
+          "closed-fist": 0.88,
+          "primary-pinch": 0.14,
+          "secondary-pinch": 0.06,
+        },
+        classifierMode: "rules",
+        modelVersion: null,
         closedFist: true,
         openPalmHold: false,
         secondaryPinchStrength: 0.14,
@@ -98,9 +109,21 @@ describe("createGestureRuntime", () => {
       gesture: "short-pinch",
       pinchStrength: 0.82,
       pointerControlEnabled: false,
+      inputSuppressed: false,
       debug: {
         confidence: 0.74,
         brightness: 0.21,
+        pose: "closed-fist",
+        poseConfidence: 0.88,
+        poseScores: {
+          neutral: 0.12,
+          "open-palm": 0.18,
+          "closed-fist": 0.88,
+          "primary-pinch": 0.14,
+          "secondary-pinch": 0.06,
+        },
+        classifierMode: "rules",
+        modelVersion: null,
         closedFist: true,
         openPalmHold: false,
         secondaryPinchStrength: 0.14,
@@ -113,6 +136,47 @@ describe("createGestureRuntime", () => {
       },
       lastError: null,
     });
+  });
+
+  test("suppresses pointer and gesture actions during capture mode", async () => {
+    const { adapter, calls } = createTestAdapter();
+    const runtime = createGestureRuntime(
+      adapter,
+      (x, y) => ({ x, y }),
+      () => createTestSettings(),
+    );
+
+    runtime.setInputSuppressed(true);
+
+    await runtime.handleEvent({
+      type: "gesture.intent",
+      gesture: "closed-fist",
+      phase: "instant",
+    });
+    await runtime.handleEvent({
+      type: "pointer.observed",
+      x: 0.4,
+      y: 0.5,
+      confidence: 0.92,
+    });
+
+    expect(calls).toEqual([]);
+    expect(runtime.getState().inputSuppressed).toBe(true);
+
+    runtime.setInputSuppressed(false);
+    await runtime.handleEvent({
+      type: "gesture.intent",
+      gesture: "closed-fist",
+      phase: "instant",
+    });
+    await runtime.handleEvent({
+      type: "pointer.observed",
+      x: 0.4,
+      y: 0.5,
+      confidence: 0.92,
+    });
+
+    expect(calls).toEqual(["move"]);
   });
 
   test("maps gesture triggers to configured keys", async () => {

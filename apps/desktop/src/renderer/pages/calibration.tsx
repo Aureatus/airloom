@@ -1,5 +1,39 @@
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LivePreview } from "../components/live-preview";
+
+const captureLabels = [
+  "neutral",
+  "open-palm",
+  "closed-fist",
+  "primary-pinch",
+  "secondary-pinch",
+] as const;
+
+const captureDurationOptions = [1000, 1500, 2000, 2500] as const;
+
+const labelHotkeys: Record<(typeof captureLabels)[number], string> = {
+  neutral: "a",
+  "open-palm": "s",
+  "closed-fist": "d",
+  "primary-pinch": "f",
+  "secondary-pinch": "g",
+};
+
+const durationHotkeys: Record<number, string> = {
+  1000: "1",
+  1500: "2",
+  2000: "3",
+  2500: "4",
+};
+
+const isEditableTarget = (target: EventTarget | null) => {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  const tagName = target.tagName.toLowerCase();
+  return tagName === "input" || tagName === "textarea" || tagName === "select" || target.isContentEditable;
+};
 
 type CalibrationProps = {
   serviceRunning: boolean;
@@ -10,10 +44,45 @@ type CalibrationProps = {
   debug: {
     confidence: number;
     brightness: number;
+    pose: string;
+    poseConfidence: number;
+    poseScores: {
+      neutral: number;
+      "open-palm": number;
+      "closed-fist": number;
+      "primary-pinch": number;
+      "secondary-pinch": number;
+    };
+    classifierMode: "rules" | "shadow" | "learned";
+    modelVersion: string | null;
+    learnedPose?: string;
+    learnedPoseConfidence?: number;
+    shadowDisagreement?: boolean;
     closedFist: boolean;
     openPalmHold: boolean;
     secondaryPinchStrength: number;
   };
+  capture: {
+    sessionId: string;
+    activeLabel: string;
+    recording: boolean;
+    takeCount: number;
+    counts: {
+      neutral: number;
+      "open-palm": number;
+      "closed-fist": number;
+      "primary-pinch": number;
+      "secondary-pinch": number;
+    };
+    lastTakeId: string | null;
+    exportPath: string | null;
+    message: string | null;
+  };
+  onCaptureLabelChange: (label: string) => Promise<unknown>;
+  onCaptureStart: () => Promise<unknown>;
+  onCaptureStop: () => Promise<unknown>;
+  onDiscardLastCapture: () => Promise<unknown>;
+  onExportCaptures: () => Promise<unknown>;
   primaryPinchActive: boolean;
   primaryPinchHeldMs: number;
   primaryPinchOutcome: "idle" | "click" | "drag";
@@ -27,11 +96,25 @@ export const CalibrationPage = ({
   pinchStrength,
   pointerControlEnabled,
   debug,
+  capture,
+  onCaptureLabelChange,
+  onCaptureStart,
+  onCaptureStop,
+  onDiscardLastCapture,
+  onExportCaptures,
   primaryPinchActive,
   primaryPinchHeldMs,
   primaryPinchOutcome,
   dragHoldThresholdMs,
 }: CalibrationProps) => {
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const [captureBusy, setCaptureBusy] = useState(false);
+  const captureStartRef = useRef(onCaptureStart);
+  const captureStopRef = useRef(onCaptureStop);
+  const discardLastRef = useRef(onDiscardLastCapture);
+  const exportCapturesRef = useRef(onExportCaptures);
+  const changeLabelRef = useRef(onCaptureLabelChange);
+  const [captureDurationMs, setCaptureDurationMs] = useState<number>(1500);
   const progress =
     dragHoldThresholdMs <= 0
       ? 1
@@ -52,6 +135,155 @@ export const CalibrationPage = ({
 
     return "Bright";
   }, [debug.brightness]);
+
+  useEffect(() => {
+    captureStartRef.current = onCaptureStart;
+  }, [onCaptureStart]);
+
+  useEffect(() => {
+    captureStopRef.current = onCaptureStop;
+  }, [onCaptureStop]);
+
+  useEffect(() => {
+    discardLastRef.current = onDiscardLastCapture;
+  }, [onDiscardLastCapture]);
+
+  useEffect(() => {
+    exportCapturesRef.current = onExportCaptures;
+  }, [onExportCaptures]);
+
+  useEffect(() => {
+    changeLabelRef.current = onCaptureLabelChange;
+  }, [onCaptureLabelChange]);
+
+  useEffect(() => {
+    return () => {
+      void window.airloom.setInputSuppressed(false);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (countdown === null) {
+      return;
+    }
+    if (countdown <= 0) {
+      captureStartRef.current()
+        .catch(() => window.airloom.setInputSuppressed(false))
+        .finally(() => {
+          setCountdown(null);
+          setCaptureBusy(false);
+        });
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setCountdown(countdown - 1);
+    }, 1000);
+    return () => window.clearTimeout(timer);
+  }, [countdown]);
+
+  useEffect(() => {
+    if (!capture.recording) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setCaptureBusy(true);
+      captureStopRef.current()
+        .finally(() => window.airloom.setInputSuppressed(false))
+        .finally(() => setCaptureBusy(false));
+    }, captureDurationMs);
+
+    return () => window.clearTimeout(timer);
+  }, [capture.recording, captureDurationMs]);
+
+  const startCapture = useCallback(async () => {
+    setCaptureBusy(true);
+    await window.airloom.setInputSuppressed(true);
+    setCountdown(3);
+  }, []);
+
+  const stopCapture = useCallback(async () => {
+    setCaptureBusy(true);
+    await onCaptureStop();
+    await window.airloom.setInputSuppressed(false);
+    setCaptureBusy(false);
+  }, [onCaptureStop]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (isEditableTarget(event.target)) {
+        return;
+      }
+
+      const key = event.key.toLowerCase();
+
+      if (key === "escape") {
+        if (countdown !== null) {
+          event.preventDefault();
+          setCountdown(null);
+          setCaptureBusy(false);
+          void window.airloom.setInputSuppressed(false);
+          return;
+        }
+
+        if (capture.recording && !captureBusy) {
+          event.preventDefault();
+          void stopCapture();
+        }
+        return;
+      }
+
+      const labelEntry = Object.entries(labelHotkeys).find(([, hotkey]) => hotkey === key);
+      if (labelEntry && !capture.recording && !captureBusy && countdown === null) {
+        event.preventDefault();
+        void changeLabelRef.current(labelEntry[0]);
+        return;
+      }
+
+      const durationEntry = Object.entries(durationHotkeys).find(([, hotkey]) => hotkey === key);
+      if (durationEntry && !capture.recording && !captureBusy && countdown === null) {
+        event.preventDefault();
+        setCaptureDurationMs(Number(durationEntry[0]));
+        return;
+      }
+
+      if (key === " " || key === "enter") {
+        event.preventDefault();
+        if (!serviceRunning || captureBusy) {
+          return;
+        }
+        if (countdown !== null) {
+          setCountdown(null);
+          setCaptureBusy(false);
+          void window.airloom.setInputSuppressed(false);
+          return;
+        }
+        if (capture.recording) {
+          void stopCapture();
+          return;
+        }
+        void startCapture();
+        return;
+      }
+
+      if (key === "backspace" && !capture.recording && !captureBusy && capture.takeCount > 0) {
+        event.preventDefault();
+        setCaptureBusy(true);
+        void discardLastRef.current().finally(() => setCaptureBusy(false));
+        return;
+      }
+
+      if (key === "e" && !capture.recording && !captureBusy && capture.takeCount > 0) {
+        event.preventDefault();
+        setCaptureBusy(true);
+        void exportCapturesRef.current().finally(() => setCaptureBusy(false));
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [capture.recording, capture.takeCount, captureBusy, countdown, serviceRunning, startCapture, stopCapture]);
 
   return (
     <section className="panel">
@@ -91,6 +323,36 @@ export const CalibrationPage = ({
               </strong>
             </div>
             <div className="metric-card">
+              <span>Pose</span>
+              <strong>
+                {debug.pose} ({debug.poseConfidence.toFixed(2)})
+              </strong>
+            </div>
+            <div className="metric-card">
+              <span>Classifier</span>
+              <strong>{debug.classifierMode}</strong>
+            </div>
+            <div className="metric-card">
+              <span>Model</span>
+              <strong>{debug.modelVersion ?? "rules only"}</strong>
+            </div>
+            <div className="metric-card">
+              <span>Primary score</span>
+              <strong>{debug.poseScores["primary-pinch"].toFixed(2)}</strong>
+            </div>
+            <div className="metric-card">
+              <span>Fist score</span>
+              <strong>{debug.poseScores["closed-fist"].toFixed(2)}</strong>
+            </div>
+            <div className="metric-card">
+              <span>Palm score</span>
+              <strong>{debug.poseScores["open-palm"].toFixed(2)}</strong>
+            </div>
+            <div className="metric-card">
+              <span>Neutral score</span>
+              <strong>{debug.poseScores.neutral.toFixed(2)}</strong>
+            </div>
+            <div className="metric-card">
               <span>Closed fist</span>
               <strong>{debug.closedFist ? "Seen" : "No"}</strong>
             </div>
@@ -110,6 +372,20 @@ export const CalibrationPage = ({
               <span>Hold active</span>
               <strong>{primaryPinchActive ? "Yes" : "No"}</strong>
             </div>
+            {debug.learnedPose ? (
+              <div className="metric-card">
+                <span>Learned pose</span>
+                <strong>
+                  {debug.learnedPose} ({(debug.learnedPoseConfidence ?? 0).toFixed(2)})
+                </strong>
+              </div>
+            ) : null}
+            {debug.shadowDisagreement !== undefined ? (
+              <div className="metric-card">
+                <span>Shadow mismatch</span>
+                <strong>{debug.shadowDisagreement ? "Yes" : "No"}</strong>
+              </div>
+            ) : null}
           </div>
           <p className="panel-copy">
             Cursor motion starts frozen by default. Make a brief closed fist to
@@ -119,6 +395,138 @@ export const CalibrationPage = ({
             If scene light stays in the dim range or confidence drops while your
             hand is clearly visible, low light is probably hurting detection.
           </p>
+          <p className="panel-copy">
+            If a pinch feels ignored, compare the primary score against the fist,
+            palm, and neutral scores to see which pose the classifier nearly chose.
+          </p>
+
+          <div className="panel-copy">
+            <strong>Capture dataset</strong>
+          </div>
+          <div className="metric-grid compact">
+            <div className="metric-card">
+              <span>Session</span>
+              <strong>{capture.sessionId}</strong>
+            </div>
+            <div className="metric-card">
+              <span>Active label</span>
+              <strong>{capture.activeLabel}</strong>
+            </div>
+            <div className="metric-card">
+              <span>Takes</span>
+              <strong>{capture.takeCount}</strong>
+            </div>
+            <div className="metric-card">
+              <span>Recording</span>
+              <strong>
+                {capture.recording ? "Yes" : countdown ? `Countdown (${countdown})` : "No"}
+              </strong>
+            </div>
+            <div className="metric-card">
+              <span>Auto-stop</span>
+              <strong>{(captureDurationMs / 1000).toFixed(1)} s</strong>
+            </div>
+          </div>
+          <div className="panel-copy">
+            {captureLabels.map((label) => (
+              <label key={label} style={{ display: "inline-flex", gap: "0.35rem", marginRight: "1rem" }}>
+                <input
+                  type="radio"
+                  name="capture-label"
+                  value={label}
+                  checked={capture.activeLabel === label}
+                  disabled={capture.recording || captureBusy}
+                  onChange={() => {
+                    void onCaptureLabelChange(label);
+                  }}
+                />
+                <span>
+                  {label} ({capture.counts[label]})
+                </span>
+              </label>
+            ))}
+          </div>
+          <div className="panel-copy">
+            {captureDurationOptions.map((durationMs) => (
+              <label
+                key={durationMs}
+                style={{ display: "inline-flex", gap: "0.35rem", marginRight: "1rem" }}
+              >
+                <input
+                  type="radio"
+                  name="capture-duration"
+                  value={durationMs}
+                  checked={captureDurationMs === durationMs}
+                  disabled={capture.recording || countdown !== null || captureBusy}
+                  onChange={() => setCaptureDurationMs(durationMs)}
+                />
+                <span>{(durationMs / 1000).toFixed(1)}s</span>
+              </label>
+            ))}
+          </div>
+          <div className="hero-actions">
+            <button
+              type="button"
+              disabled={!serviceRunning || capture.recording || captureBusy}
+              onClick={() => {
+                void startCapture();
+              }}
+            >
+              {countdown ? `Recording in ${countdown}` : "Record labeled take"}
+            </button>
+            <button
+              type="button"
+              className="ghost"
+              disabled={(!capture.recording && countdown === null) || captureBusy}
+              onClick={() => {
+                if (countdown !== null) {
+                  setCountdown(null);
+                  setCaptureBusy(false);
+                  void window.airloom.setInputSuppressed(false);
+                  return;
+                }
+                void stopCapture();
+              }}
+            >
+              {countdown !== null ? "Cancel countdown" : "Stop capture"}
+            </button>
+            <button
+              type="button"
+              className="ghost"
+              disabled={capture.takeCount === 0 || capture.recording || captureBusy}
+              onClick={() => {
+                setCaptureBusy(true);
+                void onDiscardLastCapture().finally(() => setCaptureBusy(false));
+              }}
+            >
+              Discard last take
+            </button>
+            <button
+              type="button"
+              className="ghost"
+              disabled={capture.takeCount === 0 || capture.recording || captureBusy}
+              onClick={() => {
+                setCaptureBusy(true);
+                void onExportCaptures().finally(() => setCaptureBusy(false));
+              }}
+            >
+              Export captures
+            </button>
+          </div>
+          {capture.message ? <p className="panel-copy">{capture.message}</p> : null}
+          {capture.exportPath ? (
+            <p className="panel-copy">Last export: {capture.exportPath}</p>
+          ) : null}
+          <p className="panel-copy">
+            Each take auto-stops after {(captureDurationMs / 1000).toFixed(1)} seconds, so you can
+            form the pose and hold it without touching the mouse.
+          </p>
+          <p className="panel-copy">
+            Keyboard: `A` neutral, `S` open palm, `D` closed fist, `F` primary pinch, `G`
+            secondary pinch, `1-4` duration, `Space`/`Enter` start, `Esc` stop or cancel,
+            `Backspace` discard, `E` export.
+          </p>
+
           <div className="hold-preview">
             <div className="hold-preview-copy">
               <span>Click vs drag</span>

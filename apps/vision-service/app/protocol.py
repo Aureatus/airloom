@@ -8,6 +8,75 @@ class Landmark(TypedDict):
     y: float
 
 
+PoseName = Literal[
+    "unknown",
+    "neutral",
+    "open-palm",
+    "closed-fist",
+    "primary-pinch",
+    "secondary-pinch",
+]
+
+PoseClassifierMode = Literal["rules", "shadow", "learned"]
+
+
+PoseScores = TypedDict(
+    "PoseScores",
+    {
+        "neutral": float,
+        "open-palm": float,
+        "closed-fist": float,
+        "primary-pinch": float,
+        "secondary-pinch": float,
+    },
+)
+
+
+def empty_pose_scores() -> PoseScores:
+    return {
+        "neutral": 0.0,
+        "open-palm": 0.0,
+        "closed-fist": 0.0,
+        "primary-pinch": 0.0,
+        "secondary-pinch": 0.0,
+    }
+
+
+def pose_scores_for_pose(pose: PoseName, confidence: float) -> PoseScores:
+    scores = empty_pose_scores()
+    if pose != "unknown":
+        scores[pose] = confidence
+    return scores
+
+
+CaptureCounts = TypedDict(
+    "CaptureCounts",
+    {
+        "neutral": int,
+        "open-palm": int,
+        "closed-fist": int,
+        "primary-pinch": int,
+        "secondary-pinch": int,
+    },
+)
+
+
+def empty_capture_counts() -> CaptureCounts:
+    return {
+        "neutral": 0,
+        "open-palm": 0,
+        "closed-fist": 0,
+        "primary-pinch": 0,
+        "secondary-pinch": 0,
+    }
+
+
+class PoseObservation(TypedDict):
+    pose: PoseName
+    confidence: float
+    scores: PoseScores
+
+
 class PointerObservedEvent(TypedDict):
     type: Literal["pointer.observed"]
     x: float
@@ -29,6 +98,18 @@ class DebugFrameEvent(TypedDict):
     height: int
 
 
+class CaptureStateEvent(TypedDict):
+    type: Literal["capture.state"]
+    sessionId: str
+    activeLabel: PoseName
+    recording: bool
+    takeCount: int
+    counts: CaptureCounts
+    lastTakeId: str | None
+    exportPath: str | None
+    message: str | None
+
+
 class StatusEvent(TypedDict):
     type: Literal["status"]
     tracking: bool
@@ -40,18 +121,36 @@ class StatusEvent(TypedDict):
 class StatusDebug(TypedDict):
     confidence: float
     brightness: float
+    pose: PoseName
+    poseConfidence: float
+    poseScores: PoseScores
+    classifierMode: PoseClassifierMode
+    modelVersion: str | None
+    learnedPose: NotRequired[PoseName]
+    learnedPoseConfidence: NotRequired[float]
+    shadowDisagreement: NotRequired[bool]
     closedFist: bool
     openPalmHold: bool
     secondaryPinchStrength: float
 
 
-GestureEvent = PointerObservedEvent | GestureIntentEvent | DebugFrameEvent | StatusEvent
+GestureEvent = (
+    PointerObservedEvent | GestureIntentEvent | DebugFrameEvent | StatusEvent | CaptureStateEvent
+)
 
 
 class FrameState(TypedDict):
     tracking: bool
     pointer: NotRequired[Landmark]
     raw_pointer: NotRequired[Landmark]
+    pose: PoseName
+    pose_confidence: float
+    pose_scores: NotRequired[PoseScores]
+    classifier_mode: NotRequired[PoseClassifierMode]
+    model_version: NotRequired[str | None]
+    learned_pose: NotRequired[PoseName]
+    learned_pose_confidence: NotRequired[float]
+    shadow_disagreement: NotRequired[bool]
     pinch_strength: float
     secondary_pinch_strength: float
     open_palm_hold: bool
@@ -59,4 +158,5 @@ class FrameState(TypedDict):
     confidence: float
     brightness: NotRequired[float]
     hand_landmarks: NotRequired[list[Landmark]]
+    feature_values: NotRequired[dict[str, float]]
     delay_ms: NotRequired[int]

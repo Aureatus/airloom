@@ -88,11 +88,10 @@ def run_live_pipeline(
             fail(error)
 
     def inference_loop() -> None:
-        tracker = tracker_factory()
-        machine = machine_factory()
-        last_seen_version = 0
-
         try:
+            tracker = tracker_factory()
+            machine = machine_factory()
+            last_seen_version = 0
             while not stop_event.is_set():
                 update = latest_capture.wait_for_update(last_seen_version, timeout=0.1)
                 if update is None:

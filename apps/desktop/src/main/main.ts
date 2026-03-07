@@ -2,6 +2,7 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import {
+  type AirloomCaptureStateEvent,
   type AirloomInputEvent,
   parseInputEvent,
 } from "@airloom/shared/gesture-events";
@@ -23,7 +24,26 @@ type ServiceStatus = {
   adapter: string;
   lastEvent: AirloomInputEvent | null;
   runtime: RuntimeState;
+  capture: AirloomCaptureStateEvent;
   warnings: string[];
+};
+
+const defaultCaptureState: AirloomCaptureStateEvent = {
+  type: "capture.state",
+  sessionId: "pending",
+  activeLabel: "neutral",
+  recording: false,
+  takeCount: 0,
+  counts: {
+    neutral: 0,
+    "open-palm": 0,
+    "closed-fist": 0,
+    "primary-pinch": 0,
+    "secondary-pinch": 0,
+  },
+  lastTakeId: null,
+  exportPath: null,
+  message: null,
 };
 
 const getPlatformWarnings = () => {
@@ -50,6 +70,7 @@ let mainWindow: BrowserWindow | null = null;
 const adapter = resolveInputAdapter();
 let serviceProcess: ChildProcess | null = null;
 let lastEvent: AirloomInputEvent | null = null;
+let captureState: AirloomCaptureStateEvent = defaultCaptureState;
 let eventDispatcher: ReturnType<typeof createEventDispatcher> | null = null;
 let currentSettings: AirloomSettings = settingsSchema.parse({});
 const runtime = createGestureRuntime(
@@ -77,8 +98,16 @@ const getServiceStatus = (): ServiceStatus => {
     adapter: adapter.platform,
     lastEvent,
     runtime: runtime.getState(),
+    capture: captureState,
     warnings: getPlatformWarnings(),
   };
+};
+
+const sendServiceCommand = (payload: object) => {
+  if (serviceProcess?.stdin === null || serviceProcess?.stdin === undefined) {
+    throw new Error("Vision service is not running");
+  }
+  serviceProcess.stdin.write(`${JSON.stringify(payload)}\n`);
 };
 
 const broadcastStatus = () => {
@@ -110,6 +139,9 @@ const attachProcessReaders = (child: ChildProcess) => {
       try {
         const event = parseInputEvent(JSON.parse(line));
         lastEvent = event;
+        if (event.type === "capture.state") {
+          captureState = event;
+        }
         eventDispatcher?.enqueue(event);
       } catch (error) {
         console.error("failed to process gesture event", error);
@@ -172,6 +204,13 @@ const startVisionService = () => {
       ...process.env,
       AIRLOOM_DEBUG_PREVIEW: "1",
       AIRLOOM_DEBUG_PREVIEW_FPS: "12",
+      AIRLOOM_CAPTURE_DIR: join(app.getPath("userData"), "captures"),
+      AIRLOOM_CAPTURE_EXPORT_DIR: join(rootDir, "apps/vision-service/data/pose-captures"),
+      AIRLOOM_POSE_CLASSIFIER_MODE:
+        process.env.AIRLOOM_POSE_CLASSIFIER_MODE ?? "rules",
+      AIRLOOM_POSE_MODEL_PATH:
+        process.env.AIRLOOM_POSE_MODEL_PATH ??
+        join(visionServiceDir, "models/pose_classifier_v1.json"),
       AIRLOOM_SMOOTHING_ALPHA: String(currentSettings.smoothing),
       AIRLOOM_MIRROR_X: "1",
       GLOG_minloglevel: process.env.GLOG_minloglevel ?? "2",
@@ -190,6 +229,7 @@ const stopVisionService = () => {
     serviceProcess.kill();
     serviceProcess = null;
   }
+  captureState = defaultCaptureState;
 
   broadcastStatus();
   return getServiceStatus();
@@ -242,6 +282,31 @@ app.whenReady().then(async () => {
   );
   ipcMain.handle("airloom:start-service", () => startVisionService());
   ipcMain.handle("airloom:stop-service", () => stopVisionService());
+  ipcMain.handle("airloom:set-input-suppressed", (_event, suppressed: boolean) => {
+    runtime.setInputSuppressed(suppressed);
+    broadcastStatus();
+    return getServiceStatus();
+  });
+  ipcMain.handle("airloom:set-capture-label", (_event, label: string) => {
+    sendServiceCommand({ type: "capture.set-label", label });
+    return getServiceStatus();
+  });
+  ipcMain.handle("airloom:start-capture", () => {
+    sendServiceCommand({ type: "capture.start" });
+    return getServiceStatus();
+  });
+  ipcMain.handle("airloom:stop-capture", () => {
+    sendServiceCommand({ type: "capture.stop" });
+    return getServiceStatus();
+  });
+  ipcMain.handle("airloom:discard-last-capture", () => {
+    sendServiceCommand({ type: "capture.discard-last" });
+    return getServiceStatus();
+  });
+  ipcMain.handle("airloom:export-captures", () => {
+    sendServiceCommand({ type: "capture.export" });
+    return getServiceStatus();
+  });
   ipcMain.handle(
     "airloom:send-event",
     async (_event, payload: AirloomInputEvent) => {

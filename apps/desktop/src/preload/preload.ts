@@ -9,6 +9,14 @@ const api = {
     ipcRenderer.invoke("airloom:update-settings", payload),
   startService: () => ipcRenderer.invoke("airloom:start-service"),
   stopService: () => ipcRenderer.invoke("airloom:stop-service"),
+  setInputSuppressed: (suppressed: boolean) =>
+    ipcRenderer.invoke("airloom:set-input-suppressed", suppressed),
+  setCaptureLabel: (label: string) =>
+    ipcRenderer.invoke("airloom:set-capture-label", label),
+  startCapture: () => ipcRenderer.invoke("airloom:start-capture"),
+  stopCapture: () => ipcRenderer.invoke("airloom:stop-capture"),
+  discardLastCapture: () => ipcRenderer.invoke("airloom:discard-last-capture"),
+  exportCaptures: () => ipcRenderer.invoke("airloom:export-captures"),
   sendEvent: (payload: AirloomInputEvent) =>
     ipcRenderer.invoke("airloom:send-event", payload),
   onStatus: (listener: (value: unknown) => void) => {

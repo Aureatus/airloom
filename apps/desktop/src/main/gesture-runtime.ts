@@ -14,9 +14,24 @@ export type RuntimeState = {
   gesture: string;
   pinchStrength: number;
   pointerControlEnabled: boolean;
+  inputSuppressed: boolean;
   debug: {
     confidence: number;
     brightness: number;
+    pose: string;
+    poseConfidence: number;
+    poseScores: {
+      neutral: number;
+      "open-palm": number;
+      "closed-fist": number;
+      "primary-pinch": number;
+      "secondary-pinch": number;
+    };
+    classifierMode: "rules" | "shadow" | "learned";
+    modelVersion: string | null;
+    learnedPose?: string;
+    learnedPoseConfidence?: number;
+    shadowDisagreement?: boolean;
     closedFist: boolean;
     openPalmHold: boolean;
     secondaryPinchStrength: number;
@@ -46,9 +61,21 @@ export const createGestureRuntime = (
     gesture: "idle",
     pinchStrength: 0,
     pointerControlEnabled: false,
+    inputSuppressed: false,
     debug: {
       confidence: 0,
       brightness: 0,
+      pose: "unknown",
+      poseConfidence: 0,
+      poseScores: {
+        neutral: 0,
+        "open-palm": 0,
+        "closed-fist": 0,
+        "primary-pinch": 0,
+        "secondary-pinch": 0,
+      },
+      classifierMode: "rules",
+      modelVersion: null,
       closedFist: false,
       openPalmHold: false,
       secondaryPinchStrength: 0,
@@ -100,8 +127,10 @@ export const createGestureRuntime = (
         }
 
         case "pointer.observed": {
-          for (const action of actionMapper.mapEvent(event)) {
-            await executeAction(action);
+          if (!state.inputSuppressed) {
+            for (const action of actionMapper.mapEvent(event)) {
+              await executeAction(action);
+            }
           }
           state.tracking = event.confidence > 0;
           syncMapperState();
@@ -109,8 +138,10 @@ export const createGestureRuntime = (
         }
 
         case "gesture.intent": {
-          for (const action of actionMapper.mapEvent(event)) {
-            await executeAction(action);
+          if (!state.inputSuppressed) {
+            for (const action of actionMapper.mapEvent(event)) {
+              await executeAction(action);
+            }
           }
 
           syncMapperState();
@@ -122,6 +153,11 @@ export const createGestureRuntime = (
           state.gesture = event.gesture;
           state.pinchStrength = event.pinchStrength;
           state.debug = event.debug ?? state.debug;
+          syncMapperState();
+          return state;
+        }
+
+        case "capture.state": {
           syncMapperState();
           return state;
         }
@@ -137,8 +173,14 @@ export const createGestureRuntime = (
     return { ...state };
   };
 
+  const setInputSuppressed = (suppressed: boolean) => {
+    state.inputSuppressed = suppressed;
+    return getState();
+  };
+
   return {
     handleEvent,
     getState,
+    setInputSuppressed,
   };
 };

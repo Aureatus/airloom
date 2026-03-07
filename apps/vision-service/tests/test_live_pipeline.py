@@ -3,7 +3,7 @@ from __future__ import annotations
 from time import monotonic, sleep
 
 from app.live_pipeline import run_live_pipeline
-from app.protocol import FrameState, GestureEvent
+from app.protocol import FrameState, GestureEvent, empty_pose_scores, pose_scores_for_pose
 
 
 class _FastCounterCamera:
@@ -27,6 +27,9 @@ class _RecordingTracker:
         return {
             "tracking": True,
             "pointer": {"x": 0.5, "y": 0.5},
+            "pose": "neutral",
+            "pose_confidence": 0.72,
+            "pose_scores": pose_scores_for_pose("neutral", 0.72),
             "pinch_strength": 0.0,
             "secondary_pinch_strength": 0.0,
             "open_palm_hold": False,
@@ -47,6 +50,11 @@ class _StatusMachine:
                 "debug": {
                     "confidence": frame["confidence"],
                     "brightness": frame.get("brightness", 0.0),
+                    "pose": frame.get("pose", "unknown"),
+                    "poseConfidence": frame.get("pose_confidence", 0.0),
+                    "poseScores": frame.get("pose_scores", empty_pose_scores()),
+                    "classifierMode": frame.get("classifier_mode", "rules"),
+                    "modelVersion": frame.get("model_version"),
                     "closedFist": frame.get("closed_fist", False),
                     "openPalmHold": frame["open_palm_hold"],
                     "secondaryPinchStrength": frame["secondary_pinch_strength"],
