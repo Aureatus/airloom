@@ -8,7 +8,8 @@
     "dev": "bun run --cwd apps/desktop dev",
     "build": "bun run --cwd apps/desktop build",
     "test": "bun test apps/desktop/tests/main && uv run --directory apps/vision-service pytest",
-    "check": "bunx biome check . && bun test apps/desktop/tests/main && uv run --directory apps/vision-service ruff check . && uv run --directory apps/vision-service ty check"
+    "check": "bunx biome check . && bun test apps/desktop/tests/main && uv run --directory apps/vision-service ruff check . && uv run --directory apps/vision-service ty check",
+    "test:smoke:x11": "bun scripts/x11-smoke.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4"
