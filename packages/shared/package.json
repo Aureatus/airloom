@@ -3,11 +3,26 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "scripts": {
+    "build": "tsdown src/gesture-events.ts src/settings-schema.ts --format esm,cjs --dts --out-dir dist"
+  },
   "exports": {
-    "./gesture-events": "./src/gesture-events.ts",
-    "./settings-schema": "./src/settings-schema.ts"
+    "./gesture-events": {
+      "types": "./dist/gesture-events.d.ts",
+      "import": "./dist/gesture-events.js",
+      "require": "./dist/gesture-events.cjs"
+    },
+    "./settings-schema": {
+      "types": "./dist/settings-schema.d.ts",
+      "import": "./dist/settings-schema.js",
+      "require": "./dist/settings-schema.cjs"
+    }
   },
   "dependencies": {
     "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "tsdown": "^0.15.5",
+    "typescript": "^5.8.2"
   }
 }

@@ -1,7 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { createLinuxX11Adapter } from "../apps/desktop/src/main/input/linux-x11";
 
 type Geometry = {
   x: number;
@@ -10,9 +8,8 @@ type Geometry = {
   height: number;
 };
 
-const runCommand = (command: string, args: string[], cwd?: string) => {
+const runCommand = (command: string, args: string[]) => {
   const result = spawnSync(command, args, {
-    cwd,
     encoding: "utf8",
   });
 
@@ -27,16 +24,8 @@ const runCommand = (command: string, args: string[], cwd?: string) => {
   return result.stdout.trim();
 };
 
-const requireCommand = (command: string) => {
-  const result = spawnSync(
-    "python3",
-    ["-c", `import shutil; print(shutil.which('${command}') or '')`],
-    {
-      encoding: "utf8",
-    },
-  );
-
-  return result.stdout.trim();
+const wait = (ms: number) => {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 };
 
 const waitForWindow = async (windowName: string) => {
@@ -44,11 +33,12 @@ const waitForWindow = async (windowName: string) => {
     const result = spawnSync("xdotool", ["search", "--name", windowName], {
       encoding: "utf8",
     });
+
     if (result.status === 0) {
       return result.stdout.trim().split("\n")[0];
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    await wait(150);
   }
 
   throw new Error(`Unable to find X11 window named ${windowName}`);
@@ -74,12 +64,34 @@ const parseShellGeometry = (shellOutput: string): Geometry => {
   };
 };
 
-const readEvents = (logPath: string) => {
-  try {
-    return JSON.parse(readFileSync(logPath, "utf8")) as string[];
-  } catch {
-    return [];
+const parseObservedEvents = (output: string) => {
+  const events: string[] = [];
+
+  if (output.includes("button 1,")) {
+    events.push("left-click");
   }
+
+  if (output.includes("button 3,")) {
+    events.push("right-click");
+  }
+
+  if (output.includes("keysym 0xff0d, Return")) {
+    events.push("return");
+  }
+
+  return events;
+};
+
+const requireCommand = (command: string) => {
+  const result = spawnSync(
+    "python3",
+    ["-c", `import shutil; print(shutil.which('${command}') or '')`],
+    {
+      encoding: "utf8",
+    },
+  );
+
+  return result.stdout.trim();
 };
 
 const main = async () => {
@@ -89,105 +101,60 @@ const main = async () => {
     );
   }
 
-  const xdotoolPath = requireCommand("xdotool");
-  if (!xdotoolPath) {
+  if (!requireCommand("xdotool")) {
     throw new Error("xdotool is required for the X11 smoke harness.");
   }
 
-  const tempRoot = mkdtempSync(join(tmpdir(), "airloom-x11-smoke-"));
-  const logPath = join(tempRoot, "target-log.json");
-  const fixturePath = join(tempRoot, "fixture.json");
-  const targetTitle = "Airloom X11 Smoke Target";
-  const rootDir = join(import.meta.dirname, "..");
-  const electronBinary = join(rootDir, "node_modules/.bin/electron");
+  if (!requireCommand("xev")) {
+    throw new Error("xev is required for the X11 smoke harness.");
+  }
 
+  const adapter = createLinuxX11Adapter();
+  if (!adapter.isAvailable()) {
+    throw new Error("The Linux X11 adapter is not available in this session.");
+  }
+
+  const targetTitle = "Airloom X11 Smoke Target";
   const targetProcess = spawn(
-    "python3",
-    [join(rootDir, "scripts/x11-smoke-target.py"), "--log", logPath],
+    "xev",
+    ["-name", targetTitle, "-geometry", "480x320+180+180"],
     {
-      cwd: rootDir,
-      stdio: "ignore",
+      stdio: ["ignore", "pipe", "pipe"],
     },
   );
 
-  let electronProcess: ReturnType<typeof spawn> | null = null;
+  let targetOutput = "";
+  targetProcess.stdout.on("data", (chunk) => {
+    targetOutput += chunk.toString();
+  });
 
   try {
     const windowId = await waitForWindow(targetTitle);
     runCommand("xdotool", ["windowmove", windowId, "180", "180"]);
     runCommand("xdotool", ["windowsize", windowId, "480", "320"]);
-    runCommand("xdotool", ["windowactivate", windowId]);
+    runCommand("xdotool", ["windowfocus", "--sync", windowId]);
 
     const geometry = parseShellGeometry(
       runCommand("xdotool", ["getwindowgeometry", "--shell", windowId]),
     );
-    const [screenWidth, screenHeight] = runCommand("xdotool", [
-      "getdisplaygeometry",
-    ])
-      .split(" ")
-      .map(Number);
 
-    const pointerX = (geometry.x + geometry.width / 2) / screenWidth;
-    const pointerY = (geometry.y + geometry.height / 2) / screenHeight;
-
-    const fixture = [
-      {
-        tracking: true,
-        pointer: { x: pointerX, y: pointerY },
-        pinch_strength: 0.1,
-        secondary_pinch_strength: 0.1,
-        open_palm_hold: false,
-        confidence: 0.95,
-      },
-      {
-        tracking: true,
-        pointer: { x: pointerX, y: pointerY },
-        pinch_strength: 0.82,
-        secondary_pinch_strength: 0.1,
-        open_palm_hold: false,
-        confidence: 0.95,
-      },
-      {
-        tracking: true,
-        pointer: { x: pointerX, y: pointerY },
-        pinch_strength: 0.2,
-        secondary_pinch_strength: 0.1,
-        open_palm_hold: false,
-        confidence: 0.95,
-      },
-      {
-        tracking: true,
-        pointer: { x: pointerX, y: pointerY },
-        pinch_strength: 0.2,
-        secondary_pinch_strength: 0.84,
-        open_palm_hold: false,
-        confidence: 0.95,
-      },
-      ...Array.from({ length: 12 }, () => ({
-        tracking: true,
-        pointer: { x: pointerX, y: pointerY },
-        pinch_strength: 0.1,
-        secondary_pinch_strength: 0.1,
-        open_palm_hold: true,
-        confidence: 0.95,
-      })),
-    ];
-
-    writeFileSync(fixturePath, JSON.stringify(fixture, null, 2));
-
-    runCommand("bun", ["run", "--cwd", "apps/desktop", "build"], rootDir);
-
-    electronProcess = spawn(electronBinary, ["apps/desktop"], {
-      cwd: rootDir,
-      env: {
-        ...process.env,
-        AIRLOOM_FIXTURE: fixturePath,
-      },
-      stdio: "ignore",
+    await adapter.movePointer({
+      x: geometry.x + Math.round(geometry.width / 2),
+      y: geometry.y + Math.round(geometry.height / 2),
     });
+    await wait(120);
+    await adapter.click("left");
+    await wait(120);
+    await adapter.click("right");
+    await wait(120);
+    await adapter.tapKey("Return");
 
-    for (let attempt = 0; attempt < 80; attempt += 1) {
-      const events = readEvents(logPath);
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      if (targetProcess.exitCode !== null) {
+        throw new Error("xev exited before the smoke harness completed.");
+      }
+
+      const events = parseObservedEvents(targetOutput);
       if (
         events.includes("left-click") &&
         events.includes("right-click") &&
@@ -197,16 +164,14 @@ const main = async () => {
         return;
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      await wait(100);
     }
 
     throw new Error(
-      `Smoke harness timed out. Observed events: ${readEvents(logPath).join(", ")}`,
+      `Smoke harness timed out. Observed events: ${parseObservedEvents(targetOutput).join(", ")}`,
     );
   } finally {
-    electronProcess?.kill();
     targetProcess.kill();
-    rmSync(tempRoot, { recursive: true, force: true });
   }
 };
 

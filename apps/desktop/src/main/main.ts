@@ -58,6 +58,7 @@ const runtime = createGestureRuntime(
 const rootDir = resolve(import.meta.dirname, "../../../../");
 const visionServiceDir = join(rootDir, "apps/vision-service");
 const rendererIndexPath = join(import.meta.dirname, "../renderer/index.html");
+const startupDelayMs = Number(process.env.AIRLOOM_STARTUP_DELAY_MS ?? "0");
 
 const getServiceStatus = (): ServiceStatus => {
   return {
@@ -185,7 +186,13 @@ app.whenReady().then(async () => {
   );
 
   await createMainWindow();
-  startVisionService();
+  if (startupDelayMs > 0) {
+    setTimeout(() => {
+      startVisionService();
+    }, startupDelayMs);
+  } else {
+    startVisionService();
+  }
 
   app.on("activate", async () => {
     if (BrowserWindow.getAllWindows().length === 0) {
