@@ -54,9 +54,7 @@ def test_closed_fist_near_pinch_fixture_never_emits_primary_pinch() -> None:
     events = run_replay(load_fixture(FIXTURES / "closed-fist-near-pinch.json"))
 
     assert any(
-        event.get("type") == "gesture.intent"
-        and event.get("gesture") == "closed-fist"
-        and event.get("phase") == "instant"
+        event.get("type") == "status" and event.get("debug", {}).get("closedFist") is True
         for event in events
     )
     assert not any(

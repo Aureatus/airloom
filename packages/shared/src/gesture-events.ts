@@ -7,6 +7,11 @@ export const pointerObservedEventSchema = z.object({
   confidence: z.number().min(0).max(1),
 });
 
+export const scrollObservedEventSchema = z.object({
+  type: z.literal("scroll.observed"),
+  amount: z.number(),
+});
+
 export const gestureIntentEventSchema = z.object({
   type: z.literal("gesture.intent"),
   gesture: z.string().min(1),
@@ -65,6 +70,9 @@ export const statusDebugSchema = z.object({
   closedFistLatched: z.boolean(),
   openPalmHold: z.boolean(),
   secondaryPinchStrength: z.number().min(0).max(1),
+  pointerHand: z.string().min(1).optional(),
+  actionHand: z.string().min(1).optional(),
+  fallbackReason: z.string().min(1).optional(),
 });
 
 export const statusEventSchema = z.object({
@@ -77,6 +85,7 @@ export const statusEventSchema = z.object({
 
 export const inputEventSchema = z.discriminatedUnion("type", [
   pointerObservedEventSchema,
+  scrollObservedEventSchema,
   gestureIntentEventSchema,
   debugFrameEventSchema,
   captureStateEventSchema,
@@ -109,12 +118,18 @@ export const keyTapActionSchema = z.object({
   key: z.string().min(1),
 });
 
+export const scrollActionSchema = z.object({
+  type: z.literal("scroll"),
+  amount: z.number(),
+});
+
 export const actionEventSchema = z.discriminatedUnion("type", [
   pointerMoveActionSchema,
   pointerDownActionSchema,
   pointerUpActionSchema,
   clickActionSchema,
   keyTapActionSchema,
+  scrollActionSchema,
 ]);
 
 export type AirloomInputEvent = z.infer<typeof inputEventSchema>;

@@ -3,6 +3,7 @@ import { createActionMapper } from "../../src/main/action-mapper";
 
 const createSettings = () => ({
   smoothing: 0.72,
+  pointerRegionMargin: 0.12,
   clickPinchThreshold: 0.78,
   dragHoldThresholdMs: 220,
   rightClickGesture: "thumb-middle-pinch",
@@ -213,6 +214,20 @@ describe("createActionMapper", () => {
     ).toEqual([{ type: "key.tap", key: "Return" }]);
   });
 
+  test("maps scroll observations to scroll actions", () => {
+    const mapper = createActionMapper(
+      () => createSettings(),
+      (x, y) => ({ x: Math.round(x * 100), y: Math.round(y * 100) }),
+    );
+
+    expect(
+      mapper.mapEvent({
+        type: "scroll.observed",
+        amount: 3.25,
+      }),
+    ).toEqual([{ type: "scroll", amount: 3.25 }]);
+  });
+
   test("only moves pointer while closed fist is active in status", () => {
     const mapper = createActionMapper(
       () => createSettings(),
@@ -256,7 +271,6 @@ describe("createActionMapper", () => {
         secondaryPinchStrength: 0.1,
       },
     });
-
     expect(
       mapper.mapEvent({
         type: "pointer.observed",
@@ -301,7 +315,6 @@ describe("createActionMapper", () => {
         secondaryPinchStrength: 0.1,
       },
     });
-
     expect(
       mapper.mapEvent({
         type: "pointer.observed",
@@ -356,4 +369,5 @@ describe("createActionMapper", () => {
       primaryPinchOutcome: "idle",
     });
   });
+
 });

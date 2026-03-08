@@ -65,12 +65,71 @@ def _hand_user_x(center: Landmark, mirror_x: bool) -> float:
     return 1 - center["x"] if mirror_x else center["x"]
 
 
-def _select_hand_roles(centers: list[Landmark], mirror_x: bool) -> tuple[int, int]:
+def _remap_pointer_axis(value: float, margin: float) -> float:
+    if margin <= 0:
+        return _clamp_unit(value)
+
+    minimum = margin
+    maximum = 1 - margin
+    if maximum <= minimum:
+        return 0.5
+
+    return _clamp_unit((value - minimum) / (maximum - minimum))
+
+
+def _normalize_handedness_label(label: str | None) -> str | None:
+    if label is None:
+        return None
+
+    normalized = label.strip().lower()
+    if normalized in {"left", "right"}:
+        return normalized
+
+    return None
+
+
+def _extract_handedness_labels(result: Any) -> list[str | None]:
+    raw_handedness = getattr(result, "handedness", None)
+    if not raw_handedness:
+        return []
+
+    labels: list[str | None] = []
+    for hand_handedness in raw_handedness:
+        label: str | None = None
+        for category in hand_handedness:
+            category_name = getattr(category, "category_name", None)
+            label = _normalize_handedness_label(category_name)
+            if label is not None:
+                break
+        labels.append(label)
+
+    return labels
+
+
+def _select_hand_roles(
+    centers: list[Landmark],
+    mirror_x: bool,
+    handedness_labels: list[str | None] | None = None,
+) -> tuple[int, int]:
     if not centers:
         return (0, 0)
 
     if len(centers) == 1:
         return (0, 0)
+
+    if handedness_labels is not None:
+        right_indices = [
+            index
+            for index, label in enumerate(handedness_labels[: len(centers)])
+            if label == "right"
+        ]
+        left_indices = [
+            index
+            for index, label in enumerate(handedness_labels[: len(centers)])
+            if label == "left"
+        ]
+        if len(right_indices) == 1 and len(left_indices) == 1:
+            return (right_indices[0], left_indices[0])
 
     ordered = sorted(
         range(len(centers)),
@@ -94,6 +153,7 @@ class _TrackedHand:
     hand_landmarks: list[Landmark]
     feature_values: dict[str, float]
     center: Landmark
+    handedness: str | None = None
     learned_pose: PoseName | None = None
     learned_pose_confidence: float | None = None
     shadow_disagreement: bool | None = None
@@ -116,6 +176,9 @@ class HandTracker:
     capture_controller: Any | None = None
     tracking_hold_frames: int = field(
         default_factory=lambda: int(os.environ.get("AIRLOOM_TRACKING_HOLD_FRAMES", "3"))
+    )
+    pointer_region_margin: float = field(
+        default_factory=lambda: float(os.environ.get("AIRLOOM_POINTER_REGION_MARGIN", "0.12"))
     )
     _smoother: ExponentialSmoother = field(init=False)
     _hands: Any | None = field(init=False, default=None)
@@ -181,6 +244,7 @@ class HandTracker:
         self,
         hand_landmarks: list[Landmark],
         static_gesture_scores: dict[str, float] | None = None,
+        handedness: str | None = None,
     ) -> _TrackedHand:
         features = extract_pose_features(hand_landmarks)
         feature_values = flatten_pose_features(hand_landmarks, features)
@@ -212,6 +276,7 @@ class HandTracker:
             hand_landmarks=hand_landmarks,
             feature_values=feature_values,
             center=_hand_center(hand_landmarks),
+            handedness=handedness,
             learned_pose=(
                 classification.learned["pose"] if classification.learned is not None else None
             ),
@@ -227,6 +292,7 @@ class HandTracker:
             held_state = dict(self._last_frame_state)
             held_state["confidence"] = 0.0
             held_state["brightness"] = brightness
+            held_state["fallback_reason"] = "dropout-hold"
             return cast(FrameState, held_state)
 
         self._last_frame_state = None
@@ -244,6 +310,7 @@ class HandTracker:
             "closed_fist": False,
             "confidence": 0.0,
             "brightness": brightness,
+            "fallback_reason": "no-hands",
         }
 
     def process(self, frame: Any) -> FrameState:
@@ -280,6 +347,8 @@ class HandTracker:
         else:
             hand_landmarks_result = self._hands.detect_for_video(image, timestamp_ms)
 
+        handedness_labels = _extract_handedness_labels(hand_landmarks_result)
+
         if not hand_landmarks_result.hand_landmarks:
             return self._fallback_frame_state(brightness)
 
@@ -294,18 +363,29 @@ class HandTracker:
                     static_gesture_scores_by_hand[index]
                     if index < len(static_gesture_scores_by_hand)
                     else None,
+                    handedness_labels[index] if index < len(handedness_labels) else None,
                 )
             )
 
         pointer_index, action_index = _select_hand_roles(
             [hand.center for hand in tracked_hands],
             self.mirror_x,
+            [hand.handedness for hand in tracked_hands],
         )
         pointer_hand = tracked_hands[pointer_index]
         action_hand = tracked_hands[action_index]
+        role_reason = None
+        if len(tracked_hands) == 1:
+            role_reason = "single-hand-mode"
+        elif pointer_hand.handedness is None or action_hand.handedness is None:
+            role_reason = "handedness-fallback"
+        remapped_pointer = {
+            "x": _remap_pointer_axis(pointer_hand.raw_pointer["x"], self.pointer_region_margin),
+            "y": _remap_pointer_axis(pointer_hand.raw_pointer["y"], self.pointer_region_margin),
+        }
         smooth_x, smooth_y = self._smoother.update(
-            pointer_hand.raw_pointer["x"],
-            pointer_hand.raw_pointer["y"],
+            remapped_pointer["x"],
+            remapped_pointer["y"],
         )
 
         frame_state: FrameState = {
@@ -326,6 +406,15 @@ class HandTracker:
             "action_secondary_pinch_strength": action_hand.secondary_pinch_strength,
             "action_open_palm_hold": action_hand.open_palm_hold,
             "action_hand_separate": pointer_index != action_index,
+            "action_pointer": action_hand.raw_pointer,
+            "pointer_hand": (
+                pointer_hand.handedness
+                or ("single-hand" if len(tracked_hands) == 1 else "spatial-right")
+            ),
+            "action_hand": (
+                action_hand.handedness
+                or ("single-hand" if len(tracked_hands) == 1 else "spatial-left")
+            ),
             "open_palm_hold": action_hand.open_palm_hold,
             "closed_fist": pointer_hand.closed_fist,
             "confidence": 0.9,
@@ -333,6 +422,8 @@ class HandTracker:
             "hand_landmarks": pointer_hand.hand_landmarks,
             "feature_values": pointer_hand.feature_values,
         }
+        if role_reason is not None:
+            frame_state["fallback_reason"] = role_reason
         self._last_frame_state = frame_state
         self._tracking_hold_remaining = max(0, self.tracking_hold_frames)
         if pointer_hand.learned_pose is not None:

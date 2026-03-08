@@ -4,7 +4,13 @@ from typing import cast
 import numpy as np
 
 from app.main import emit_preview_frame, encode_debug_frame, run_live
-from app.protocol import FrameState, GestureEvent, empty_pose_scores, pose_scores_for_pose
+from app.protocol import (
+    FrameState,
+    GestureEvent,
+    StatusDebug,
+    empty_pose_scores,
+    pose_scores_for_pose,
+)
 
 
 class _FakeCamera:
@@ -46,28 +52,36 @@ class _FakeTracker:
 
 class _FakeMachine:
     def update(self, frame: FrameState) -> list[GestureEvent]:
+        debug: StatusDebug = {
+            "confidence": frame["confidence"],
+            "brightness": frame.get("brightness", 0.0),
+            "frameDelayMs": frame.get("delay_ms", 0),
+            "pose": frame.get("pose", "unknown"),
+            "poseConfidence": frame.get("pose_confidence", 0.0),
+            "poseScores": frame.get("pose_scores", empty_pose_scores()),
+            "classifierMode": frame.get("classifier_mode", "rules"),
+            "modelVersion": frame.get("model_version"),
+            "closedFist": frame.get("closed_fist", False),
+            "closedFistFrames": 0,
+            "closedFistReleaseFrames": 0,
+            "closedFistLatched": False,
+            "openPalmHold": frame["open_palm_hold"],
+            "secondaryPinchStrength": frame["secondary_pinch_strength"],
+        }
+        if "pointer_hand" in frame:
+            debug["pointerHand"] = frame["pointer_hand"]
+        if "action_hand" in frame:
+            debug["actionHand"] = frame["action_hand"]
+        if "fallback_reason" in frame:
+            debug["fallbackReason"] = frame["fallback_reason"]
+
         return [
             {
                 "type": "status",
                 "tracking": frame["tracking"],
                 "pinchStrength": frame["pinch_strength"],
                 "gesture": "idle",
-                "debug": {
-                    "confidence": frame["confidence"],
-                    "brightness": frame.get("brightness", 0.0),
-                    "frameDelayMs": frame.get("delay_ms", 0),
-                    "pose": frame.get("pose", "unknown"),
-                    "poseConfidence": frame.get("pose_confidence", 0.0),
-                    "poseScores": frame.get("pose_scores", empty_pose_scores()),
-                    "classifierMode": frame.get("classifier_mode", "rules"),
-                    "modelVersion": frame.get("model_version"),
-                    "closedFist": frame.get("closed_fist", False),
-                    "closedFistFrames": 0,
-                    "closedFistReleaseFrames": 0,
-                    "closedFistLatched": False,
-                    "openPalmHold": frame["open_palm_hold"],
-                    "secondaryPinchStrength": frame["secondary_pinch_strength"],
-                },
+                "debug": debug,
             }
         ]
 
@@ -117,6 +131,7 @@ def test_run_live_emits_camera_unavailable_status_and_retries() -> None:
             "closedFistLatched": False,
             "openPalmHold": False,
             "secondaryPinchStrength": 0.0,
+            "fallbackReason": "camera-unavailable",
         },
     }
     status_event = events[2]

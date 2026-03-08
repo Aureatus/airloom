@@ -52,7 +52,7 @@ export const SettingsPage = ({ settings, onSave }: SettingsPageProps) => {
         </div>
         <div className="mapping-row">
           <span>Pointer tracking</span>
-          <strong>Index motion</strong>
+          <strong>Direct hand position</strong>
         </div>
         <div className="mapping-row">
           <span>Left click</span>
@@ -80,6 +80,22 @@ export const SettingsPage = ({ settings, onSave }: SettingsPageProps) => {
               setDraft((current) => ({
                 ...current,
                 smoothing: Number(event.target.value),
+              }))
+            }
+          />
+        </label>
+        <label className="settings-field">
+          <span>Pointer margin</span>
+          <input
+            type="number"
+            min="0"
+            max="0.35"
+            step="0.01"
+            value={draft.pointerRegionMargin}
+            onChange={(event) =>
+              setDraft((current) => ({
+                ...current,
+                pointerRegionMargin: Number(event.target.value),
               }))
             }
           />
@@ -173,7 +189,14 @@ export const SettingsPage = ({ settings, onSave }: SettingsPageProps) => {
       </p>
       <p className="panel-copy">
         Pointer motion now works like a clutch: hold a closed fist to move the
-        cursor, then release into any other pose to freeze it in place.
+        cursor, then release into any other pose to freeze it in place. While
+        the clutch is held, the cursor follows the tracked hand position
+        directly.
+      </p>
+      <p className="panel-copy">
+        Pointer margin trims the camera edges out of the active tracking area,
+        then stretches the center back to the full screen. Increase it if edge
+        jitter is worse than reach.
       </p>
     </section>
   );

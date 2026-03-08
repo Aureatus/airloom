@@ -321,6 +321,14 @@ export const CalibrationPage = ({
               <strong>{pointerControlEnabled ? "Hold-to-move" : "Frozen"}</strong>
             </div>
             <div className="metric-card">
+              <span>Pointer hand</span>
+              <strong>{debug.pointerHand ?? "unknown"}</strong>
+            </div>
+            <div className="metric-card">
+              <span>Action hand</span>
+              <strong>{debug.actionHand ?? "unknown"}</strong>
+            </div>
+            <div className="metric-card">
               <span>Primary pinch</span>
               <strong>{pinchStrength.toFixed(2)}</strong>
             </div>
@@ -416,6 +424,12 @@ export const CalibrationPage = ({
               <div className="metric-card">
                 <span>Shadow mismatch</span>
                 <strong>{debug.shadowDisagreement ? "Yes" : "No"}</strong>
+              </div>
+            ) : null}
+            {debug.fallbackReason ? (
+              <div className="metric-card">
+                <span>Fallback</span>
+                <strong>{debug.fallbackReason}</strong>
               </div>
             ) : null}
           </div>

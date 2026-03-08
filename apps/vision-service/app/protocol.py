@@ -84,6 +84,11 @@ class PointerObservedEvent(TypedDict):
     confidence: float
 
 
+class ScrollObservedEvent(TypedDict):
+    type: Literal["scroll.observed"]
+    amount: float
+
+
 class GestureIntentEvent(TypedDict):
     type: Literal["gesture.intent"]
     gesture: str
@@ -136,10 +141,18 @@ class StatusDebug(TypedDict):
     closedFistLatched: bool
     openPalmHold: bool
     secondaryPinchStrength: float
+    pointerHand: NotRequired[str]
+    actionHand: NotRequired[str]
+    fallbackReason: NotRequired[str]
 
 
 GestureEvent = (
-    PointerObservedEvent | GestureIntentEvent | DebugFrameEvent | StatusEvent | CaptureStateEvent
+    PointerObservedEvent
+    | ScrollObservedEvent
+    | GestureIntentEvent
+    | DebugFrameEvent
+    | StatusEvent
+    | CaptureStateEvent
 )
 
 
@@ -164,6 +177,9 @@ class FrameState(TypedDict):
     action_secondary_pinch_strength: NotRequired[float]
     action_open_palm_hold: NotRequired[bool]
     action_hand_separate: NotRequired[bool]
+    action_pointer: NotRequired[Landmark]
+    pointer_hand: NotRequired[str]
+    action_hand: NotRequired[str]
     open_palm_hold: bool
     closed_fist: NotRequired[bool]
     confidence: float
@@ -171,3 +187,4 @@ class FrameState(TypedDict):
     hand_landmarks: NotRequired[list[Landmark]]
     feature_values: NotRequired[dict[str, float]]
     delay_ms: NotRequired[int]
+    fallback_reason: NotRequired[str]

@@ -153,18 +153,57 @@ def test_secondary_pinch_emits_right_click_once_per_cycle() -> None:
         )
     )
 
+    assert not any(event.get("type") == "gesture.intent" for event in armed_events)
+    assert not any(event.get("type") == "gesture.intent" for event in held_events)
     assert (
         sum(
             1
-            for event in armed_events
+            for event in release_events
             if event.get("type") == "gesture.intent"
             and event.get("gesture") == "thumb-middle-pinch"
             and event.get("phase") == "instant"
         )
         == 1
     )
-    assert not any(event.get("type") == "gesture.intent" for event in held_events)
-    assert not any(event.get("type") == "gesture.intent" for event in release_events)
+
+
+def test_secondary_pinch_can_emit_scroll_without_right_click() -> None:
+    machine = GestureMachine()
+
+    machine.update(
+        frame_state(
+            pointer={"x": 0.4, "y": 0.3},
+            action_pointer={"x": 0.4, "y": 0.3},
+            pose="secondary-pinch",
+            pinch_strength=0.2,
+            secondary_pinch_strength=0.84,
+        )
+    )
+    scroll_events = machine.update(
+        frame_state(
+            pointer={"x": 0.4, "y": 0.3},
+            action_pointer={"x": 0.4, "y": 0.33},
+            pose="secondary-pinch",
+            pinch_strength=0.2,
+            secondary_pinch_strength=0.86,
+        )
+    )
+    release_events = machine.update(
+        frame_state(
+            pointer={"x": 0.42, "y": 0.31},
+            action_pointer={"x": 0.4, "y": 0.33},
+            pose="neutral",
+            pinch_strength=0.2,
+            secondary_pinch_strength=0.2,
+        )
+    )
+
+    assert any(event.get("type") == "scroll.observed" for event in scroll_events)
+    assert any(
+        event.get("type") == "status" and event.get("gesture") == "scrolling"
+        for event in scroll_events
+    )
+    assert not any(event.get("gesture") == "thumb-middle-pinch" for event in release_events)
 
 
 def test_closed_fist_emits_pointer_observations_only_while_held() -> None:

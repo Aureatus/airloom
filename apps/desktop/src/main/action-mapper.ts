@@ -78,6 +78,10 @@ export const createActionMapper = (
         ];
       }
 
+      case "scroll.observed": {
+        return event.amount === 0 ? [] : [{ type: "scroll", amount: event.amount }];
+      }
+
       case "gesture.intent": {
         const settings = getSettings();
 

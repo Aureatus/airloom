@@ -21,6 +21,8 @@ PRIMARY_PINCH_SUSTAIN_SCORE = 0.46
 SECONDARY_PINCH_SUSTAIN_STRENGTH = 0.72
 SECONDARY_PINCH_SUSTAIN_SCORE = 0.46
 CLOSED_FIST_SUSTAIN_SCORE = 0.5
+SECONDARY_PINCH_SCROLL_MIN_DELTA = 0.01
+SECONDARY_PINCH_SCROLL_GAIN = 90.0
 
 
 def _frame_pose_scores(frame: FrameState) -> PoseScores:
@@ -37,6 +39,8 @@ class GestureMachine:
     primary_pinch_release_counter: int = 0
     secondary_pinch_counter: int = 0
     secondary_pinch_release_counter: int = 0
+    secondary_pinch_scroll_anchor_y: float | None = None
+    secondary_pinch_scrolled: bool = False
     closed_fist_counter: int = 0
     closed_fist_release_counter: int = 0
     closed_fist_latched: bool = False
@@ -55,6 +59,7 @@ class GestureMachine:
             frame["secondary_pinch_strength"],
         )
         action_hand_separate = frame.get("action_hand_separate", False)
+        action_pointer = frame.get("action_pointer")
         closed_fist_score = pose_scores["closed-fist"]
         action_closed_fist_score = action_pose_scores["closed-fist"]
         primary_pinch_score = action_pose_scores["primary-pinch"]
@@ -102,6 +107,12 @@ class GestureMachine:
             "openPalmHold": open_palm_hold,
             "secondaryPinchStrength": secondary_pinch_strength,
         }
+        if "pointer_hand" in frame:
+            status_debug["pointerHand"] = frame["pointer_hand"]
+        if "action_hand" in frame:
+            status_debug["actionHand"] = frame["action_hand"]
+        if "fallback_reason" in frame:
+            status_debug["fallbackReason"] = frame["fallback_reason"]
         if "learned_pose" in frame:
             status_debug["learnedPose"] = frame["learned_pose"]
             status_debug["learnedPoseConfidence"] = frame.get("learned_pose_confidence", 0.0)
@@ -118,6 +129,8 @@ class GestureMachine:
             self.primary_pinch_release_counter = 0
             self.secondary_pinch_counter = 0
             self.secondary_pinch_release_counter = 0
+            self.secondary_pinch_scroll_anchor_y = None
+            self.secondary_pinch_scrolled = False
             self.closed_fist_counter = 0
             self.closed_fist_release_counter = 0
             self.closed_fist_latched = False
@@ -161,20 +174,25 @@ class GestureMachine:
                 and not self.secondary_pinch_active
             ):
                 self.secondary_pinch_active = True
-                status_event["gesture"] = "right-click"
-                events.append(
-                    {
-                        "type": "gesture.intent",
-                        "gesture": "thumb-middle-pinch",
-                        "phase": "instant",
-                    }
-                )
+                self.secondary_pinch_scroll_anchor_y = None
+                self.secondary_pinch_scrolled = False
         else:
             self.secondary_pinch_counter = 0
             if self.secondary_pinch_active:
                 self.secondary_pinch_release_counter += 1
                 if self.secondary_pinch_release_counter >= SECONDARY_PINCH_OFF_FRAMES:
+                    if not self.secondary_pinch_scrolled:
+                        status_event["gesture"] = "right-click"
+                        events.append(
+                            {
+                                "type": "gesture.intent",
+                                "gesture": "thumb-middle-pinch",
+                                "phase": "instant",
+                            }
+                        )
                     self.secondary_pinch_active = False
+                    self.secondary_pinch_scroll_anchor_y = None
+                    self.secondary_pinch_scrolled = False
             else:
                 self.secondary_pinch_release_counter = 0
 
@@ -203,6 +221,23 @@ class GestureMachine:
 
         if self.drag_active:
             status_event["gesture"] = "dragging"
+
+        if self.secondary_pinch_active and action_pointer is not None:
+            action_y = action_pointer["y"]
+            if self.secondary_pinch_scroll_anchor_y is None:
+                self.secondary_pinch_scroll_anchor_y = action_y
+            else:
+                delta_y = action_y - self.secondary_pinch_scroll_anchor_y
+                if abs(delta_y) >= SECONDARY_PINCH_SCROLL_MIN_DELTA:
+                    self.secondary_pinch_scrolled = True
+                    status_event["gesture"] = "scrolling"
+                    events.append(
+                        {
+                            "type": "scroll.observed",
+                            "amount": delta_y * SECONDARY_PINCH_SCROLL_GAIN,
+                        }
+                    )
+                    self.secondary_pinch_scroll_anchor_y = action_y
 
         if open_palm_hold:
             self.open_palm_counter += 1

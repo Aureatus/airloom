@@ -40,6 +40,9 @@ export type RuntimeState = {
     closedFistLatched: boolean;
     openPalmHold: boolean;
     secondaryPinchStrength: number;
+    pointerHand?: string;
+    actionHand?: string;
+    fallbackReason?: string;
   };
   mapper: ActionMapperDebugState;
   lastError: string | null;
@@ -111,6 +114,8 @@ export const createGestureRuntime = (
         return `${event.button} click`;
       case "key.tap":
         return `Key ${event.key}`;
+      case "scroll":
+        return `Scroll ${event.amount.toFixed(2)}`;
     }
   };
 
@@ -128,6 +133,11 @@ export const createGestureRuntime = (
 
       case "pointer.down": {
         await adapter.pointerDown(event.button);
+        return;
+      }
+
+      case "scroll": {
+        await adapter.scroll(event.amount);
         return;
       }
 
@@ -163,6 +173,16 @@ export const createGestureRuntime = (
             }
           }
           state.tracking = event.confidence > 0;
+          syncMapperState();
+          return state;
+        }
+
+        case "scroll.observed": {
+          if (!state.inputSuppressed) {
+            for (const action of actionMapper.mapEvent(event)) {
+              await executeAction(action);
+            }
+          }
           syncMapperState();
           return state;
         }

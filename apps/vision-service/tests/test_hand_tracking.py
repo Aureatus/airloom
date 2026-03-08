@@ -1,6 +1,11 @@
 from typing import cast
 
-from app.hand_tracking import HandTracker, _pointer_anchor, _select_hand_roles
+from app.hand_tracking import (
+    HandTracker,
+    _pointer_anchor,
+    _remap_pointer_axis,
+    _select_hand_roles,
+)
 from app.protocol import FrameState, Landmark, pose_scores_for_pose
 
 
@@ -33,9 +38,11 @@ def test_hand_tracker_reuses_last_frame_briefly_during_dropout() -> None:
     assert held["tracking"] is True
     assert held["pose"] == "closed-fist"
     assert held.get("brightness") == 0.25
+    assert held.get("fallback_reason") == "dropout-hold"
     assert dropped["tracking"] is True
     assert lost["tracking"] is False
     assert lost["pose"] == "unknown"
+    assert lost.get("fallback_reason") == "no-hands"
 
 
 def test_pointer_anchor_uses_index_tip_for_non_fist_pose() -> None:
@@ -71,3 +78,20 @@ def test_select_hand_roles_prefers_user_right_hand_for_pointer() -> None:
 
     assert pointer_index == 1
     assert action_index == 0
+
+
+def test_select_hand_roles_prefers_explicit_handedness_when_available() -> None:
+    pointer_index, action_index = _select_hand_roles(
+        [{"x": 0.25, "y": 0.5}, {"x": 0.75, "y": 0.5}],
+        mirror_x=True,
+        handedness_labels=["left", "right"],
+    )
+
+    assert pointer_index == 1
+    assert action_index == 0
+
+
+def test_pointer_region_margin_remaps_inner_area_to_full_range() -> None:
+    assert _remap_pointer_axis(0.12, 0.12) == 0.0
+    assert _remap_pointer_axis(0.88, 0.12) == 1.0
+    assert _remap_pointer_axis(0.5, 0.12) == 0.5

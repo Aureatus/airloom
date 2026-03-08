@@ -15,7 +15,9 @@ const createUnsupportedAdapter = (): InputAdapter => {
   return {
     platform: "unsupported",
     isAvailable: () => false,
+    getPointerPosition: unsupported,
     movePointer: unsupported,
+    scroll: unsupported,
     pointerDown: unsupported,
     pointerUp: unsupported,
     click: unsupported,

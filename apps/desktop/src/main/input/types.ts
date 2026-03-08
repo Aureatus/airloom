@@ -8,7 +8,9 @@ export type PointerPosition = {
 export type InputAdapter = {
   platform: string;
   isAvailable: () => boolean;
+  getPointerPosition: () => Promise<PointerPosition>;
   movePointer: (position: PointerPosition) => Promise<void>;
+  scroll: (amount: number) => Promise<void>;
   pointerDown: (button: PointerButton) => Promise<void>;
   pointerUp: (button: PointerButton) => Promise<void>;
   click: (button: PointerButton) => Promise<void>;

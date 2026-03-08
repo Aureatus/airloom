@@ -7,8 +7,12 @@ const createTestAdapter = () => {
   const adapter: InputAdapter = {
     platform: "test",
     isAvailable: () => true,
+    getPointerPosition: async () => ({ x: 50, y: 60 }),
     movePointer: async () => {
       calls.push("move");
+    },
+    scroll: async (amount) => {
+      calls.push(`scroll:${amount.toFixed(2)}`);
     },
     pointerDown: async () => {
       calls.push("down");
@@ -30,6 +34,7 @@ const createTestAdapter = () => {
 const createTestSettings = (key = "Return") => {
   return {
     smoothing: 0.72,
+    pointerRegionMargin: 0.12,
     clickPinchThreshold: 0.78,
     dragHoldThresholdMs: 220,
     rightClickGesture: "thumb-middle-pinch",
@@ -157,6 +162,12 @@ describe("createGestureRuntime", () => {
         confidence: 0.92,
       });
       await runtime.handleEvent({
+        type: "pointer.observed",
+        x: 0.42,
+        y: 0.54,
+        confidence: 0.92,
+      });
+      await runtime.handleEvent({
         type: "gesture.intent",
         gesture: "primary-pinch",
         phase: "end",
@@ -165,11 +176,8 @@ describe("createGestureRuntime", () => {
       Date.now = originalNow;
     }
 
-    expect(calls).toEqual(["down", "move", "up"]);
-    expect(runtime.getState().recentActions).toEqual([
-      "Move 0.40, 0.50",
-      "left up",
-    ]);
+    expect(calls).toEqual(["down", "move", "move", "up"]);
+    expect(runtime.getState().recentActions).toEqual(["Move 0.42, 0.54", "left up"]);
   });
 
   test("updates status state from status events", async () => {
@@ -309,9 +317,18 @@ describe("createGestureRuntime", () => {
       y: 0.5,
       confidence: 0.92,
     });
+    await runtime.handleEvent({
+      type: "pointer.observed",
+      x: 0.42,
+      y: 0.54,
+      confidence: 0.92,
+    });
 
-    expect(calls).toEqual(["move"]);
-    expect(runtime.getState().recentActions).toEqual(["Move 0.40, 0.50"]);
+    expect(calls).toEqual(["move", "move"]);
+    expect(runtime.getState().recentActions).toEqual([
+      "Move 0.40, 0.50",
+      "Move 0.42, 0.54",
+    ]);
   });
 
   test("maps gesture triggers to configured keys", async () => {
@@ -346,6 +363,23 @@ describe("createGestureRuntime", () => {
     });
 
     expect(calls).toEqual(["click:right"]);
+  });
+
+  test("routes scroll observed events to the adapter", async () => {
+    const { adapter, calls } = createTestAdapter();
+    const runtime = createGestureRuntime(
+      adapter,
+      (x, y) => ({ x, y }),
+      () => createTestSettings(),
+    );
+
+    await runtime.handleEvent({
+      type: "scroll.observed",
+      amount: -2.5,
+    });
+
+    expect(calls).toEqual(["scroll:-2.50"]);
+    expect(runtime.getState().recentActions).toEqual(["Scroll -2.50"]);
   });
 
   test("ignores pointer movement until closed-fist status is active", async () => {
@@ -396,8 +430,14 @@ describe("createGestureRuntime", () => {
       y: 0.5,
       confidence: 0.92,
     });
+    await runtime.handleEvent({
+      type: "pointer.observed",
+      x: 0.42,
+      y: 0.54,
+      confidence: 0.92,
+    });
 
-    expect(calls).toEqual(["move"]);
+    expect(calls).toEqual(["move", "move"]);
     expect(runtime.getState().pointerControlEnabled).toBe(true);
   });
 
@@ -444,6 +484,12 @@ describe("createGestureRuntime", () => {
       confidence: 0.92,
     });
     await runtime.handleEvent({
+      type: "pointer.observed",
+      x: 0.42,
+      y: 0.54,
+      confidence: 0.92,
+    });
+    await runtime.handleEvent({
       type: "status",
       tracking: true,
       pinchStrength: 0,
@@ -478,7 +524,7 @@ describe("createGestureRuntime", () => {
       confidence: 0.92,
     });
 
-    expect(calls).toEqual(["move"]);
+    expect(calls).toEqual(["move", "move"]);
     expect(runtime.getState().pointerControlEnabled).toBe(false);
   });
 

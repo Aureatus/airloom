@@ -10,7 +10,9 @@ export const createLinuxWaylandAdapter = (): InputAdapter => {
     isAvailable: () =>
       process.platform === "linux" &&
       process.env.XDG_SESSION_TYPE === "wayland",
+    getPointerPosition: unsupported,
     movePointer: unsupported,
+    scroll: unsupported,
     pointerDown: unsupported,
     pointerUp: unsupported,
     click: unsupported,

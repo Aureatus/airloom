@@ -309,6 +309,7 @@ const startVisionService = () => {
         process.env.AIRLOOM_POSE_MODEL_PATH ??
         join(visionServiceDir, "models/pose_classifier_v1.json"),
       AIRLOOM_SMOOTHING_ALPHA: String(currentSettings.smoothing),
+      AIRLOOM_POINTER_REGION_MARGIN: String(currentSettings.pointerRegionMargin),
       AIRLOOM_MIRROR_X: "1",
       GLOG_minloglevel: process.env.GLOG_minloglevel ?? "2",
       TF_CPP_MIN_LOG_LEVEL: process.env.TF_CPP_MIN_LOG_LEVEL ?? "2",

@@ -8,7 +8,9 @@ export const createMacosAdapter = (): InputAdapter => {
   return {
     platform: "macos",
     isAvailable: () => process.platform === "darwin",
+    getPointerPosition: unsupported,
     movePointer: unsupported,
+    scroll: unsupported,
     pointerDown: unsupported,
     pointerUp: unsupported,
     click: unsupported,
