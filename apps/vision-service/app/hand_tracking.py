@@ -23,6 +23,27 @@ def _clamp_unit(value: float) -> float:
     return max(0.0, min(1.0, value))
 
 
+def _average_landmarks(*points: Landmark) -> Landmark:
+    count = max(1, len(points))
+    return {
+        "x": sum(point["x"] for point in points) / count,
+        "y": sum(point["y"] for point in points) / count,
+    }
+
+
+def _pointer_anchor(landmarks: list[Landmark], pose: str) -> Landmark:
+    if pose == "closed-fist":
+        return _average_landmarks(
+            landmarks[0],
+            landmarks[5],
+            landmarks[9],
+            landmarks[13],
+            landmarks[17],
+        )
+
+    return landmarks[8]
+
+
 @dataclass
 class HandTracker:
     smoothing_alpha: float = field(
@@ -163,7 +184,6 @@ class HandTracker:
         hand_landmarks = [
             cast(Landmark, {"x": landmark.x, "y": landmark.y}) for landmark in landmarks
         ]
-        index_tip = hand_landmarks[8]
         features = extract_pose_features(hand_landmarks)
         feature_values = flatten_pose_features(hand_landmarks, features)
         classification = classify_pose_with_mode(
@@ -174,15 +194,19 @@ class HandTracker:
             static_gesture_scores=static_gesture_scores,
         )
         pose_observation = classification.active
-        pointer_x = 1 - index_tip["x"] if self.mirror_x else index_tip["x"]
+        pointer_anchor = _pointer_anchor(hand_landmarks, pose_observation["pose"])
+        pointer_x = 1 - pointer_anchor["x"] if self.mirror_x else pointer_anchor["x"]
         smooth_x, smooth_y = self._smoother.update(
-            _clamp_unit(pointer_x), _clamp_unit(index_tip["y"])
+            _clamp_unit(pointer_x), _clamp_unit(pointer_anchor["y"])
         )
 
         frame_state: FrameState = {
             "tracking": True,
             "pointer": {"x": _clamp_unit(smooth_x), "y": _clamp_unit(smooth_y)},
-            "raw_pointer": {"x": _clamp_unit(pointer_x), "y": _clamp_unit(index_tip["y"])},
+            "raw_pointer": {
+                "x": _clamp_unit(pointer_x),
+                "y": _clamp_unit(pointer_anchor["y"]),
+            },
             "pose": pose_observation["pose"],
             "pose_confidence": pose_observation["confidence"],
             "pose_scores": pose_observation["scores"],

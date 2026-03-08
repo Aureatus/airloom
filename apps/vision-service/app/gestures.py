@@ -120,17 +120,6 @@ class GestureMachine:
             events.append(status_event)
             return events
 
-        pointer = frame.get("pointer")
-        if pointer is not None and closed_fist:
-            events.append(
-                {
-                    "type": "pointer.observed",
-                    "x": pointer["x"],
-                    "y": pointer["y"],
-                    "confidence": frame["confidence"],
-                }
-            )
-
         if primary_pinch:
             self.primary_pinch_counter += 1
             self.primary_pinch_release_counter = 0
@@ -220,4 +209,16 @@ class GestureMachine:
             self.open_palm_counter = 0
 
         events.append(status_event)
+
+        pointer = frame.get("pointer")
+        if pointer is not None and closed_fist:
+            events.append(
+                {
+                    "type": "pointer.observed",
+                    "x": pointer["x"],
+                    "y": pointer["y"],
+                    "confidence": frame["confidence"],
+                }
+            )
+
         return events

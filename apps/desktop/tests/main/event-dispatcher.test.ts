@@ -8,7 +8,7 @@ const waitForDrain = async () => {
 };
 
 describe("createEventDispatcher", () => {
-  test("preserves gesture order while coalescing pointer and status updates", async () => {
+  test("preserves gesture order while prioritizing status over pointer updates", async () => {
     const processed: string[] = [];
     const dispatcher = createEventDispatcher(
       async (event) => {
@@ -59,8 +59,8 @@ describe("createEventDispatcher", () => {
     expect(processed).toEqual([
       "gesture.intent:closed-fist",
       "gesture.intent:primary-pinch",
-      "pointer.observed:latest",
       "status:latest",
+      "pointer.observed:latest",
     ]);
   });
 
@@ -124,8 +124,79 @@ describe("createEventDispatcher", () => {
 
     expect(processed).toEqual([
       "pointer:0.1",
-      "pointer:0.9",
       "status:tracking",
+      "pointer:0.9",
     ]);
+  });
+
+  test("applies the newest status before the newest pointer after a busy period", async () => {
+    const processed: string[] = [];
+    let releaseWork: (() => void) | null = null;
+    const dispatcher = createEventDispatcher(
+      (event) => {
+        processed.push(
+          event.type === "status"
+            ? `status:${event.debug?.closedFist ? "fist" : "open"}`
+            : `pointer:${event.x}`,
+        );
+
+        if (processed.length === 1) {
+          return new Promise<void>((resolve) => {
+            releaseWork = resolve;
+          });
+        }
+
+        return Promise.resolve();
+      },
+      () => {},
+    );
+
+    dispatcher.enqueue({
+      type: "pointer.observed",
+      x: 0.1,
+      y: 0.2,
+      confidence: 0.9,
+    });
+    await Promise.resolve();
+
+    dispatcher.enqueue({
+      type: "pointer.observed",
+      x: 0.8,
+      y: 0.5,
+      confidence: 0.9,
+    });
+    dispatcher.enqueue({
+      type: "status",
+      tracking: true,
+      pinchStrength: 0,
+      gesture: "closed-fist",
+      debug: {
+        confidence: 0.9,
+        brightness: 0.4,
+        frameDelayMs: 10,
+        pose: "closed-fist",
+        poseConfidence: 0.9,
+        poseScores: {
+          neutral: 0.05,
+          "open-palm": 0.04,
+          "closed-fist": 0.9,
+          "primary-pinch": 0.01,
+          "secondary-pinch": 0.01,
+        },
+        classifierMode: "learned",
+        modelVersion: null,
+        closedFist: true,
+        closedFistFrames: 2,
+        closedFistReleaseFrames: 0,
+        closedFistLatched: true,
+        openPalmHold: false,
+        secondaryPinchStrength: 0.1,
+      },
+    });
+
+    releaseWork?.();
+    await waitForDrain();
+
+    expect(processed).toEqual(["pointer:0.1", "status:fist", "pointer:0.8"]);
   });
 });

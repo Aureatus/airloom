@@ -201,6 +201,22 @@ def test_closed_fist_emits_pointer_observations_only_while_held() -> None:
     assert any(event.get("type") == "pointer.observed" for event in held_events)
 
 
+def test_closed_fist_emits_status_before_pointer_observation() -> None:
+    machine = GestureMachine()
+
+    events = machine.update(
+        frame_state(
+            pose="closed-fist",
+            pinch_strength=0.18,
+            secondary_pinch_strength=0.16,
+            closed_fist=True,
+            confidence=0.91,
+        )
+    )
+
+    assert [event["type"] for event in events] == ["status", "pointer.observed"]
+
+
 def test_closed_fist_stops_pointer_observations_after_release() -> None:
     machine = GestureMachine()
 

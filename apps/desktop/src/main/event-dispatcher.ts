@@ -19,16 +19,16 @@ export const createEventDispatcher = (
       return nextGesture;
     }
 
-    if (latestPointer !== null) {
-      const pointer = latestPointer;
-      latestPointer = null;
-      return pointer;
-    }
-
     if (latestStatus !== null) {
       const status = latestStatus;
       latestStatus = null;
       return status;
+    }
+
+    if (latestPointer !== null) {
+      const pointer = latestPointer;
+      latestPointer = null;
+      return pointer;
     }
 
     return null;

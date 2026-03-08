@@ -1,7 +1,7 @@
 from typing import cast
 
-from app.hand_tracking import HandTracker
-from app.protocol import FrameState, pose_scores_for_pose
+from app.hand_tracking import HandTracker, _pointer_anchor
+from app.protocol import FrameState, Landmark, pose_scores_for_pose
 
 
 def test_hand_tracker_reuses_last_frame_briefly_during_dropout() -> None:
@@ -36,3 +36,28 @@ def test_hand_tracker_reuses_last_frame_briefly_during_dropout() -> None:
     assert dropped["tracking"] is True
     assert lost["tracking"] is False
     assert lost["pose"] == "unknown"
+
+
+def test_pointer_anchor_uses_index_tip_for_non_fist_pose() -> None:
+    landmarks = [{"x": 0.0, "y": 0.0} for _ in range(21)]
+    landmarks[8] = {"x": 0.72, "y": 0.18}
+
+    assert _pointer_anchor(cast(list[Landmark], landmarks), "open-palm") == {
+        "x": 0.72,
+        "y": 0.18,
+    }
+
+
+def test_pointer_anchor_uses_palm_center_for_closed_fist() -> None:
+    landmarks = [{"x": 0.0, "y": 0.0} for _ in range(21)]
+    landmarks[0] = {"x": 0.20, "y": 0.30}
+    landmarks[5] = {"x": 0.30, "y": 0.20}
+    landmarks[9] = {"x": 0.40, "y": 0.25}
+    landmarks[13] = {"x": 0.50, "y": 0.30}
+    landmarks[17] = {"x": 0.60, "y": 0.35}
+    landmarks[8] = {"x": 0.90, "y": 0.05}
+
+    anchor = _pointer_anchor(cast(list[Landmark], landmarks), "closed-fist")
+
+    assert anchor["x"] == 0.4
+    assert abs(anchor["y"] - 0.28) < 1e-9
