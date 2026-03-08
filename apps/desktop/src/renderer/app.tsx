@@ -1,6 +1,14 @@
 import type { AirloomInputEvent } from "@airloom/shared/gesture-events";
 import type { AirloomSettings } from "@airloom/shared/settings-schema";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FocusEvent,
+  type FormEvent,
+  type MouseEvent,
+} from "react";
 import { CalibrationPage } from "./pages/calibration";
 import { SettingsPage } from "./pages/settings";
 
@@ -23,6 +31,7 @@ type RuntimeState = {
       "closed-fist": number;
       "primary-pinch": number;
       "secondary-pinch": number;
+      "peace-sign": number;
     };
     classifierMode: "rules" | "shadow" | "learned";
     modelVersion: string | null;
@@ -35,14 +44,27 @@ type RuntimeState = {
     closedFistLatched: boolean;
     openPalmHold: boolean;
     secondaryPinchStrength: number;
+    pointerHand?: string;
+    actionHand?: string;
+    fallbackReason?: string;
   };
   mapper: {
     pointerControlEnabled: boolean;
     primaryPinchActive: boolean;
     primaryPinchHeldMs: number;
-    primaryPinchOutcome: "idle" | "click";
+    primaryPinchOutcome: "idle" | "click" | "drag";
   };
   lastError: string | null;
+};
+
+type InspectorLogEntry = {
+  target: string;
+  type: string;
+  detail: number;
+  which: number | null;
+  button: number | null;
+  buttons: number | null;
+  elapsedMs: number;
 };
 
 type CaptureState = {
@@ -51,13 +73,14 @@ type CaptureState = {
   activeLabel: string;
   recording: boolean;
   takeCount: number;
-  counts: {
-    neutral: number;
-    "open-palm": number;
-    "closed-fist": number;
-    "primary-pinch": number;
-    "secondary-pinch": number;
-  };
+    counts: {
+      neutral: number;
+      "open-palm": number;
+      "closed-fist": number;
+      "primary-pinch": number;
+      "secondary-pinch": number;
+      "peace-sign": number;
+    };
   lastTakeId: string | null;
   exportPath: string | null;
   message: string | null;
@@ -124,6 +147,7 @@ const initialStatus: ServiceStatus = {
         "closed-fist": 0,
         "primary-pinch": 0,
         "secondary-pinch": 0,
+        "peace-sign": 0,
       },
       classifierMode: "learned",
       modelVersion: null,
@@ -154,6 +178,7 @@ const initialStatus: ServiceStatus = {
       "closed-fist": 0,
       "primary-pinch": 0,
       "secondary-pinch": 0,
+      "peace-sign": 0,
     },
     lastTakeId: null,
     exportPath: null,
@@ -170,9 +195,12 @@ const initialStatus: ServiceStatus = {
 
 const defaultSettings: AirloomSettings = {
   smoothing: 0.5,
+  pointerRegionMargin: 0.12,
   clickPinchThreshold: 0.78,
   dragHoldThresholdMs: 220,
   rightClickGesture: "thumb-middle-pinch",
+  pushToTalkGesture: "peace-sign",
+  pushToTalkKey: "Ctrl+Space",
   keyMappings: [{ gesture: "open-palm-hold", key: "Return" }],
 };
 
@@ -182,6 +210,8 @@ const formatEventLogEntry = (event: AirloomInputEvent) => {
       return `intent ${event.gesture} ${event.phase}`;
     case "pointer.observed":
       return `pointer ${event.x.toFixed(2)},${event.y.toFixed(2)} conf=${event.confidence.toFixed(2)}`;
+    case "scroll.observed":
+      return `scroll ${event.amount.toFixed(2)}`;
     case "capture.state":
       return `capture ${event.recording ? "recording" : "idle"} label=${event.activeLabel} takes=${event.takeCount}`;
     case "debug.frame":
@@ -204,15 +234,32 @@ const formatEventLogEntry = (event: AirloomInputEvent) => {
   }
 };
 
+const formatInspectorLogEntry = (entry: InspectorLogEntry) => {
+  return [
+    `${entry.target}`,
+    `${entry.type}`,
+    `detail=${entry.detail}`,
+    `which=${entry.which ?? "-"}`,
+    `button=${entry.button ?? "-"}`,
+    `buttons=${entry.buttons ?? "-"}`,
+    `t=${(entry.elapsedMs ?? 0).toFixed(1)}ms`,
+  ].join(" | ");
+};
+
 export const App = () => {
   const [status, setStatus] = useState(initialStatus);
   const [settings, setSettings] = useState(defaultSettings);
   const [eventLog, setEventLog] = useState<string[]>([]);
+  const [clickInspectorLog, setClickInspectorLog] = useState<InspectorLogEntry[]>([]);
+  const [shapeInspectorState, setShapeInspectorState] = useState<
+    "idle" | "selected" | "editing"
+  >("idle");
   const [activeTab, setActiveTab] = useState<"calibration" | "settings">(
     "calibration",
   );
   const lastEventKeyRef = useRef<string | null>(null);
   const eventLogRef = useRef<HTMLPreElement | null>(null);
+  const clickInspectorStartRef = useRef(performance.now());
 
   useEffect(() => {
     window.airloom.getStatus().then(setStatus).catch(console.error);
@@ -267,6 +314,107 @@ export const App = () => {
     const saved = await window.airloom.updateSettings(nextSettings);
     setSettings(saved);
   };
+
+  const appendInspectorEntry = (
+    target: string,
+    type: string,
+    detail: number,
+    which: number | null,
+    button: number | null,
+    buttons: number | null,
+    elapsedMs: number,
+  ) => {
+    setClickInspectorLog((current) =>
+      [
+        ...current,
+        {
+          target,
+          type,
+          detail,
+          which,
+          button,
+          buttons,
+          elapsedMs,
+        },
+      ].slice(-24),
+    );
+  };
+
+  const logMouseInspectorEvent = (
+    target: string,
+    type: string,
+    event: MouseEvent<HTMLElement>,
+  ) => {
+    appendInspectorEntry(
+      target,
+      type,
+      event.detail,
+      event.nativeEvent.which,
+      event.button,
+      event.buttons,
+      event.timeStamp - clickInspectorStartRef.current,
+    );
+  };
+
+  const logFocusInspectorEvent = (
+    target: string,
+    type: string,
+    event: FocusEvent<HTMLElement>,
+  ) => {
+    appendInspectorEntry(
+      target,
+      type,
+      0,
+      null,
+      null,
+      null,
+      event.timeStamp - clickInspectorStartRef.current,
+    );
+  };
+
+  const logInputInspectorEvent = (
+    target: string,
+    type: string,
+    event: FormEvent<HTMLElement>,
+  ) => {
+    appendInspectorEntry(
+      target,
+      type,
+      0,
+      null,
+      null,
+      null,
+      event.timeStamp - clickInspectorStartRef.current,
+    );
+  };
+
+  const resetClickInspector = () => {
+    clickInspectorStartRef.current = performance.now();
+    setClickInspectorLog([]);
+    setShapeInspectorState("idle");
+  };
+
+  const setShapeState = (nextState: "idle" | "selected" | "editing") => {
+    setShapeInspectorState(nextState);
+    appendInspectorEntry(
+      "shape-target",
+      `state:${nextState}`,
+      0,
+      null,
+      null,
+      null,
+      performance.now() - clickInspectorStartRef.current,
+    );
+  };
+
+  const clickInspectorSummary = useMemo(() => {
+    const clickCount = clickInspectorLog.filter((entry) => entry.type === "click").length;
+    const doubleClickCount = clickInspectorLog.filter(
+      (entry) => entry.type === "dblclick",
+    ).length;
+    const focusCount = clickInspectorLog.filter((entry) => entry.type === "focus").length;
+    return { clickCount, doubleClickCount, focusCount };
+  }, [clickInspectorLog]);
 
   return (
     <main className="shell">
@@ -454,7 +602,152 @@ export const App = () => {
               }
             >
               Status: pinch
-            </button>
+             </button>
+             </div>
+            <div className="click-inspector-panel">
+              <div className="click-inspector-header">
+                <div>
+                  <div className="eyebrow">Click inspector</div>
+                  <p className="panel-copy">
+                    Use your live pinch on these targets to see whether the browser receives
+                    `click`, `dblclick`, extra `mousedown` / `mouseup`, or focus/input events.
+                  </p>
+                </div>
+                <div className="hero-actions">
+                  <button type="button" className="ghost" onClick={resetClickInspector}>
+                    Clear log
+                  </button>
+                </div>
+              </div>
+              <div className="metric-grid compact">
+                <div className="metric-card">
+                  <span>Clicks</span>
+                  <strong>{clickInspectorSummary.clickCount}</strong>
+                </div>
+                <div className="metric-card">
+                  <span>Double clicks</span>
+                  <strong>{clickInspectorSummary.doubleClickCount}</strong>
+                </div>
+                <div className="metric-card">
+                  <span>Focus events</span>
+                  <strong>{clickInspectorSummary.focusCount}</strong>
+                </div>
+                <div className="metric-card">
+                  <span>Shape mode</span>
+                  <strong>{shapeInspectorState}</strong>
+                </div>
+              </div>
+              <div className="click-inspector-targets">
+                <button
+                  type="button"
+                  className="click-inspector-target"
+                  onMouseDown={(event) =>
+                    logMouseInspectorEvent("button-target", "mousedown", event)
+                  }
+                  onMouseUp={(event) =>
+                    logMouseInspectorEvent("button-target", "mouseup", event)
+                  }
+                  onClick={(event) => logMouseInspectorEvent("button-target", "click", event)}
+                  onDoubleClick={(event) =>
+                    logMouseInspectorEvent("button-target", "dblclick", event)
+                  }
+                  onFocus={(event) => logFocusInspectorEvent("button-target", "focus", event)}
+                  onBlur={(event) => logFocusInspectorEvent("button-target", "blur", event)}
+                >
+                  Selection target
+                </button>
+                <textarea
+                  className="click-inspector-editable"
+                  defaultValue={
+                    "Editable target. A normal single click should focus it; a true double click should log dblclick."
+                  }
+                  onMouseDown={(event) =>
+                    logMouseInspectorEvent("editable-target", "mousedown", event)
+                  }
+                  onMouseUp={(event) =>
+                    logMouseInspectorEvent("editable-target", "mouseup", event)
+                  }
+                  onClick={(event) => logMouseInspectorEvent("editable-target", "click", event)}
+                  onDoubleClick={(event) =>
+                    logMouseInspectorEvent("editable-target", "dblclick", event)
+                  }
+                  onFocus={(event) =>
+                    logFocusInspectorEvent("editable-target", "focus", event)
+                  }
+                  onBlur={(event) => logFocusInspectorEvent("editable-target", "blur", event)}
+                  onKeyDown={() => {}}
+                  onInput={(event) => logInputInspectorEvent("editable-target", "input", event)}
+                />
+                <div className="click-inspector-shape-panel">
+                  <div className="click-inspector-shape-copy">
+                    Single click selects. A second click on the selected shape enters edit mode.
+                    Use this to catch accidental re-entry that feels like a double activation.
+                  </div>
+                  {shapeInspectorState === "editing" ? (
+                    <textarea
+                      className="click-inspector-editable click-inspector-shape-editor"
+                      defaultValue={"Shape text editor"}
+                      onMouseDown={(event) =>
+                        logMouseInspectorEvent("shape-editor", "mousedown", event)
+                      }
+                      onMouseUp={(event) =>
+                        logMouseInspectorEvent("shape-editor", "mouseup", event)
+                      }
+                      onClick={(event) =>
+                        logMouseInspectorEvent("shape-editor", "click", event)
+                      }
+                      onDoubleClick={(event) =>
+                        logMouseInspectorEvent("shape-editor", "dblclick", event)
+                      }
+                      onFocus={(event) => logFocusInspectorEvent("shape-editor", "focus", event)}
+                      onBlur={(event) => {
+                        logFocusInspectorEvent("shape-editor", "blur", event);
+                        setShapeState("selected");
+                      }}
+                      onKeyDown={() => {}}
+                      onInput={(event) => logInputInspectorEvent("shape-editor", "input", event)}
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      className={`click-inspector-shape ${
+                        shapeInspectorState === "selected"
+                          ? "click-inspector-shape-selected"
+                          : ""
+                      }`}
+                      onMouseDown={(event) =>
+                        logMouseInspectorEvent("shape-target", "mousedown", event)
+                      }
+                      onMouseUp={(event) =>
+                        logMouseInspectorEvent("shape-target", "mouseup", event)
+                      }
+                      onClick={(event) => {
+                        logMouseInspectorEvent("shape-target", "click", event);
+                        setShapeState(
+                          shapeInspectorState === "selected" ? "editing" : "selected",
+                        );
+                      }}
+                      onDoubleClick={(event) => {
+                        logMouseInspectorEvent("shape-target", "dblclick", event);
+                        setShapeState("editing");
+                      }}
+                      onFocus={(event) =>
+                        logFocusInspectorEvent("shape-target", "focus", event)
+                      }
+                      onBlur={(event) => logFocusInspectorEvent("shape-target", "blur", event)}
+                    >
+                      {shapeInspectorState === "selected"
+                        ? "Selected shape"
+                        : "Shape target"}
+                    </button>
+                  )}
+                </div>
+              </div>
+              <pre className="panel-copy monospace click-inspector-log">
+                {clickInspectorLog.length === 0
+                  ? "No DOM events captured yet"
+                  : clickInspectorLog.map(formatInspectorLogEntry).join("\n")}
+              </pre>
             </div>
           </div>
         </div>
@@ -534,6 +827,8 @@ export const App = () => {
           gesture={status.runtime.gesture}
           pinchStrength={status.runtime.pinchStrength}
           pointerControlEnabled={status.runtime.pointerControlEnabled}
+          pushToTalkGesture={settings.pushToTalkGesture}
+          pushToTalkKey={settings.pushToTalkKey}
           debug={status.runtime.debug}
           capture={status.capture}
           onCaptureLabelChange={(label) =>

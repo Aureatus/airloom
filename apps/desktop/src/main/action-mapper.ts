@@ -23,6 +23,7 @@ export const createActionMapper = (
   let primaryPinchStartedAt: number | null = null;
   let primaryPinchDragging = false;
   let pointerControlEnabled = false;
+  let pushToTalkActive = false;
 
   const maybeStartDrag = (thresholdMs: number): AirloomActionEvent[] => {
     if (primaryPinchStartedAt === null || primaryPinchDragging) {
@@ -58,6 +59,22 @@ export const createActionMapper = (
           ? "drag"
           : "click",
     };
+  };
+
+  const releaseHeldActions = (): AirloomActionEvent[] => {
+    const actions: AirloomActionEvent[] = [];
+    if (primaryPinchDragging) {
+      actions.push({ type: "pointer.up", button: "left" });
+    }
+    if (pushToTalkActive) {
+      actions.push({ type: "key.up", key: getSettings().pushToTalkKey });
+    }
+
+    primaryPinchStartedAt = null;
+    primaryPinchDragging = false;
+    pushToTalkActive = false;
+
+    return actions;
   };
 
   const mapEvent = (event: AirloomInputEvent): AirloomActionEvent[] => {
@@ -112,6 +129,24 @@ export const createActionMapper = (
           return [{ type: "click", button: "right" }];
         }
 
+        if (event.gesture === settings.pushToTalkGesture) {
+          if (event.phase === "start") {
+            if (pushToTalkActive) {
+              return [];
+            }
+            pushToTalkActive = true;
+            return [{ type: "key.down", key: settings.pushToTalkKey }];
+          }
+
+          if (event.phase === "end") {
+            if (!pushToTalkActive) {
+              return [];
+            }
+            pushToTalkActive = false;
+            return [{ type: "key.up", key: settings.pushToTalkKey }];
+          }
+        }
+
         const mapping = settings.keyMappings.find(
           (entry) => entry.gesture === event.gesture,
         );
@@ -125,7 +160,12 @@ export const createActionMapper = (
 
       case "status": {
         pointerControlEnabled = event.debug?.closedFist ?? false;
-        return maybeStartDrag(getSettings().dragHoldThresholdMs);
+        const actions: AirloomActionEvent[] = [];
+        if (pushToTalkActive && event.gesture !== "push-to-talk") {
+          actions.push({ type: "key.up", key: getSettings().pushToTalkKey });
+          pushToTalkActive = false;
+        }
+        return [...actions, ...maybeStartDrag(getSettings().dragHoldThresholdMs)];
       }
     }
   };
@@ -133,5 +173,6 @@ export const createActionMapper = (
   return {
     getDebugState,
     mapEvent,
+    releaseHeldActions,
   };
 };

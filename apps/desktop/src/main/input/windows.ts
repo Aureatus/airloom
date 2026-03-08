@@ -14,6 +14,8 @@ export const createWindowsAdapter = (): InputAdapter => {
     pointerDown: unsupported,
     pointerUp: unsupported,
     click: unsupported,
+    keyDown: unsupported,
+    keyUp: unsupported,
     tapKey: unsupported,
   };
 };

@@ -13,13 +13,17 @@ from app.protocol import (
 )
 
 PRIMARY_PINCH_ON_FRAMES = 1
-PRIMARY_PINCH_OFF_FRAMES = 1
+PRIMARY_PINCH_OFF_FRAMES = 2
+PRIMARY_PINCH_REARM_FRAMES = 3
 SECONDARY_PINCH_ON_FRAMES = 1
 SECONDARY_PINCH_OFF_FRAMES = 1
 PRIMARY_PINCH_SUSTAIN_STRENGTH = 0.72
 PRIMARY_PINCH_SUSTAIN_SCORE = 0.46
 SECONDARY_PINCH_SUSTAIN_STRENGTH = 0.72
 SECONDARY_PINCH_SUSTAIN_SCORE = 0.46
+PEACE_SIGN_ON_FRAMES = 2
+PEACE_SIGN_OFF_FRAMES = 2
+PEACE_SIGN_SUSTAIN_SCORE = 0.58
 CLOSED_FIST_SUSTAIN_SCORE = 0.5
 SECONDARY_PINCH_SCROLL_MIN_DELTA = 0.01
 SECONDARY_PINCH_SCROLL_GAIN = 90.0
@@ -37,6 +41,10 @@ class GestureMachine:
     open_palm_counter: int = 0
     primary_pinch_counter: int = 0
     primary_pinch_release_counter: int = 0
+    primary_pinch_cooldown_frames: int = 0
+    peace_sign_active: bool = False
+    peace_sign_counter: int = 0
+    peace_sign_release_counter: int = 0
     secondary_pinch_counter: int = 0
     secondary_pinch_release_counter: int = 0
     secondary_pinch_scroll_anchor_y: float | None = None
@@ -47,6 +55,7 @@ class GestureMachine:
 
     def update(self, frame: FrameState) -> list[GestureEvent]:
         events: list[GestureEvent] = []
+        primary_pinch_rearmed = False
         tracking = frame["tracking"]
         pose = frame.get("pose", "unknown")
         pose_confidence = frame.get("pose_confidence", 0.0)
@@ -64,12 +73,18 @@ class GestureMachine:
         action_closed_fist_score = action_pose_scores["closed-fist"]
         primary_pinch_score = action_pose_scores["primary-pinch"]
         secondary_pinch_score = action_pose_scores["secondary-pinch"]
+        peace_sign_score = action_pose_scores["peace-sign"]
         closed_fist = pose == "closed-fist" or (
             (self.closed_fist_counter > 0 or self.closed_fist_latched)
             and pose not in {"primary-pinch", "secondary-pinch", "open-palm"}
             and closed_fist_score >= CLOSED_FIST_SUSTAIN_SCORE
         )
         open_palm_hold = frame.get("action_open_palm_hold", action_pose == "open-palm")
+        peace_sign = action_pose == "peace-sign" or (
+            self.peace_sign_active
+            and peace_sign_score >= PEACE_SIGN_SUSTAIN_SCORE
+            and action_pose not in {"primary-pinch", "secondary-pinch", "closed-fist"}
+        )
         primary_pinch = action_pose == "primary-pinch" or (
             self.pinch_active
             and action_pose != "closed-fist"
@@ -77,6 +92,8 @@ class GestureMachine:
             and pinch_strength >= PRIMARY_PINCH_SUSTAIN_STRENGTH
             and primary_pinch_score >= PRIMARY_PINCH_SUSTAIN_SCORE
         )
+        if not self.pinch_active and self.primary_pinch_cooldown_frames > 0:
+            primary_pinch = False
         secondary_pinch = action_pose == "secondary-pinch" or (
             self.secondary_pinch_active
             and action_pose != "closed-fist"
@@ -84,6 +101,10 @@ class GestureMachine:
             and secondary_pinch_strength >= SECONDARY_PINCH_SUSTAIN_STRENGTH
             and secondary_pinch_score >= SECONDARY_PINCH_SUSTAIN_SCORE
         )
+        if peace_sign:
+            primary_pinch = False
+            secondary_pinch = False
+            open_palm_hold = False
 
         status_event: StatusEvent = {
             "type": "status",
@@ -121,12 +142,18 @@ class GestureMachine:
         status_event["debug"] = status_debug
 
         if not tracking:
+            if self.peace_sign_active:
+                events.append({"type": "gesture.intent", "gesture": "peace-sign", "phase": "end"})
             self.pinch_active = False
             self.drag_active = False
             self.secondary_pinch_active = False
             self.open_palm_counter = 0
             self.primary_pinch_counter = 0
             self.primary_pinch_release_counter = 0
+            self.primary_pinch_cooldown_frames = 0
+            self.peace_sign_active = False
+            self.peace_sign_counter = 0
+            self.peace_sign_release_counter = 0
             self.secondary_pinch_counter = 0
             self.secondary_pinch_release_counter = 0
             self.secondary_pinch_scroll_anchor_y = None
@@ -140,6 +167,29 @@ class GestureMachine:
             status_event["gesture"] = "searching"
             events.append(status_event)
             return events
+
+        if peace_sign:
+            self.peace_sign_counter += 1
+            self.peace_sign_release_counter = 0
+            if self.peace_sign_counter >= PEACE_SIGN_ON_FRAMES and not self.peace_sign_active:
+                self.peace_sign_active = True
+                status_event["gesture"] = "push-to-talk"
+                events.append({"type": "gesture.intent", "gesture": "peace-sign", "phase": "start"})
+        else:
+            self.peace_sign_counter = 0
+            if self.peace_sign_active:
+                self.peace_sign_release_counter += 1
+                if self.peace_sign_release_counter >= PEACE_SIGN_OFF_FRAMES:
+                    self.peace_sign_active = False
+                    status_event["gesture"] = "push-to-talk-release"
+                    events.append(
+                        {"type": "gesture.intent", "gesture": "peace-sign", "phase": "end"}
+                    )
+            else:
+                self.peace_sign_release_counter = 0
+
+        if self.peace_sign_active:
+            status_event["gesture"] = "push-to-talk"
 
         if primary_pinch:
             self.primary_pinch_counter += 1
@@ -160,6 +210,8 @@ class GestureMachine:
                     status_event["gesture"] = "pinch-release"
                     if self.drag_active:
                         self.drag_active = False
+                        self.primary_pinch_cooldown_frames = PRIMARY_PINCH_REARM_FRAMES
+                        primary_pinch_rearmed = True
                         events.append(
                             {"type": "gesture.intent", "gesture": "primary-pinch", "phase": "end"}
                         )
@@ -200,9 +252,13 @@ class GestureMachine:
             if not action_hand_separate:
                 self.pinch_active = False
                 self.drag_active = False
+                self.peace_sign_active = False
+                self.peace_sign_counter = 0
+                self.peace_sign_release_counter = 0
                 self.secondary_pinch_active = False
                 self.primary_pinch_counter = 0
                 self.primary_pinch_release_counter = 0
+                self.primary_pinch_cooldown_frames = 0
                 self.secondary_pinch_counter = 0
                 self.secondary_pinch_release_counter = 0
             self.closed_fist_counter += 1
@@ -265,5 +321,12 @@ class GestureMachine:
                     "confidence": frame["confidence"],
                 }
             )
+
+        if (
+            self.primary_pinch_cooldown_frames > 0
+            and not self.pinch_active
+            and not primary_pinch_rearmed
+        ):
+            self.primary_pinch_cooldown_frames -= 1
 
         return events

@@ -11,6 +11,8 @@ export const settingsSchema = z.object({
   clickPinchThreshold: z.number().min(0).max(1).default(0.78),
   dragHoldThresholdMs: z.number().int().min(0).max(2000).default(220),
   rightClickGesture: z.string().default("thumb-middle-pinch"),
+  pushToTalkGesture: z.string().default("peace-sign"),
+  pushToTalkKey: z.string().default("Ctrl+Space"),
   keyMappings: z
     .array(keybindMappingSchema)
     .default([{ gesture: "open-palm-hold", key: "Return" }]),

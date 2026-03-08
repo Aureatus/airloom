@@ -63,6 +63,80 @@ const buttonCode = (button: PointerButton) => {
   return button === "left" ? "1" : "3";
 };
 
+const normalizeKeyToken = (token: string) => {
+  const normalized = token.trim().toLowerCase();
+
+  switch (normalized) {
+    case "ctrl":
+    case "control":
+      return "ctrl";
+    case "alt":
+    case "option":
+      return "alt";
+    case "cmd":
+    case "command":
+    case "meta":
+    case "super":
+    case "win":
+    case "windows":
+      return "super";
+    case "shift":
+      return "shift";
+    case "space":
+    case "spacebar":
+      return "space";
+    case "enter":
+      return "Return";
+    case "esc":
+      return "Escape";
+    case "tab":
+      return "Tab";
+    default:
+      if (/^f\d+$/i.test(token.trim())) {
+        return token.trim().toUpperCase();
+      }
+
+      return token.trim();
+  }
+};
+
+export const normalizeXdotoolKeyBinding = (binding: string) => {
+  return binding
+    .split("+")
+    .map((token) => normalizeKeyToken(token))
+    .filter((token) => token.length > 0)
+    .join("+");
+};
+
+export const splitXdotoolKeyBinding = (binding: string) => {
+  return normalizeXdotoolKeyBinding(binding)
+    .split("+")
+    .map((token) => token.trim())
+    .filter((token) => token.length > 0);
+};
+
+const keyDownSequence = (binding: string) => {
+  const parts = splitXdotoolKeyBinding(binding);
+  if (parts.length <= 1) {
+    return [["keydown", parts[0] ?? normalizeXdotoolKeyBinding(binding)]];
+  }
+
+  const modifiers = parts.slice(0, -1);
+  const mainKey = parts.at(-1) ?? parts[0];
+  return [...modifiers.map((part) => ["keydown", part]), ["keydown", mainKey]];
+};
+
+const keyUpSequence = (binding: string) => {
+  const parts = splitXdotoolKeyBinding(binding);
+  if (parts.length <= 1) {
+    return [["keyup", parts[0] ?? normalizeXdotoolKeyBinding(binding)]];
+  }
+
+  const modifiers = parts.slice(0, -1);
+  const mainKey = parts.at(-1) ?? parts[0];
+  return [["keyup", mainKey], ...modifiers.reverse().map((part) => ["keyup", part])];
+};
+
 export const createLinuxX11Adapter = (): InputAdapter => {
   return {
     platform: "linux-x11",
@@ -114,8 +188,18 @@ export const createLinuxX11Adapter = (): InputAdapter => {
     click: async (button: PointerButton) => {
       await runXdotool(["click", buttonCode(button)]);
     },
+    keyDown: async (key: string) => {
+      for (const args of keyDownSequence(key)) {
+        await runXdotool(args);
+      }
+    },
+    keyUp: async (key: string) => {
+      for (const args of keyUpSequence(key)) {
+        await runXdotool(args);
+      }
+    },
     tapKey: async (key: string) => {
-      await runXdotool(["key", key]);
+      await runXdotool(["key", normalizeXdotoolKeyBinding(key)]);
     },
   };
 };

@@ -28,6 +28,7 @@ export type RuntimeState = {
       "closed-fist": number;
       "primary-pinch": number;
       "secondary-pinch": number;
+      "peace-sign": number;
     };
     classifierMode: "rules" | "shadow" | "learned";
     modelVersion: string | null;
@@ -83,6 +84,7 @@ export const createGestureRuntime = (
         "closed-fist": 0,
         "primary-pinch": 0,
         "secondary-pinch": 0,
+        "peace-sign": 0,
       },
       classifierMode: "learned",
       modelVersion: null,
@@ -114,6 +116,10 @@ export const createGestureRuntime = (
         return `${event.button} click`;
       case "key.tap":
         return `Key ${event.key}`;
+      case "key.down":
+        return `Key down ${event.key}`;
+      case "key.up":
+        return `Key up ${event.key}`;
       case "scroll":
         return `Scroll ${event.amount.toFixed(2)}`;
     }
@@ -148,6 +154,16 @@ export const createGestureRuntime = (
 
       case "click": {
         await adapter.click(event.button);
+        return;
+      }
+
+      case "key.down": {
+        await adapter.keyDown(event.key);
+        return;
+      }
+
+      case "key.up": {
+        await adapter.keyUp(event.key);
         return;
       }
 
@@ -233,14 +249,29 @@ export const createGestureRuntime = (
     };
   };
 
-  const setInputSuppressed = (suppressed: boolean) => {
+  const setInputSuppressed = async (suppressed: boolean) => {
+    if (suppressed && !state.inputSuppressed) {
+      for (const action of actionMapper.releaseHeldActions()) {
+        await executeAction(action);
+      }
+      syncMapperState();
+    }
     state.inputSuppressed = suppressed;
+    return getState();
+  };
+
+  const releaseHeldActions = async () => {
+    for (const action of actionMapper.releaseHeldActions()) {
+      await executeAction(action);
+    }
+    syncMapperState();
     return getState();
   };
 
   return {
     handleEvent,
     getState,
+    releaseHeldActions,
     setInputSuppressed,
   };
 };

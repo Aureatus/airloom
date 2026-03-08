@@ -32,6 +32,7 @@ export const captureCountsSchema = z.object({
   "closed-fist": z.number().int().nonnegative(),
   "primary-pinch": z.number().int().nonnegative(),
   "secondary-pinch": z.number().int().nonnegative(),
+  "peace-sign": z.number().int().nonnegative(),
 });
 
 export const captureStateEventSchema = z.object({
@@ -58,6 +59,7 @@ export const statusDebugSchema = z.object({
     "closed-fist": z.number().min(0).max(1),
     "primary-pinch": z.number().min(0).max(1),
     "secondary-pinch": z.number().min(0).max(1),
+    "peace-sign": z.number().min(0).max(1),
   }),
   classifierMode: z.enum(["rules", "shadow", "learned"]),
   modelVersion: z.string().nullable(),
@@ -118,6 +120,16 @@ export const keyTapActionSchema = z.object({
   key: z.string().min(1),
 });
 
+export const keyDownActionSchema = z.object({
+  type: z.literal("key.down"),
+  key: z.string().min(1),
+});
+
+export const keyUpActionSchema = z.object({
+  type: z.literal("key.up"),
+  key: z.string().min(1),
+});
+
 export const scrollActionSchema = z.object({
   type: z.literal("scroll"),
   amount: z.number(),
@@ -129,6 +141,8 @@ export const actionEventSchema = z.discriminatedUnion("type", [
   pointerUpActionSchema,
   clickActionSchema,
   keyTapActionSchema,
+  keyDownActionSchema,
+  keyUpActionSchema,
   scrollActionSchema,
 ]);
 

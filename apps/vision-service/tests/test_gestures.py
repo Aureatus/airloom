@@ -102,6 +102,122 @@ def test_gesture_machine_click_cycle() -> None:
     )
 
 
+def test_primary_pinch_requires_release_hysteresis_before_click_end() -> None:
+    machine = GestureMachine()
+
+    machine.update(
+        frame_state(
+            pose="primary-pinch",
+            pinch_strength=0.81,
+            secondary_pinch_strength=0.12,
+            confidence=0.93,
+        )
+    )
+    first_release_events = machine.update(
+        frame_state(
+            pointer={"x": 0.51, "y": 0.41},
+            pose="neutral",
+            pinch_strength=0.34,
+            secondary_pinch_strength=0.12,
+            confidence=0.93,
+        )
+    )
+    second_release_events = machine.update(
+        frame_state(
+            pointer={"x": 0.51, "y": 0.41},
+            pose="neutral",
+            pinch_strength=0.34,
+            secondary_pinch_strength=0.12,
+            confidence=0.93,
+        )
+    )
+
+    assert not any(event.get("type") == "gesture.intent" for event in first_release_events)
+    assert any(
+        event.get("type") == "gesture.intent"
+        and event.get("gesture") == "primary-pinch"
+        and event.get("phase") == "end"
+        for event in second_release_events
+    )
+
+
+def test_primary_pinch_rearm_cooldown_blocks_immediate_second_click_cycle() -> None:
+    machine = GestureMachine()
+
+    machine.update(
+        frame_state(
+            pose="primary-pinch",
+            pinch_strength=0.81,
+            secondary_pinch_strength=0.12,
+            confidence=0.93,
+        )
+    )
+    machine.update(
+        frame_state(
+            pose="neutral",
+            pinch_strength=0.34,
+            secondary_pinch_strength=0.12,
+            confidence=0.93,
+        )
+    )
+    click_release_events = machine.update(
+        frame_state(
+            pose="neutral",
+            pinch_strength=0.34,
+            secondary_pinch_strength=0.12,
+            confidence=0.93,
+        )
+    )
+    blocked_restart_events = machine.update(
+        frame_state(
+            pose="primary-pinch",
+            pinch_strength=0.84,
+            secondary_pinch_strength=0.12,
+            confidence=0.93,
+        )
+    )
+    cooldown_frame_events = machine.update(
+        frame_state(
+            pose="neutral",
+            pinch_strength=0.34,
+            secondary_pinch_strength=0.12,
+            confidence=0.93,
+        )
+    )
+    extra_cooldown_frame_events = machine.update(
+        frame_state(
+            pose="neutral",
+            pinch_strength=0.34,
+            secondary_pinch_strength=0.12,
+            confidence=0.93,
+        )
+    )
+    rearmed_restart_events = machine.update(
+        frame_state(
+            pose="primary-pinch",
+            pinch_strength=0.84,
+            secondary_pinch_strength=0.12,
+            confidence=0.93,
+        )
+    )
+
+    assert any(
+        event.get("type") == "gesture.intent"
+        and event.get("gesture") == "primary-pinch"
+        and event.get("phase") == "end"
+        for event in click_release_events
+    )
+    assert not any(event.get("type") == "gesture.intent" for event in blocked_restart_events)
+    assert not any(event.get("type") == "gesture.intent" for event in cooldown_frame_events)
+    assert not any(event.get("type") == "gesture.intent" for event in extra_cooldown_frame_events)
+    assert any(
+        event.get("type") == "gesture.intent"
+        and event.get("gesture") == "primary-pinch"
+        and event.get("phase") == "start"
+        for event in rearmed_restart_events
+    )
+
+
 def test_open_palm_hold_emits_enter() -> None:
     machine = GestureMachine()
     trigger_events = []
@@ -204,6 +320,102 @@ def test_secondary_pinch_can_emit_scroll_without_right_click() -> None:
         for event in scroll_events
     )
     assert not any(event.get("gesture") == "thumb-middle-pinch" for event in release_events)
+
+
+def test_peace_sign_emits_push_to_talk_start_and_end() -> None:
+    machine = GestureMachine()
+
+    armed_events = machine.update(
+        frame_state(
+            pose="peace-sign",
+            pose_scores=pose_scores(pose="peace-sign", confidence=0.88),
+            pinch_strength=0.14,
+            secondary_pinch_strength=0.12,
+        )
+    )
+    start_events = machine.update(
+        frame_state(
+            pose="peace-sign",
+            pose_scores=pose_scores(pose="peace-sign", confidence=0.9),
+            pinch_strength=0.14,
+            secondary_pinch_strength=0.12,
+        )
+    )
+    first_release_events = machine.update(
+        frame_state(
+            pose="neutral",
+            pose_scores=pose_scores(pose="neutral", confidence=0.8, peace_sign=0.16),
+            pinch_strength=0.14,
+            secondary_pinch_strength=0.12,
+        )
+    )
+    end_events = machine.update(
+        frame_state(
+            pose="neutral",
+            pose_scores=pose_scores(pose="neutral", confidence=0.8, peace_sign=0.16),
+            pinch_strength=0.14,
+            secondary_pinch_strength=0.12,
+        )
+    )
+
+    assert not any(event.get("type") == "gesture.intent" for event in armed_events)
+    assert any(
+        event.get("type") == "gesture.intent"
+        and event.get("gesture") == "peace-sign"
+        and event.get("phase") == "start"
+        for event in start_events
+    )
+    assert any(
+        event.get("type") == "status" and event.get("gesture") == "push-to-talk"
+        for event in start_events
+    )
+    assert not any(event.get("type") == "gesture.intent" for event in first_release_events)
+    assert any(
+        event.get("type") == "gesture.intent"
+        and event.get("gesture") == "peace-sign"
+        and event.get("phase") == "end"
+        for event in end_events
+    )
+
+
+def test_peace_sign_releases_when_tracking_is_lost() -> None:
+    machine = GestureMachine()
+
+    machine.update(
+        frame_state(
+            pose="peace-sign",
+            pose_scores=pose_scores(pose="peace-sign", confidence=0.88),
+            pinch_strength=0.14,
+            secondary_pinch_strength=0.12,
+        )
+    )
+    machine.update(
+        frame_state(
+            pose="peace-sign",
+            pose_scores=pose_scores(pose="peace-sign", confidence=0.9),
+            pinch_strength=0.14,
+            secondary_pinch_strength=0.12,
+        )
+    )
+
+    lost_events = machine.update(
+        frame_state(
+            tracking=False,
+            pose="unknown",
+            pose_confidence=0.0,
+            pose_scores=pose_scores(pose="unknown", confidence=0.0),
+            pinch_strength=0.0,
+            secondary_pinch_strength=0.0,
+            confidence=0.0,
+        )
+    )
+
+    assert any(
+        event.get("type") == "gesture.intent"
+        and event.get("gesture") == "peace-sign"
+        and event.get("phase") == "end"
+        for event in lost_events
+    )
 
 
 def test_closed_fist_emits_pointer_observations_only_while_held() -> None:
@@ -373,7 +585,7 @@ def test_primary_pinch_survives_single_unknown_frame_when_signal_stays_strong() 
     )
 
 
-def test_primary_pinch_releases_after_a_weak_non_pinch_frame() -> None:
+def test_primary_pinch_releases_after_two_weak_non_pinch_frames() -> None:
     machine = GestureMachine()
 
     machine.update(
@@ -385,7 +597,15 @@ def test_primary_pinch_releases_after_a_weak_non_pinch_frame() -> None:
         )
     )
 
-    release_events = machine.update(
+    first_release_events = machine.update(
+        frame_state(
+            pose="neutral",
+            pose_confidence=0.62,
+            pose_scores=pose_scores(pose="neutral", confidence=0.62, primary_pinch=0.18),
+            pinch_strength=0.22,
+        )
+    )
+    second_release_events = machine.update(
         frame_state(
             pose="neutral",
             pose_confidence=0.62,
@@ -394,9 +614,10 @@ def test_primary_pinch_releases_after_a_weak_non_pinch_frame() -> None:
         )
     )
 
+    assert not any(event.get("type") == "gesture.intent" for event in first_release_events)
     assert any(
         event.get("type") == "gesture.intent"
         and event.get("gesture") == "primary-pinch"
         and event.get("phase") == "end"
-        for event in release_events
+        for event in second_release_events
     )

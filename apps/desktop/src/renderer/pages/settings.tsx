@@ -66,6 +66,12 @@ export const SettingsPage = ({ settings, onSave }: SettingsPageProps) => {
           <span>Mapped keybind</span>
           <strong>Open palm hold</strong>
         </div>
+        <div className="mapping-row">
+          <span>Push to talk</span>
+          <strong>
+            {draft.pushToTalkGesture} {"->"} {draft.pushToTalkKey}
+          </strong>
+        </div>
       </div>
       <div className="settings-grid">
         <label className="settings-field">
@@ -129,6 +135,33 @@ export const SettingsPage = ({ settings, onSave }: SettingsPageProps) => {
             }
           />
         </label>
+        <label className="settings-field">
+          <span>Push-to-talk gesture</span>
+          <input
+            type="text"
+            value={draft.pushToTalkGesture}
+            onChange={(event) =>
+              setDraft((current) => ({
+                ...current,
+                pushToTalkGesture: event.target.value,
+              }))
+            }
+          />
+        </label>
+        <label className="settings-field">
+          <span>Push-to-talk key</span>
+          <input
+            type="text"
+            value={draft.pushToTalkKey}
+            placeholder="Ctrl+Space"
+            onChange={(event) =>
+              setDraft((current) => ({
+                ...current,
+                pushToTalkKey: event.target.value,
+              }))
+            }
+          />
+        </label>
       </div>
       <div className="mapping-editor">
         {draft.keyMappings.map((mapping) => (
@@ -156,6 +189,7 @@ export const SettingsPage = ({ settings, onSave }: SettingsPageProps) => {
               <input
                 type="text"
                 value={mapping.key}
+                placeholder="Return or Ctrl+Space"
                 onChange={(event) =>
                   updateMapping(mapping.gesture, event.target.value)
                 }
@@ -192,6 +226,15 @@ export const SettingsPage = ({ settings, onSave }: SettingsPageProps) => {
         cursor, then release into any other pose to freeze it in place. While
         the clutch is held, the cursor follows the tracked hand position
         directly.
+      </p>
+      <p className="panel-copy">
+        Key mappings can use modifier chords such as `Ctrl+Space`, `Shift+Tab`,
+        or `Super+K`.
+      </p>
+      <p className="panel-copy">
+        Push-to-talk is a held gesture: Airloom sends key down when the gesture
+        starts and key up when it ends. The default pairing is `peace-sign` {"->"}
+        `Ctrl+Space`.
       </p>
       <p className="panel-copy">
         Pointer margin trims the camera edges out of the active tracking area,

@@ -7,6 +7,7 @@ const captureLabels = [
   "closed-fist",
   "primary-pinch",
   "secondary-pinch",
+  "peace-sign",
 ] as const;
 
 const captureDurationOptions = [1000, 1500, 2000, 2500] as const;
@@ -17,6 +18,7 @@ const labelHotkeys: Record<(typeof captureLabels)[number], string> = {
   "closed-fist": "d",
   "primary-pinch": "f",
   "secondary-pinch": "g",
+  "peace-sign": "h",
 };
 
 const durationHotkeys: Record<number, string> = {
@@ -46,6 +48,8 @@ type CalibrationProps = {
   gesture: string;
   pinchStrength: number;
   pointerControlEnabled: boolean;
+  pushToTalkGesture: string;
+  pushToTalkKey: string;
   debug: {
     confidence: number;
     brightness: number;
@@ -58,6 +62,7 @@ type CalibrationProps = {
       "closed-fist": number;
       "primary-pinch": number;
       "secondary-pinch": number;
+      "peace-sign": number;
     };
     classifierMode: "rules" | "shadow" | "learned";
     modelVersion: string | null;
@@ -70,6 +75,9 @@ type CalibrationProps = {
     closedFistLatched: boolean;
     openPalmHold: boolean;
     secondaryPinchStrength: number;
+    pointerHand?: string;
+    actionHand?: string;
+    fallbackReason?: string;
   };
   capture: {
     sessionId: string;
@@ -82,6 +90,7 @@ type CalibrationProps = {
       "closed-fist": number;
       "primary-pinch": number;
       "secondary-pinch": number;
+      "peace-sign": number;
     };
     lastTakeId: string | null;
     exportPath: string | null;
@@ -94,7 +103,7 @@ type CalibrationProps = {
   onExportCaptures: () => Promise<unknown>;
   primaryPinchActive: boolean;
   primaryPinchHeldMs: number;
-  primaryPinchOutcome: "idle" | "click";
+  primaryPinchOutcome: "idle" | "click" | "drag";
 };
 
 export const CalibrationPage = ({
@@ -103,6 +112,8 @@ export const CalibrationPage = ({
   gesture,
   pinchStrength,
   pointerControlEnabled,
+  pushToTalkGesture,
+  pushToTalkKey,
   debug,
   capture,
   onCaptureLabelChange,
@@ -125,6 +136,9 @@ export const CalibrationPage = ({
   const [sandboxHits, setSandboxHits] = useState(0);
   const [sandboxMisses, setSandboxMisses] = useState(0);
   const [sandboxTarget, setSandboxTarget] = useState(randomSandboxTarget);
+  const [speechDraft, setSpeechDraft] = useState(
+    "Focus here, then hold your speech gesture and dictate a short sentence.",
+  );
   const progress = Math.min(primaryPinchHeldMs / 450, 1);
   const sandboxAttempts = sandboxHits + sandboxMisses;
   const sandboxAccuracy =
@@ -375,6 +389,10 @@ export const CalibrationPage = ({
             <div className="metric-card">
               <span>Palm score</span>
               <strong>{debug.poseScores["open-palm"].toFixed(2)}</strong>
+            </div>
+            <div className="metric-card">
+              <span>Peace score</span>
+              <strong>{(debug.poseScores["peace-sign"] ?? 0).toFixed(2)}</strong>
             </div>
             <div className="metric-card">
               <span>Neutral score</span>
@@ -640,6 +658,36 @@ export const CalibrationPage = ({
             Primary pinch now acts as a left click on release, while secondary
             pinch stays reserved for right click.
           </p>
+
+          <div className="eyebrow">Speech</div>
+          <h2>Push-to-talk test pad</h2>
+          <div className="speech-sandbox-panel">
+            <p className="panel-copy">
+              Focus this field, then hold <strong>{pushToTalkGesture}</strong> to send
+              <strong> {pushToTalkKey}</strong> through your normal speech-to-text stack.
+            </p>
+            <textarea
+              className="speech-sandbox-editor"
+              value={speechDraft}
+              onChange={(event) => setSpeechDraft(event.target.value)}
+              placeholder="Dictated text should land here while the field stays focused."
+              spellCheck={false}
+              rows={8}
+            />
+            <div className="hero-actions">
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => setSpeechDraft("")}
+              >
+                Clear transcript
+              </button>
+            </div>
+            <p className="panel-copy camera-note">
+              This is just a local text field for end-to-end testing, so you can verify
+              focus, key hold, dictated text, and clean release without leaving calibration.
+            </p>
+          </div>
         </div>
         <aside className="calibration-side">
           <div className="eyebrow">Camera</div>

@@ -16,6 +16,7 @@ CAPTUREABLE_POSES: set[PoseName] = {
     "closed-fist",
     "primary-pinch",
     "secondary-pinch",
+    "peace-sign",
 }
 MIN_CAPTURE_FRAMES = 5
 

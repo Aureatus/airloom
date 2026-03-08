@@ -14,5 +14,7 @@ export type InputAdapter = {
   pointerDown: (button: PointerButton) => Promise<void>;
   pointerUp: (button: PointerButton) => Promise<void>;
   click: (button: PointerButton) => Promise<void>;
+  keyDown: (key: string) => Promise<void>;
+  keyUp: (key: string) => Promise<void>;
   tapKey: (key: string) => Promise<void>;
 };

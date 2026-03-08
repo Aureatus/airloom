@@ -14,6 +14,7 @@ POSE_OPEN_PALM: PoseName = "open-palm"
 POSE_CLOSED_FIST: PoseName = "closed-fist"
 POSE_PRIMARY_PINCH: PoseName = "primary-pinch"
 POSE_SECONDARY_PINCH: PoseName = "secondary-pinch"
+POSE_PEACE_SIGN: PoseName = "peace-sign"
 
 POSE_MIN_SCORE = 0.58
 POSE_MIN_MARGIN = 0.12
@@ -117,6 +118,23 @@ def _neutral_score(features: PoseFeatures) -> float:
     return 0.0
 
 
+def _peace_sign_score(features: PoseFeatures) -> float:
+    extension_component = _extended_fraction(features.index.extended, features.middle.extended)
+    curl_component = _extended_fraction(features.ring.curled, features.pinky.curled)
+    thumb_penalty = 0.2 if features.primary_pinch_strength >= 0.45 else 0.0
+    pinch_penalty = 0.45 * _clamp_unit(
+        (max(features.primary_pinch_strength, features.secondary_pinch_strength) - 0.38) / 0.24
+    )
+    spread_component = _clamp_unit((features.finger_spread - 0.42) / 0.25)
+    return _clamp_unit(
+        0.4 * extension_component
+        + 0.26 * curl_component
+        + 0.22 * spread_component
+        - thumb_penalty
+        - pinch_penalty
+    )
+
+
 def score_pose_candidates(features: PoseFeatures) -> PoseScores:
     return cast(
         PoseScores,
@@ -125,6 +143,7 @@ def score_pose_candidates(features: PoseFeatures) -> PoseScores:
             "open-palm": _open_palm_score(features),
             "primary-pinch": _primary_pinch_score(features),
             "secondary-pinch": _secondary_pinch_score(features),
+            "peace-sign": _peace_sign_score(features),
             "neutral": _neutral_score(features),
         },
     )
@@ -138,6 +157,7 @@ def classify_pose(features: PoseFeatures) -> PoseObservation:
             (POSE_OPEN_PALM, scores["open-palm"]),
             (POSE_PRIMARY_PINCH, scores["primary-pinch"]),
             (POSE_SECONDARY_PINCH, scores["secondary-pinch"]),
+            (POSE_PEACE_SIGN, scores["peace-sign"]),
             (POSE_NEUTRAL, scores["neutral"]),
         ],
         key=lambda item: item[1],
@@ -157,6 +177,7 @@ def classify_pose(features: PoseFeatures) -> PoseObservation:
             scores["closed-fist"],
             scores["open-palm"],
             scores["secondary-pinch"],
+            scores["peace-sign"],
             scores["neutral"],
         )
 
@@ -172,6 +193,23 @@ def classify_pose(features: PoseFeatures) -> PoseObservation:
             scores["closed-fist"],
             scores["open-palm"],
             scores["primary-pinch"],
+            scores["peace-sign"],
+            scores["neutral"],
+        )
+
+    if (
+        scores["peace-sign"] >= 0.68
+        and scores["peace-sign"] >= max(scores["open-palm"], scores["closed-fist"]) + 0.05
+        and scores["primary-pinch"] < 0.62
+        and scores["secondary-pinch"] < 0.62
+    ):
+        best_pose = POSE_PEACE_SIGN
+        best_score = scores["peace-sign"]
+        second_score = max(
+            scores["open-palm"],
+            scores["closed-fist"],
+            scores["primary-pinch"],
+            scores["secondary-pinch"],
             scores["neutral"],
         )
 
@@ -187,22 +225,23 @@ def _static_score(static_gesture_scores: dict[str, float] | None, label: str) ->
     return _clamp_unit(static_gesture_scores.get(label, 0.0))
 
 
-def _pinch_score(learned_scores: PoseScores | None, label: PoseName, fallback: float) -> float:
-    if learned_scores is None:
-        return fallback
-    return _clamp_unit(learned_scores[label])
-
-
 def classify_hybrid_pose(
     features: PoseFeatures,
     *,
     static_gesture_scores: dict[str, float] | None = None,
     learned_scores: PoseScores | None = None,
 ) -> PoseObservation:
-    primary_score = _pinch_score(learned_scores, POSE_PRIMARY_PINCH, _primary_pinch_score(features))
-    secondary_score = _pinch_score(
-        learned_scores, POSE_SECONDARY_PINCH, _secondary_pinch_score(features)
+    primary_score = (
+        _clamp_unit(learned_scores["primary-pinch"])
+        if learned_scores is not None
+        else _primary_pinch_score(features)
     )
+    secondary_score = (
+        _clamp_unit(learned_scores["secondary-pinch"])
+        if learned_scores is not None
+        else _secondary_pinch_score(features)
+    )
+    peace_score = max(_peace_sign_score(features), _static_score(static_gesture_scores, "Victory"))
     open_score = _static_score(static_gesture_scores, "Open_Palm")
     closed_score = _static_score(static_gesture_scores, "Closed_Fist")
 
@@ -223,6 +262,7 @@ def classify_hybrid_pose(
             "open-palm": open_score,
             "primary-pinch": primary_score,
             "secondary-pinch": secondary_score,
+            "peace-sign": peace_score,
             "neutral": neutral_score,
         },
     )
@@ -240,6 +280,12 @@ def classify_hybrid_pose(
         and secondary_score >= max(open_score, closed_score) - 0.03
     ):
         return {"pose": POSE_SECONDARY_PINCH, "confidence": secondary_score, "scores": scores}
+
+    if (
+        peace_score >= STATIC_POSE_MIN_SCORE
+        and peace_score >= max(primary_score, secondary_score, open_score, closed_score) + 0.03
+    ):
+        return {"pose": POSE_PEACE_SIGN, "confidence": peace_score, "scores": scores}
 
     if closed_score >= STATIC_POSE_MIN_SCORE and closed_score >= open_score + 0.03:
         return {"pose": POSE_CLOSED_FIST, "confidence": closed_score, "scores": scores}
@@ -281,6 +327,9 @@ def classify_pose_with_mode(
         active = learned_observation
     else:
         active = hybrid_observation if learned_observation is not None else rule_observation
+
+    if hybrid_observation["pose"] == POSE_PEACE_SIGN:
+        active = hybrid_observation
 
     if mode == "shadow" and learned_observation is not None:
         active = hybrid_observation

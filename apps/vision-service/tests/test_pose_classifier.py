@@ -56,6 +56,16 @@ def bent_index_primary_pinch_landmarks() -> list[Landmark]:
     return points
 
 
+def peace_sign_landmarks() -> list[Landmark]:
+    points = open_palm_landmarks()
+    points[4] = landmark(0.41, 0.6)
+    points[14] = landmark(0.58, 0.68)
+    points[16] = landmark(0.57, 0.75)
+    points[18] = landmark(0.66, 0.7)
+    points[20] = landmark(0.64, 0.78)
+    return points
+
+
 def test_classifier_marks_open_palm_cleanly() -> None:
     observation = classify_pose(extract_pose_features(open_palm_landmarks()))
 
@@ -82,6 +92,12 @@ def test_classifier_accepts_primary_pinch_with_slightly_bent_index() -> None:
     assert observation["pose"] == "primary-pinch"
 
 
+def test_classifier_marks_peace_sign_cleanly() -> None:
+    observation = classify_pose(extract_pose_features(peace_sign_landmarks()))
+
+    assert observation["pose"] == "peace-sign"
+
+
 def test_hybrid_classifier_uses_mediapipe_open_palm_label() -> None:
     observation = classify_hybrid_pose(
         extract_pose_features(open_palm_landmarks()),
@@ -98,6 +114,15 @@ def test_hybrid_classifier_uses_neutral_when_no_pose_is_strong() -> None:
     )
 
     assert observation["pose"] == "neutral"
+
+
+def test_hybrid_classifier_uses_victory_static_label_for_peace_sign() -> None:
+    observation = classify_hybrid_pose(
+        extract_pose_features(peace_sign_landmarks()),
+        static_gesture_scores={"Victory": 0.91},
+    )
+
+    assert observation["pose"] == "peace-sign"
 
 
 def test_hybrid_classifier_can_take_primary_pinch_from_learned_scores() -> None:

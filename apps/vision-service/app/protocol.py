@@ -15,6 +15,7 @@ PoseName = Literal[
     "closed-fist",
     "primary-pinch",
     "secondary-pinch",
+    "peace-sign",
 ]
 
 PoseClassifierMode = Literal["rules", "shadow", "learned"]
@@ -28,6 +29,7 @@ PoseScores = TypedDict(
         "closed-fist": float,
         "primary-pinch": float,
         "secondary-pinch": float,
+        "peace-sign": float,
     },
 )
 
@@ -39,6 +41,7 @@ def empty_pose_scores() -> PoseScores:
         "closed-fist": 0.0,
         "primary-pinch": 0.0,
         "secondary-pinch": 0.0,
+        "peace-sign": 0.0,
     }
 
 
@@ -57,6 +60,7 @@ CaptureCounts = TypedDict(
         "closed-fist": int,
         "primary-pinch": int,
         "secondary-pinch": int,
+        "peace-sign": int,
     },
 )
 
@@ -68,6 +72,7 @@ def empty_capture_counts() -> CaptureCounts:
         "closed-fist": 0,
         "primary-pinch": 0,
         "secondary-pinch": 0,
+        "peace-sign": 0,
     }
 
 

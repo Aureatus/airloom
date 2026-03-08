@@ -16,6 +16,8 @@ export const createLinuxWaylandAdapter = (): InputAdapter => {
     pointerDown: unsupported,
     pointerUp: unsupported,
     click: unsupported,
+    keyDown: unsupported,
+    keyUp: unsupported,
     tapKey: unsupported,
   };
 };

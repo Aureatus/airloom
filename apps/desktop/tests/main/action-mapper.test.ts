@@ -7,6 +7,8 @@ const createSettings = () => ({
   clickPinchThreshold: 0.78,
   dragHoldThresholdMs: 220,
   rightClickGesture: "thumb-middle-pinch",
+  pushToTalkGesture: "peace-sign",
+  pushToTalkKey: "Ctrl+Space",
   keyMappings: [{ gesture: "open-palm-hold", key: "Return" }],
 });
 
@@ -212,6 +214,69 @@ describe("createActionMapper", () => {
         phase: "instant",
       }),
     ).toEqual([{ type: "key.tap", key: "Return" }]);
+
+    expect(
+      mapper.mapEvent({
+        type: "gesture.intent",
+        gesture: "peace-sign",
+        phase: "start",
+      }),
+    ).toEqual([{ type: "key.down", key: "Ctrl+Space" }]);
+
+    expect(
+      mapper.mapEvent({
+        type: "gesture.intent",
+        gesture: "peace-sign",
+        phase: "end",
+      }),
+    ).toEqual([{ type: "key.up", key: "Ctrl+Space" }]);
+  });
+
+  test("releases push-to-talk if status stops reporting it", () => {
+    const mapper = createActionMapper(
+      () => createSettings(),
+      (x, y) => ({ x: Math.round(x * 100), y: Math.round(y * 100) }),
+    );
+
+    expect(
+      mapper.mapEvent({
+        type: "gesture.intent",
+        gesture: "peace-sign",
+        phase: "start",
+      }),
+    ).toEqual([{ type: "key.down", key: "Ctrl+Space" }]);
+
+    expect(
+      mapper.mapEvent({
+        type: "status",
+        tracking: false,
+        pinchStrength: 0,
+        gesture: "searching",
+        debug: {
+          confidence: 0,
+          brightness: 0.2,
+          frameDelayMs: 20,
+          pose: "unknown",
+          poseConfidence: 0,
+          poseScores: {
+            neutral: 0,
+            "open-palm": 0,
+            "closed-fist": 0,
+            "primary-pinch": 0,
+            "secondary-pinch": 0,
+            "peace-sign": 0,
+          },
+          classifierMode: "learned",
+          modelVersion: null,
+          closedFist: false,
+          closedFistFrames: 0,
+          closedFistReleaseFrames: 0,
+          closedFistLatched: false,
+          openPalmHold: false,
+          secondaryPinchStrength: 0,
+        },
+      }),
+    ).toEqual([{ type: "key.up", key: "Ctrl+Space" }]);
   });
 
   test("maps scroll observations to scroll actions", () => {

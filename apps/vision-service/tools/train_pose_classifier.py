@@ -15,6 +15,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--stride", type=int, default=3, help="Keep every Nth frame")
     parser.add_argument("--min-probability", type=float, default=0.58)
     parser.add_argument("--min-margin", type=float, default=0.12)
+    parser.add_argument(
+        "--exclude-label",
+        action="append",
+        default=[],
+        help="Capture labels to exclude from training",
+    )
     return parser.parse_args()
 
 
@@ -23,7 +29,7 @@ def iter_capture_documents(root: Path) -> list[dict[str, object]]:
 
 
 def load_training_rows(
-    root: Path, stride: int
+    root: Path, stride: int, excluded_labels: set[str] | None = None
 ) -> tuple[list[str], np.ndarray, np.ndarray, list[str]]:
     documents = iter_capture_documents(root)
     rows: list[list[float]] = []
@@ -33,6 +39,8 @@ def load_training_rows(
 
     for document in documents:
         label = str(document["label"])
+        if excluded_labels and label in excluded_labels:
+            continue
         session_id = str(document.get("sessionId", "unknown"))
         frames = document.get("frames", [])
         if not isinstance(frames, list):
@@ -71,8 +79,21 @@ def train_model(
     unique_sessions = sorted(set(sessions))
     validation_sessions = set(unique_sessions[::5] or unique_sessions[-1:])
     train_mask = np.array([session not in validation_sessions for session in sessions])
-    if not train_mask.any() or train_mask.all():
-        train_mask = np.array([index % 5 != 0 for index in range(len(sessions))])
+    if not train_mask.any() or train_mask.all() or set(y[train_mask]) != set(y):
+        validation_indices: set[int] = set()
+        for label in sorted(set(y)):
+            label_indices = [index for index, value in enumerate(y) if value == label]
+            if len(label_indices) <= 1:
+                continue
+            validation_indices.add(label_indices[0])
+        if validation_indices:
+            train_mask = np.array(
+                [index not in validation_indices for index in range(len(sessions))]
+            )
+            validation_sessions = {f"row-{index}" for index in sorted(validation_indices)}
+        else:
+            train_mask = np.ones(len(sessions), dtype=bool)
+            validation_sessions = set()
 
     mean = x[train_mask].mean(axis=0)
     scale = x[train_mask].std(axis=0)
@@ -111,7 +132,11 @@ def train_model(
 
 def main() -> None:
     args = parse_args()
-    feature_names, x, y, sessions = load_training_rows(args.input, args.stride)
+    feature_names, x, y, sessions = load_training_rows(
+        args.input,
+        args.stride,
+        excluded_labels={str(label) for label in args.exclude_label},
+    )
     artifact = train_model(feature_names, x, y, sessions)
     artifact.update(
         {

@@ -21,6 +21,8 @@ const createUnsupportedAdapter = (): InputAdapter => {
     pointerDown: unsupported,
     pointerUp: unsupported,
     click: unsupported,
+    keyDown: unsupported,
+    keyUp: unsupported,
     tapKey: unsupported,
   };
 };

@@ -23,6 +23,12 @@ const createTestAdapter = () => {
     click: async (button) => {
       calls.push(`click:${button}`);
     },
+    keyDown: async (key) => {
+      calls.push(`keydown:${key}`);
+    },
+    keyUp: async (key) => {
+      calls.push(`keyup:${key}`);
+    },
     tapKey: async (key) => {
       calls.push(`key:${key}`);
     },
@@ -38,6 +44,8 @@ const createTestSettings = (key = "Return") => {
     clickPinchThreshold: 0.78,
     dragHoldThresholdMs: 220,
     rightClickGesture: "thumb-middle-pinch",
+    pushToTalkGesture: "peace-sign",
+    pushToTalkKey: "Ctrl+Space",
     keyMappings: [{ gesture: "open-palm-hold", key }],
   };
 };
@@ -346,6 +354,71 @@ describe("createGestureRuntime", () => {
     });
 
     expect(calls).toEqual(["key:space"]);
+  });
+
+  test("passes modifier key chords through to the adapter", async () => {
+    const { adapter, calls } = createTestAdapter();
+    const runtime = createGestureRuntime(
+      adapter,
+      (x, y) => ({ x, y }),
+      () => createTestSettings("Ctrl+Space"),
+    );
+
+    await runtime.handleEvent({
+      type: "gesture.intent",
+      gesture: "open-palm-hold",
+      phase: "instant",
+    });
+
+    expect(calls).toEqual(["key:Ctrl+Space"]);
+  });
+
+  test("holds push-to-talk key while peace sign is active", async () => {
+    const { adapter, calls } = createTestAdapter();
+    const runtime = createGestureRuntime(
+      adapter,
+      (x, y) => ({ x, y }),
+      () => createTestSettings(),
+    );
+
+    await runtime.handleEvent({
+      type: "gesture.intent",
+      gesture: "peace-sign",
+      phase: "start",
+    });
+    await runtime.handleEvent({
+      type: "gesture.intent",
+      gesture: "peace-sign",
+      phase: "end",
+    });
+
+    expect(calls).toEqual(["keydown:Ctrl+Space", "keyup:Ctrl+Space"]);
+    expect(runtime.getState().recentActions).toEqual([
+      "Key down Ctrl+Space",
+      "Key up Ctrl+Space",
+    ]);
+  });
+
+  test("releases held push-to-talk when input is suppressed", async () => {
+    const { adapter, calls } = createTestAdapter();
+    const runtime = createGestureRuntime(
+      adapter,
+      (x, y) => ({ x, y }),
+      () => createTestSettings(),
+    );
+
+    await runtime.handleEvent({
+      type: "gesture.intent",
+      gesture: "peace-sign",
+      phase: "start",
+    });
+    await runtime.setInputSuppressed(true);
+
+    expect(calls).toEqual(["keydown:Ctrl+Space", "keyup:Ctrl+Space"]);
+    expect(runtime.getState().recentActions).toEqual([
+      "Key down Ctrl+Space",
+      "Key up Ctrl+Space",
+    ]);
   });
 
   test("maps the configured right-click gesture to a right click", async () => {

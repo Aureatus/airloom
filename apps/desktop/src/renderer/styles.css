@@ -38,7 +38,8 @@ button {
   transition: transform 120ms linear;
 }
 
-input {
+input,
+textarea {
   border: 1px solid rgba(94, 215, 190, 0.3);
   background: rgba(255, 255, 255, 0.04);
   color: var(--copy);
@@ -323,6 +324,17 @@ button:hover {
   gap: 1rem;
 }
 
+.speech-sandbox-panel {
+  display: grid;
+  gap: 1rem;
+}
+
+.speech-sandbox-editor {
+  min-height: 12rem;
+  resize: vertical;
+  line-height: 1.5;
+}
+
 .click-sandbox {
   position: relative;
   min-height: 18rem;
@@ -354,6 +366,81 @@ button:hover {
   transform: translate(-50%, -50%) scale(1.02);
 }
 
+.click-inspector-panel {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.click-inspector-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: start;
+}
+
+.click-inspector-targets {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.click-inspector-target,
+.click-inspector-editable {
+  min-height: 8.5rem;
+  padding: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.click-inspector-target {
+  display: grid;
+  place-items: center;
+}
+
+.click-inspector-editable {
+  resize: vertical;
+}
+
+.click-inspector-log {
+  min-height: 12rem;
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.click-inspector-shape-panel {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.click-inspector-shape-copy {
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.click-inspector-shape,
+.click-inspector-shape-editor {
+  min-height: 10rem;
+}
+
+.click-inspector-shape {
+  display: grid;
+  place-items: center;
+  border-style: dashed;
+  border-color: rgba(94, 215, 190, 0.45);
+  background: rgba(94, 215, 190, 0.08);
+}
+
+.click-inspector-shape-selected {
+  border-style: solid;
+  border-color: rgba(255, 209, 102, 0.65);
+  background: rgba(255, 209, 102, 0.14);
+}
+
 @media (max-width: 900px) {
   .shell,
   .hero,
@@ -378,6 +465,14 @@ button:hover {
 
   .event-log {
     min-height: 14rem;
+  }
+
+  .click-inspector-targets {
+    grid-template-columns: 1fr;
+  }
+
+  .click-inspector-header {
+    flex-direction: column;
   }
 
   .live-status-strip {

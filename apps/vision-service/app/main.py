@@ -118,6 +118,7 @@ def annotate_debug_frame(frame: Any, frame_state: FrameState | None) -> Any:
         pose_scores = frame_state.get("pose_scores") or empty_pose_scores()
         classifier_label = (
             f"scores p={pose_scores['primary-pinch']:.2f} "
+            f"v={pose_scores['peace-sign']:.2f} "
             f"f={pose_scores['closed-fist']:.2f} "
             f"o={pose_scores['open-palm']:.2f} "
             f"n={pose_scores['neutral']:.2f}"

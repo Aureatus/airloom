@@ -49,6 +49,7 @@ const defaultCaptureState: AirloomCaptureStateEvent = {
     "closed-fist": 0,
     "primary-pinch": 0,
     "secondary-pinch": 0,
+    "peace-sign": 0,
   },
   lastTakeId: null,
   exportPath: null,
@@ -322,7 +323,8 @@ const startVisionService = () => {
   return getServiceStatus();
 };
 
-const stopVisionService = () => {
+const stopVisionService = async () => {
+  await runtime.releaseHeldActions();
   if (serviceProcess !== null) {
     serviceProcess.kill();
     serviceProcess = null;
@@ -338,8 +340,7 @@ const stopVisionService = () => {
 };
 
 const restartVisionService = () => {
-  stopVisionService();
-  return startVisionService();
+  return stopVisionService().then(() => startVisionService());
 };
 
 const createMainWindow = async () => {
@@ -376,7 +377,7 @@ app.whenReady().then(async () => {
     async (_event, payload: unknown) => {
       currentSettings = await saveSettings(parseAirloomSettings(payload));
       if (serviceProcess !== null) {
-        restartVisionService();
+        await restartVisionService();
       }
       broadcastStatus();
       return currentSettings;
@@ -384,8 +385,8 @@ app.whenReady().then(async () => {
   );
   ipcMain.handle("airloom:start-service", () => startVisionService());
   ipcMain.handle("airloom:stop-service", () => stopVisionService());
-  ipcMain.handle("airloom:set-input-suppressed", (_event, suppressed: boolean) => {
-    runtime.setInputSuppressed(suppressed);
+  ipcMain.handle("airloom:set-input-suppressed", async (_event, suppressed: boolean) => {
+    await runtime.setInputSuppressed(suppressed);
     broadcastStatus();
     return getServiceStatus();
   });

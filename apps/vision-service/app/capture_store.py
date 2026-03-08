@@ -16,6 +16,7 @@ CaptureLabel = Literal[
     "closed-fist",
     "primary-pinch",
     "secondary-pinch",
+    "peace-sign",
 ]
 
 
@@ -39,8 +40,10 @@ def _increment_count(counts: CaptureCounts, label: CaptureLabel) -> None:
         counts["closed-fist"] += 1
     elif label == "primary-pinch":
         counts["primary-pinch"] += 1
-    else:
+    elif label == "secondary-pinch":
         counts["secondary-pinch"] += 1
+    else:
+        counts["peace-sign"] += 1
 
 
 def _decrement_count(counts: CaptureCounts, label: CaptureLabel) -> None:
@@ -52,8 +55,10 @@ def _decrement_count(counts: CaptureCounts, label: CaptureLabel) -> None:
         counts["closed-fist"] = max(0, counts["closed-fist"] - 1)
     elif label == "primary-pinch":
         counts["primary-pinch"] = max(0, counts["primary-pinch"] - 1)
-    else:
+    elif label == "secondary-pinch":
         counts["secondary-pinch"] = max(0, counts["secondary-pinch"] - 1)
+    else:
+        counts["peace-sign"] = max(0, counts["peace-sign"] - 1)
 
 
 @dataclass(slots=True)
