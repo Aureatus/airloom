@@ -113,7 +113,7 @@ describe("createGestureRuntime", () => {
       tracking: true,
       gesture: "short-pinch",
       pinchStrength: 0.82,
-      pointerControlEnabled: false,
+      pointerControlEnabled: true,
       inputSuppressed: false,
       recentActions: [],
       debug: {
@@ -139,7 +139,7 @@ describe("createGestureRuntime", () => {
         secondaryPinchStrength: 0.14,
       },
       mapper: {
-        pointerControlEnabled: false,
+        pointerControlEnabled: true,
         primaryPinchActive: false,
         primaryPinchHeldMs: 0,
         primaryPinchOutcome: "idle",
@@ -176,9 +176,32 @@ describe("createGestureRuntime", () => {
 
     runtime.setInputSuppressed(false);
     await runtime.handleEvent({
-      type: "gesture.intent",
+      type: "status",
+      tracking: true,
+      pinchStrength: 0,
       gesture: "closed-fist",
-      phase: "instant",
+      debug: {
+        confidence: 0.74,
+        brightness: 0.21,
+        frameDelayMs: 18,
+        pose: "closed-fist",
+        poseConfidence: 0.88,
+        poseScores: {
+          neutral: 0.12,
+          "open-palm": 0.18,
+          "closed-fist": 0.88,
+          "primary-pinch": 0.14,
+          "secondary-pinch": 0.06,
+        },
+        classifierMode: "rules",
+        modelVersion: null,
+        closedFist: true,
+        closedFistFrames: 4,
+        closedFistReleaseFrames: 0,
+        closedFistLatched: true,
+        openPalmHold: false,
+        secondaryPinchStrength: 0.14,
+      },
     });
     await runtime.handleEvent({
       type: "pointer.observed",
@@ -218,12 +241,6 @@ describe("createGestureRuntime", () => {
 
     await runtime.handleEvent({
       type: "gesture.intent",
-      gesture: "closed-fist",
-      phase: "instant",
-    });
-
-    await runtime.handleEvent({
-      type: "gesture.intent",
       gesture: "thumb-middle-pinch",
       phase: "instant",
     });
@@ -231,7 +248,7 @@ describe("createGestureRuntime", () => {
     expect(calls).toEqual(["click:right"]);
   });
 
-  test("ignores pointer movement until control is armed", async () => {
+  test("ignores pointer movement until closed-fist status is active", async () => {
     const { adapter, calls } = createTestAdapter();
     const runtime = createGestureRuntime(
       adapter,
@@ -246,9 +263,32 @@ describe("createGestureRuntime", () => {
       confidence: 0.92,
     });
     await runtime.handleEvent({
-      type: "gesture.intent",
+      type: "status",
+      tracking: true,
+      pinchStrength: 0,
       gesture: "closed-fist",
-      phase: "instant",
+      debug: {
+        confidence: 0.74,
+        brightness: 0.21,
+        frameDelayMs: 18,
+        pose: "closed-fist",
+        poseConfidence: 0.88,
+        poseScores: {
+          neutral: 0.12,
+          "open-palm": 0.18,
+          "closed-fist": 0.88,
+          "primary-pinch": 0.14,
+          "secondary-pinch": 0.06,
+        },
+        classifierMode: "rules",
+        modelVersion: null,
+        closedFist: true,
+        closedFistFrames: 4,
+        closedFistReleaseFrames: 0,
+        closedFistLatched: true,
+        openPalmHold: false,
+        secondaryPinchStrength: 0.14,
+      },
     });
     await runtime.handleEvent({
       type: "pointer.observed",
@@ -261,7 +301,7 @@ describe("createGestureRuntime", () => {
     expect(runtime.getState().pointerControlEnabled).toBe(true);
   });
 
-  test("freezes pointer again after a second closed-fist toggle", async () => {
+  test("freezes pointer again when status leaves closed fist", async () => {
     const { adapter, calls } = createTestAdapter();
     const runtime = createGestureRuntime(
       adapter,
@@ -270,9 +310,32 @@ describe("createGestureRuntime", () => {
     );
 
     await runtime.handleEvent({
-      type: "gesture.intent",
+      type: "status",
+      tracking: true,
+      pinchStrength: 0,
       gesture: "closed-fist",
-      phase: "instant",
+      debug: {
+        confidence: 0.74,
+        brightness: 0.21,
+        frameDelayMs: 18,
+        pose: "closed-fist",
+        poseConfidence: 0.88,
+        poseScores: {
+          neutral: 0.12,
+          "open-palm": 0.18,
+          "closed-fist": 0.88,
+          "primary-pinch": 0.14,
+          "secondary-pinch": 0.06,
+        },
+        classifierMode: "rules",
+        modelVersion: null,
+        closedFist: true,
+        closedFistFrames: 4,
+        closedFistReleaseFrames: 0,
+        closedFistLatched: true,
+        openPalmHold: false,
+        secondaryPinchStrength: 0.14,
+      },
     });
     await runtime.handleEvent({
       type: "pointer.observed",
@@ -281,9 +344,32 @@ describe("createGestureRuntime", () => {
       confidence: 0.92,
     });
     await runtime.handleEvent({
-      type: "gesture.intent",
-      gesture: "closed-fist",
-      phase: "instant",
+      type: "status",
+      tracking: true,
+      pinchStrength: 0,
+      gesture: "open-palm",
+      debug: {
+        confidence: 0.74,
+        brightness: 0.21,
+        frameDelayMs: 18,
+        pose: "open-palm",
+        poseConfidence: 0.88,
+        poseScores: {
+          neutral: 0.12,
+          "open-palm": 0.88,
+          "closed-fist": 0.08,
+          "primary-pinch": 0.04,
+          "secondary-pinch": 0.03,
+        },
+        classifierMode: "rules",
+        modelVersion: null,
+        closedFist: false,
+        closedFistFrames: 0,
+        closedFistReleaseFrames: 1,
+        closedFistLatched: false,
+        openPalmHold: true,
+        secondaryPinchStrength: 0.14,
+      },
     });
     await runtime.handleEvent({
       type: "pointer.observed",

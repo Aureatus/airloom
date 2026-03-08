@@ -61,20 +61,6 @@ export const createActionMapper = (
       case "gesture.intent": {
         const settings = getSettings();
 
-        if (event.gesture === "closed-fist" && event.phase === "instant") {
-          primaryPinchStartedAt = null;
-          pointerControlEnabled = !pointerControlEnabled;
-          return [];
-        }
-
-        if (
-          !pointerControlEnabled &&
-          (event.gesture === "primary-pinch" ||
-            event.gesture === settings.rightClickGesture)
-        ) {
-          return [];
-        }
-
         if (event.gesture === "primary-pinch" && event.phase === "start") {
           primaryPinchStartedAt = now();
           return [];
@@ -105,6 +91,7 @@ export const createActionMapper = (
       }
 
       case "status": {
+        pointerControlEnabled = event.debug?.closedFist ?? false;
         return [];
       }
     }

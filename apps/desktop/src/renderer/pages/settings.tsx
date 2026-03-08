@@ -47,8 +47,8 @@ export const SettingsPage = ({ settings, onSave }: SettingsPageProps) => {
       <h2>Default gesture actions</h2>
       <div className="mapping-list">
         <div className="mapping-row">
-          <span>Pointer arm/freeze</span>
-          <strong>Closed fist</strong>
+          <span>Pointer movement</span>
+          <strong>Hold closed fist</strong>
         </div>
         <div className="mapping-row">
           <span>Pointer tracking</span>
@@ -172,8 +172,8 @@ export const SettingsPage = ({ settings, onSave }: SettingsPageProps) => {
         your hand moves farther. Higher values feel faster but can jitter more.
       </p>
       <p className="panel-copy">
-        Pointer motion now starts frozen so idle hand noise does not move the
-        cursor until you deliberately arm it with a closed fist.
+        Pointer motion now works like a clutch: hold a closed fist to move the
+        cursor, then release into any other pose to freeze it in place.
       </p>
     </section>
   );

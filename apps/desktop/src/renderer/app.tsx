@@ -316,7 +316,7 @@ export const App = () => {
           <div className="metric-card">
             <span>Pointer</span>
             <strong>
-              {status.runtime.pointerControlEnabled ? "Armed" : "Frozen"}
+              {status.runtime.pointerControlEnabled ? "Hold-to-move" : "Frozen"}
             </strong>
           </div>
           <div className="metric-card">
@@ -351,7 +351,7 @@ export const App = () => {
               <div className="metric-card">
                 <span>Pointer</span>
                 <strong>
-                  {status.runtime.pointerControlEnabled ? "Armed" : "Frozen"}
+                  {status.runtime.pointerControlEnabled ? "Hold-to-move" : "Frozen"}
                 </strong>
               </div>
               <div className="metric-card">

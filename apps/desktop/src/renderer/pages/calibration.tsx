@@ -318,7 +318,7 @@ export const CalibrationPage = ({
             </div>
             <div className="metric-card">
               <span>Pointer</span>
-              <strong>{pointerControlEnabled ? "Armed" : "Frozen"}</strong>
+              <strong>{pointerControlEnabled ? "Hold-to-move" : "Frozen"}</strong>
             </div>
             <div className="metric-card">
               <span>Primary pinch</span>
@@ -420,8 +420,8 @@ export const CalibrationPage = ({
             ) : null}
           </div>
           <p className="panel-copy">
-            Cursor motion starts frozen by default. Make a brief closed fist to
-            arm pointer control, then repeat it to freeze the cursor again.
+            Cursor motion is frozen unless you actively hold a closed fist. Open
+            palm and pinch gestures keep the cursor parked in place while they fire.
           </p>
           <p className="panel-copy">
             If scene light stays in the dim range or confidence drops while your

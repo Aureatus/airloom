@@ -167,7 +167,7 @@ def test_secondary_pinch_emits_right_click_once_per_cycle() -> None:
     assert not any(event.get("type") == "gesture.intent" for event in release_events)
 
 
-def test_closed_fist_emits_single_toggle_after_stable_hold() -> None:
+def test_closed_fist_emits_pointer_observations_only_while_held() -> None:
     machine = GestureMachine()
     trigger_events = []
 
@@ -182,10 +182,9 @@ def test_closed_fist_emits_single_toggle_after_stable_hold() -> None:
             )
         )
 
+    assert any(event.get("type") == "pointer.observed" for event in trigger_events)
     assert any(
-        event.get("type") == "gesture.intent"
-        and event.get("gesture") == "closed-fist"
-        and event.get("phase") == "instant"
+        event.get("type") == "status" and event.get("debug", {}).get("closedFistLatched") is True
         for event in trigger_events
     )
 
@@ -199,10 +198,10 @@ def test_closed_fist_emits_single_toggle_after_stable_hold() -> None:
         )
     )
 
-    assert not any(event.get("type") == "gesture.intent" for event in held_events)
+    assert any(event.get("type") == "pointer.observed" for event in held_events)
 
 
-def test_closed_fist_requires_stable_release_before_next_toggle() -> None:
+def test_closed_fist_stops_pointer_observations_after_release() -> None:
     machine = GestureMachine()
 
     for _ in range(4):
@@ -216,49 +215,19 @@ def test_closed_fist_requires_stable_release_before_next_toggle() -> None:
             )
         )
 
-    for _ in range(2):
-        machine.update(
-            frame_state(
-                pose="neutral", pinch_strength=0.18, secondary_pinch_strength=0.16, confidence=0.91
-            )
-        )
-
-    partial_rearm_events = machine.update(
+    release_events = machine.update(
         frame_state(
-            pose="closed-fist",
+            pose="open-palm",
             pinch_strength=0.18,
             secondary_pinch_strength=0.16,
-            closed_fist=True,
             confidence=0.91,
         )
     )
 
-    assert not any(event.get("type") == "gesture.intent" for event in partial_rearm_events)
-
-    for _ in range(3):
-        machine.update(
-            frame_state(
-                pose="neutral", pinch_strength=0.18, secondary_pinch_strength=0.16, confidence=0.91
-            )
-        )
-
-    rearm_events = []
-    for _ in range(4):
-        rearm_events = machine.update(
-            frame_state(
-                pose="closed-fist",
-                pinch_strength=0.18,
-                secondary_pinch_strength=0.16,
-                closed_fist=True,
-                confidence=0.91,
-            )
-        )
-
+    assert not any(event.get("type") == "pointer.observed" for event in release_events)
     assert any(
-        event.get("type") == "gesture.intent"
-        and event.get("gesture") == "closed-fist"
-        and event.get("phase") == "instant"
-        for event in rearm_events
+        event.get("type") == "status" and event.get("debug", {}).get("closedFistLatched") is False
+        for event in release_events
     )
 
 

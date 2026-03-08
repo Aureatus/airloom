@@ -15,8 +15,6 @@ PRIMARY_PINCH_ON_FRAMES = 1
 PRIMARY_PINCH_OFF_FRAMES = 1
 SECONDARY_PINCH_ON_FRAMES = 1
 SECONDARY_PINCH_OFF_FRAMES = 1
-CLOSED_FIST_ON_FRAMES = 4
-CLOSED_FIST_OFF_FRAMES = 3
 PRIMARY_PINCH_SUSTAIN_STRENGTH = 0.72
 PRIMARY_PINCH_SUSTAIN_SCORE = 0.46
 SECONDARY_PINCH_SUSTAIN_STRENGTH = 0.72
@@ -123,7 +121,7 @@ class GestureMachine:
             return events
 
         pointer = frame.get("pointer")
-        if pointer is not None:
+        if pointer is not None and closed_fist:
             events.append(
                 {
                     "type": "pointer.observed",
@@ -193,22 +191,12 @@ class GestureMachine:
             self.secondary_pinch_release_counter = 0
             self.closed_fist_counter += 1
             self.closed_fist_release_counter = 0
+            self.closed_fist_latched = True
             status_event["gesture"] = "closed-fist"
-            if self.closed_fist_counter >= CLOSED_FIST_ON_FRAMES and not self.closed_fist_latched:
-                self.closed_fist_latched = True
-                status_event["gesture"] = "cursor-toggle"
-                events.append(
-                    {
-                        "type": "gesture.intent",
-                        "gesture": "closed-fist",
-                        "phase": "instant",
-                    }
-                )
         else:
             self.closed_fist_counter = 0
             self.closed_fist_release_counter += 1
-            if self.closed_fist_release_counter >= CLOSED_FIST_OFF_FRAMES:
-                self.closed_fist_latched = False
+            self.closed_fist_latched = False
 
         status_debug["closedFistFrames"] = self.closed_fist_counter
         status_debug["closedFistReleaseFrames"] = self.closed_fist_release_counter

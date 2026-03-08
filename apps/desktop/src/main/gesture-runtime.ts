@@ -179,6 +179,7 @@ export const createGestureRuntime = (
         }
 
         case "status": {
+          actionMapper.mapEvent(event);
           state.tracking = event.tracking;
           state.gesture = event.gesture;
           state.pinchStrength = event.pinchStrength;
