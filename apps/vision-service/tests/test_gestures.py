@@ -217,6 +217,36 @@ def test_closed_fist_emits_status_before_pointer_observation() -> None:
     assert [event["type"] for event in events] == ["status", "pointer.observed"]
 
 
+def test_bimanual_frame_allows_pointer_move_and_left_click_together() -> None:
+    machine = GestureMachine()
+
+    events = machine.update(
+        frame_state(
+            pose="closed-fist",
+            pose_scores=pose_scores(pose="closed-fist", confidence=0.9),
+            pinch_strength=0.18,
+            secondary_pinch_strength=0.16,
+            closed_fist=True,
+            action_pose="primary-pinch",
+            action_pose_scores=pose_scores(pose="primary-pinch", confidence=0.91),
+            action_pinch_strength=0.84,
+            action_secondary_pinch_strength=0.12,
+            action_open_palm_hold=False,
+            action_hand_separate=True,
+            confidence=0.91,
+        )
+    )
+
+    assert any(
+        event.get("type") == "gesture.intent"
+        and event.get("gesture") == "primary-pinch"
+        and event.get("phase") == "start"
+        for event in events
+    )
+    assert any(event.get("type") == "pointer.observed" for event in events)
+    assert any(event.get("type") == "status" for event in events)
+
+
 def test_closed_fist_stops_pointer_observations_after_release() -> None:
     machine = GestureMachine()
 

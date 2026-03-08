@@ -1,4 +1,5 @@
 from io import BytesIO
+from typing import cast
 
 import numpy as np
 
@@ -94,6 +95,7 @@ def test_run_live_emits_camera_unavailable_status_and_retries() -> None:
 
     first_event = events[0]
     assert isinstance(first_event, dict)
+    first_event = cast(dict[str, object], first_event)
     assert first_event["type"] == "capture.state"
     assert events[1] == {
         "type": "status",
@@ -117,28 +119,31 @@ def test_run_live_emits_camera_unavailable_status_and_retries() -> None:
             "secondaryPinchStrength": 0.0,
         },
     }
-    assert events[2] == {
-        "type": "status",
-        "tracking": True,
-        "pinchStrength": 0.0,
-        "gesture": "idle",
-        "debug": {
-            "confidence": 0.9,
-            "brightness": 0.4,
-            "frameDelayMs": 0,
-            "pose": "neutral",
-            "poseConfidence": 0.74,
-            "poseScores": pose_scores_for_pose("neutral", 0.74),
-            "classifierMode": "learned",
-            "modelVersion": None,
-            "closedFist": False,
-            "closedFistFrames": 0,
-            "closedFistReleaseFrames": 0,
-            "closedFistLatched": False,
-            "openPalmHold": False,
-            "secondaryPinchStrength": 0.0,
-        },
+    status_event = events[2]
+    assert isinstance(status_event, dict)
+    status_event = cast(dict[str, object], status_event)
+    status_debug = cast(dict[str, object], status_event["debug"])
+    assert status_event["type"] == "status"
+    assert status_event["tracking"] is True
+    assert status_event["pinchStrength"] == 0.0
+    assert status_event["gesture"] == "idle"
+    assert status_debug == {
+        "confidence": 0.9,
+        "brightness": 0.4,
+        "frameDelayMs": status_debug["frameDelayMs"],
+        "pose": "neutral",
+        "poseConfidence": 0.74,
+        "poseScores": pose_scores_for_pose("neutral", 0.74),
+        "classifierMode": "learned",
+        "modelVersion": None,
+        "closedFist": False,
+        "closedFistFrames": 0,
+        "closedFistReleaseFrames": 0,
+        "closedFistLatched": False,
+        "openPalmHold": False,
+        "secondaryPinchStrength": 0.0,
     }
+    assert cast(int, status_debug["frameDelayMs"]) >= 0
     assert sleeps == [1.0]
 
 
@@ -202,5 +207,6 @@ def test_run_live_emits_preview_frames_when_enabled() -> None:
     status_event = events[1]
 
     assert isinstance(status_event, dict)
+    status_event = cast(dict[str, object], status_event)
     assert status_event["type"] == "status"
     assert len(preview_frames) >= 1

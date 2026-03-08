@@ -1,6 +1,6 @@
 from typing import cast
 
-from app.hand_tracking import HandTracker, _pointer_anchor
+from app.hand_tracking import HandTracker, _pointer_anchor, _select_hand_roles
 from app.protocol import FrameState, Landmark, pose_scores_for_pose
 
 
@@ -61,3 +61,13 @@ def test_pointer_anchor_uses_palm_center_for_closed_fist() -> None:
 
     assert anchor["x"] == 0.4
     assert abs(anchor["y"] - 0.28) < 1e-9
+
+
+def test_select_hand_roles_prefers_user_right_hand_for_pointer() -> None:
+    pointer_index, action_index = _select_hand_roles(
+        [{"x": 0.75, "y": 0.5}, {"x": 0.25, "y": 0.5}],
+        mirror_x=True,
+    )
+
+    assert pointer_index == 1
+    assert action_index == 0

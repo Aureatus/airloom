@@ -12,7 +12,14 @@ from typing import Any, cast
 from app.model_assets import ensure_gesture_recognizer_model, ensure_hand_landmarker_model
 from app.pose_classifier import classify_pose_with_mode, try_load_pose_model
 from app.pose_features import extract_pose_features, flatten_pose_features
-from app.protocol import FrameState, Landmark, PoseClassifierMode, empty_pose_scores
+from app.protocol import (
+    FrameState,
+    Landmark,
+    PoseClassifierMode,
+    PoseName,
+    PoseScores,
+    empty_pose_scores,
+)
 from app.smoothing import ExponentialSmoother
 
 os.environ.setdefault("GLOG_minloglevel", "2")
@@ -42,6 +49,54 @@ def _pointer_anchor(landmarks: list[Landmark], pose: str) -> Landmark:
         )
 
     return landmarks[8]
+
+
+def _hand_center(landmarks: list[Landmark]) -> Landmark:
+    return _average_landmarks(
+        landmarks[0],
+        landmarks[5],
+        landmarks[9],
+        landmarks[13],
+        landmarks[17],
+    )
+
+
+def _hand_user_x(center: Landmark, mirror_x: bool) -> float:
+    return 1 - center["x"] if mirror_x else center["x"]
+
+
+def _select_hand_roles(centers: list[Landmark], mirror_x: bool) -> tuple[int, int]:
+    if not centers:
+        return (0, 0)
+
+    if len(centers) == 1:
+        return (0, 0)
+
+    ordered = sorted(
+        range(len(centers)),
+        key=lambda index: _hand_user_x(centers[index], mirror_x),
+    )
+    return (ordered[-1], ordered[0])
+
+
+@dataclass(frozen=True, slots=True)
+class _TrackedHand:
+    pose: PoseName
+    pose_confidence: float
+    pose_scores: PoseScores
+    classifier_mode: PoseClassifierMode
+    model_version: str | None
+    primary_pinch_strength: float
+    secondary_pinch_strength: float
+    open_palm_hold: bool
+    closed_fist: bool
+    raw_pointer: Landmark
+    hand_landmarks: list[Landmark]
+    feature_values: dict[str, float]
+    center: Landmark
+    learned_pose: PoseName | None = None
+    learned_pose_confidence: float | None = None
+    shadow_disagreement: bool | None = None
 
 
 @dataclass
@@ -86,7 +141,7 @@ class HandTracker:
             hand_options = vision.HandLandmarkerOptions(
                 base_options=tasks.BaseOptions(model_asset_path=str(hand_model_path)),
                 running_mode=vision.RunningMode.VIDEO,
-                num_hands=1,
+                num_hands=2,
                 min_hand_detection_confidence=0.45,
                 min_hand_presence_confidence=0.45,
                 min_tracking_confidence=0.4,
@@ -98,25 +153,73 @@ class HandTracker:
                 recognizer_options = vision.GestureRecognizerOptions(
                     base_options=tasks.BaseOptions(model_asset_path=str(recognizer_model_path)),
                     running_mode=vision.RunningMode.VIDEO,
-                    num_hands=1,
+                    num_hands=2,
                     min_hand_detection_confidence=0.45,
                     min_hand_presence_confidence=0.45,
                     min_tracking_confidence=0.4,
                 )
                 self._recognizer = vision.GestureRecognizer.create_from_options(recognizer_options)
 
-    def _extract_static_gesture_scores(self, result: Any) -> dict[str, float]:
+    def _extract_static_gesture_scores(self, result: Any) -> list[dict[str, float]]:
         categories = getattr(result, "gestures", None)
         if not categories:
-            return {}
+            return []
 
-        scores: dict[str, float] = {}
-        for category in categories[0]:
-            label = getattr(category, "category_name", None)
-            score = getattr(category, "score", None)
-            if isinstance(label, str) and isinstance(score, int | float):
-                scores[label] = float(score)
-        return scores
+        gesture_scores: list[dict[str, float]] = []
+        for hand_categories in categories:
+            scores: dict[str, float] = {}
+            for category in hand_categories:
+                label = getattr(category, "category_name", None)
+                score = getattr(category, "score", None)
+                if isinstance(label, str) and isinstance(score, int | float):
+                    scores[label] = float(score)
+            gesture_scores.append(scores)
+
+        return gesture_scores
+
+    def _track_hand(
+        self,
+        hand_landmarks: list[Landmark],
+        static_gesture_scores: dict[str, float] | None = None,
+    ) -> _TrackedHand:
+        features = extract_pose_features(hand_landmarks)
+        feature_values = flatten_pose_features(hand_landmarks, features)
+        classification = classify_pose_with_mode(
+            features,
+            feature_values,
+            mode=self.classifier_mode,
+            learned_model=self._pose_model,
+            static_gesture_scores=static_gesture_scores,
+        )
+        pose_observation = classification.active
+        pointer_anchor = _pointer_anchor(hand_landmarks, pose_observation["pose"])
+        pointer_x = 1 - pointer_anchor["x"] if self.mirror_x else pointer_anchor["x"]
+
+        return _TrackedHand(
+            pose=pose_observation["pose"],
+            pose_confidence=pose_observation["confidence"],
+            pose_scores=pose_observation["scores"],
+            classifier_mode=classification.mode,
+            model_version=classification.model_version,
+            primary_pinch_strength=features.primary_pinch_strength,
+            secondary_pinch_strength=features.secondary_pinch_strength,
+            open_palm_hold=pose_observation["pose"] == "open-palm",
+            closed_fist=pose_observation["pose"] == "closed-fist",
+            raw_pointer={
+                "x": _clamp_unit(pointer_x),
+                "y": _clamp_unit(pointer_anchor["y"]),
+            },
+            hand_landmarks=hand_landmarks,
+            feature_values=feature_values,
+            center=_hand_center(hand_landmarks),
+            learned_pose=(
+                classification.learned["pose"] if classification.learned is not None else None
+            ),
+            learned_pose_confidence=(
+                classification.learned["confidence"] if classification.learned is not None else None
+            ),
+            shadow_disagreement=classification.shadow_disagreement,
+        )
 
     def _fallback_frame_state(self, brightness: float) -> FrameState:
         if self._last_frame_state is not None and self._tracking_hold_remaining > 0:
@@ -169,64 +272,75 @@ class HandTracker:
             data=rgb_frame,
         )
         timestamp_ms = time.monotonic_ns() // 1_000_000
-        static_gesture_scores: dict[str, float] = {}
+        static_gesture_scores_by_hand: list[dict[str, float]] = []
         if self._recognizer is not None:
             recognizer_result = self._recognizer.recognize_for_video(image, timestamp_ms)
             hand_landmarks_result = recognizer_result
-            static_gesture_scores = self._extract_static_gesture_scores(recognizer_result)
+            static_gesture_scores_by_hand = self._extract_static_gesture_scores(recognizer_result)
         else:
             hand_landmarks_result = self._hands.detect_for_video(image, timestamp_ms)
 
         if not hand_landmarks_result.hand_landmarks:
             return self._fallback_frame_state(brightness)
 
-        landmarks = hand_landmarks_result.hand_landmarks[0]
-        hand_landmarks = [
-            cast(Landmark, {"x": landmark.x, "y": landmark.y}) for landmark in landmarks
-        ]
-        features = extract_pose_features(hand_landmarks)
-        feature_values = flatten_pose_features(hand_landmarks, features)
-        classification = classify_pose_with_mode(
-            features,
-            feature_values,
-            mode=self.classifier_mode,
-            learned_model=self._pose_model,
-            static_gesture_scores=static_gesture_scores,
+        tracked_hands: list[_TrackedHand] = []
+        for index, landmarks in enumerate(hand_landmarks_result.hand_landmarks[:2]):
+            hand_landmarks = [
+                cast(Landmark, {"x": landmark.x, "y": landmark.y}) for landmark in landmarks
+            ]
+            tracked_hands.append(
+                self._track_hand(
+                    hand_landmarks,
+                    static_gesture_scores_by_hand[index]
+                    if index < len(static_gesture_scores_by_hand)
+                    else None,
+                )
+            )
+
+        pointer_index, action_index = _select_hand_roles(
+            [hand.center for hand in tracked_hands],
+            self.mirror_x,
         )
-        pose_observation = classification.active
-        pointer_anchor = _pointer_anchor(hand_landmarks, pose_observation["pose"])
-        pointer_x = 1 - pointer_anchor["x"] if self.mirror_x else pointer_anchor["x"]
+        pointer_hand = tracked_hands[pointer_index]
+        action_hand = tracked_hands[action_index]
         smooth_x, smooth_y = self._smoother.update(
-            _clamp_unit(pointer_x), _clamp_unit(pointer_anchor["y"])
+            pointer_hand.raw_pointer["x"],
+            pointer_hand.raw_pointer["y"],
         )
 
         frame_state: FrameState = {
             "tracking": True,
             "pointer": {"x": _clamp_unit(smooth_x), "y": _clamp_unit(smooth_y)},
-            "raw_pointer": {
-                "x": _clamp_unit(pointer_x),
-                "y": _clamp_unit(pointer_anchor["y"]),
-            },
-            "pose": pose_observation["pose"],
-            "pose_confidence": pose_observation["confidence"],
-            "pose_scores": pose_observation["scores"],
-            "classifier_mode": classification.mode,
-            "model_version": classification.model_version,
-            "pinch_strength": features.primary_pinch_strength,
-            "secondary_pinch_strength": features.secondary_pinch_strength,
-            "open_palm_hold": pose_observation["pose"] == "open-palm",
-            "closed_fist": pose_observation["pose"] == "closed-fist",
+            "raw_pointer": pointer_hand.raw_pointer,
+            "pose": pointer_hand.pose,
+            "pose_confidence": pointer_hand.pose_confidence,
+            "pose_scores": pointer_hand.pose_scores,
+            "classifier_mode": pointer_hand.classifier_mode,
+            "model_version": pointer_hand.model_version,
+            "pinch_strength": action_hand.primary_pinch_strength,
+            "secondary_pinch_strength": action_hand.secondary_pinch_strength,
+            "action_pose": action_hand.pose,
+            "action_pose_confidence": action_hand.pose_confidence,
+            "action_pose_scores": action_hand.pose_scores,
+            "action_pinch_strength": action_hand.primary_pinch_strength,
+            "action_secondary_pinch_strength": action_hand.secondary_pinch_strength,
+            "action_open_palm_hold": action_hand.open_palm_hold,
+            "action_hand_separate": pointer_index != action_index,
+            "open_palm_hold": action_hand.open_palm_hold,
+            "closed_fist": pointer_hand.closed_fist,
             "confidence": 0.9,
             "brightness": brightness,
-            "hand_landmarks": hand_landmarks,
-            "feature_values": feature_values,
+            "hand_landmarks": pointer_hand.hand_landmarks,
+            "feature_values": pointer_hand.feature_values,
         }
         self._last_frame_state = frame_state
         self._tracking_hold_remaining = max(0, self.tracking_hold_frames)
-        if classification.learned is not None:
-            frame_state["learned_pose"] = classification.learned["pose"]
-            frame_state["learned_pose_confidence"] = classification.learned["confidence"]
-            frame_state["shadow_disagreement"] = classification.shadow_disagreement
+        if pointer_hand.learned_pose is not None:
+            frame_state["learned_pose"] = pointer_hand.learned_pose
+            if pointer_hand.learned_pose_confidence is not None:
+                frame_state["learned_pose_confidence"] = pointer_hand.learned_pose_confidence
+            if pointer_hand.shadow_disagreement is not None:
+                frame_state["shadow_disagreement"] = pointer_hand.shadow_disagreement
 
         if self.capture_controller is not None:
             self.capture_controller.observe(frame_state)

@@ -157,6 +157,13 @@ class FrameState(TypedDict):
     shadow_disagreement: NotRequired[bool]
     pinch_strength: float
     secondary_pinch_strength: float
+    action_pose: NotRequired[PoseName]
+    action_pose_confidence: NotRequired[float]
+    action_pose_scores: NotRequired[PoseScores]
+    action_pinch_strength: NotRequired[float]
+    action_secondary_pinch_strength: NotRequired[float]
+    action_open_palm_hold: NotRequired[bool]
+    action_hand_separate: NotRequired[bool]
     open_palm_hold: bool
     closed_fist: NotRequired[bool]
     confidence: float

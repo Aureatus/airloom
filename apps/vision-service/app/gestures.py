@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import cast
 
 from app.protocol import (
     FrameState,
@@ -46,28 +47,35 @@ class GestureMachine:
         pose = frame.get("pose", "unknown")
         pose_confidence = frame.get("pose_confidence", 0.0)
         pose_scores = _frame_pose_scores(frame)
-        pinch_strength = frame["pinch_strength"]
-        secondary_pinch_strength = frame["secondary_pinch_strength"]
+        action_pose = frame.get("action_pose", pose)
+        action_pose_scores = cast(PoseScores, frame.get("action_pose_scores", pose_scores))
+        pinch_strength = frame.get("action_pinch_strength", frame["pinch_strength"])
+        secondary_pinch_strength = frame.get(
+            "action_secondary_pinch_strength",
+            frame["secondary_pinch_strength"],
+        )
+        action_hand_separate = frame.get("action_hand_separate", False)
         closed_fist_score = pose_scores["closed-fist"]
-        primary_pinch_score = pose_scores["primary-pinch"]
-        secondary_pinch_score = pose_scores["secondary-pinch"]
+        action_closed_fist_score = action_pose_scores["closed-fist"]
+        primary_pinch_score = action_pose_scores["primary-pinch"]
+        secondary_pinch_score = action_pose_scores["secondary-pinch"]
         closed_fist = pose == "closed-fist" or (
             (self.closed_fist_counter > 0 or self.closed_fist_latched)
             and pose not in {"primary-pinch", "secondary-pinch", "open-palm"}
             and closed_fist_score >= CLOSED_FIST_SUSTAIN_SCORE
         )
-        open_palm_hold = pose == "open-palm"
-        primary_pinch = pose == "primary-pinch" or (
+        open_palm_hold = frame.get("action_open_palm_hold", action_pose == "open-palm")
+        primary_pinch = action_pose == "primary-pinch" or (
             self.pinch_active
-            and pose != "closed-fist"
-            and closed_fist_score < 0.6
+            and action_pose != "closed-fist"
+            and action_closed_fist_score < 0.6
             and pinch_strength >= PRIMARY_PINCH_SUSTAIN_STRENGTH
             and primary_pinch_score >= PRIMARY_PINCH_SUSTAIN_SCORE
         )
-        secondary_pinch = pose == "secondary-pinch" or (
+        secondary_pinch = action_pose == "secondary-pinch" or (
             self.secondary_pinch_active
-            and pose != "closed-fist"
-            and closed_fist_score < 0.6
+            and action_pose != "closed-fist"
+            and action_closed_fist_score < 0.6
             and secondary_pinch_strength >= SECONDARY_PINCH_SUSTAIN_STRENGTH
             and secondary_pinch_score >= SECONDARY_PINCH_SUSTAIN_SCORE
         )
@@ -171,17 +179,19 @@ class GestureMachine:
                 self.secondary_pinch_release_counter = 0
 
         if closed_fist:
-            self.pinch_active = False
-            self.drag_active = False
-            self.secondary_pinch_active = False
-            self.primary_pinch_counter = 0
-            self.primary_pinch_release_counter = 0
-            self.secondary_pinch_counter = 0
-            self.secondary_pinch_release_counter = 0
+            if not action_hand_separate:
+                self.pinch_active = False
+                self.drag_active = False
+                self.secondary_pinch_active = False
+                self.primary_pinch_counter = 0
+                self.primary_pinch_release_counter = 0
+                self.secondary_pinch_counter = 0
+                self.secondary_pinch_release_counter = 0
             self.closed_fist_counter += 1
             self.closed_fist_release_counter = 0
             self.closed_fist_latched = True
-            status_event["gesture"] = "closed-fist"
+            if not action_hand_separate:
+                status_event["gesture"] = "closed-fist"
         else:
             self.closed_fist_counter = 0
             self.closed_fist_release_counter += 1
