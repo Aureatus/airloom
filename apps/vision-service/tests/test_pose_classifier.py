@@ -1,6 +1,6 @@
-from app.pose_classifier import classify_pose
+from app.pose_classifier import classify_hybrid_pose, classify_pose
 from app.pose_features import extract_pose_features
-from app.protocol import Landmark
+from app.protocol import Landmark, pose_scores_for_pose
 
 
 def landmark(x: float, y: float) -> Landmark:
@@ -80,3 +80,41 @@ def test_classifier_accepts_primary_pinch_with_slightly_bent_index() -> None:
     observation = classify_pose(extract_pose_features(bent_index_primary_pinch_landmarks()))
 
     assert observation["pose"] == "primary-pinch"
+
+
+def test_hybrid_classifier_uses_mediapipe_open_palm_label() -> None:
+    observation = classify_hybrid_pose(
+        extract_pose_features(open_palm_landmarks()),
+        static_gesture_scores={"Open_Palm": 0.91},
+    )
+
+    assert observation["pose"] == "open-palm"
+
+
+def test_hybrid_classifier_uses_neutral_when_no_pose_is_strong() -> None:
+    observation = classify_hybrid_pose(
+        extract_pose_features(open_palm_landmarks()),
+        static_gesture_scores={"Closed_Fist": 0.22, "Open_Palm": 0.18},
+    )
+
+    assert observation["pose"] == "neutral"
+
+
+def test_hybrid_classifier_can_take_primary_pinch_from_learned_scores() -> None:
+    observation = classify_hybrid_pose(
+        extract_pose_features(open_palm_landmarks()),
+        static_gesture_scores={"Open_Palm": 0.76, "Closed_Fist": 0.08},
+        learned_scores=pose_scores_for_pose("primary-pinch", 0.87),
+    )
+
+    assert observation["pose"] == "primary-pinch"
+
+
+def test_hybrid_classifier_prefers_mediapipe_fist_when_learned_pinch_is_weak() -> None:
+    observation = classify_hybrid_pose(
+        extract_pose_features(closed_fist_landmarks()),
+        static_gesture_scores={"Closed_Fist": 0.89, "Open_Palm": 0.06},
+        learned_scores=pose_scores_for_pose("primary-pinch", 0.31),
+    )
+
+    assert observation["pose"] == "closed-fist"

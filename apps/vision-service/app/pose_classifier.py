@@ -17,6 +17,8 @@ POSE_SECONDARY_PINCH: PoseName = "secondary-pinch"
 
 POSE_MIN_SCORE = 0.58
 POSE_MIN_MARGIN = 0.12
+PINCH_MIN_SCORE = 0.68
+STATIC_POSE_MIN_SCORE = 0.55
 
 
 @dataclass(frozen=True, slots=True)
@@ -179,6 +181,75 @@ def classify_pose(features: PoseFeatures) -> PoseObservation:
     return {"pose": best_pose, "confidence": _clamp_unit(best_score), "scores": scores}
 
 
+def _static_score(static_gesture_scores: dict[str, float] | None, label: str) -> float:
+    if static_gesture_scores is None:
+        return 0.0
+    return _clamp_unit(static_gesture_scores.get(label, 0.0))
+
+
+def _pinch_score(learned_scores: PoseScores | None, label: PoseName, fallback: float) -> float:
+    if learned_scores is None:
+        return fallback
+    return _clamp_unit(learned_scores[label])
+
+
+def classify_hybrid_pose(
+    features: PoseFeatures,
+    *,
+    static_gesture_scores: dict[str, float] | None = None,
+    learned_scores: PoseScores | None = None,
+) -> PoseObservation:
+    primary_score = _pinch_score(learned_scores, POSE_PRIMARY_PINCH, _primary_pinch_score(features))
+    secondary_score = _pinch_score(
+        learned_scores, POSE_SECONDARY_PINCH, _secondary_pinch_score(features)
+    )
+    open_score = _static_score(static_gesture_scores, "Open_Palm")
+    closed_score = _static_score(static_gesture_scores, "Closed_Fist")
+
+    if static_gesture_scores is None:
+        open_score = max(open_score, _open_palm_score(features))
+        closed_score = max(closed_score, _closed_fist_score(features))
+
+    neutral_score = _clamp_unit(
+        max(
+            0.35,
+            1.0 - max(primary_score, secondary_score, open_score, closed_score),
+        )
+    )
+    scores = cast(
+        PoseScores,
+        {
+            "closed-fist": closed_score,
+            "open-palm": open_score,
+            "primary-pinch": primary_score,
+            "secondary-pinch": secondary_score,
+            "neutral": neutral_score,
+        },
+    )
+
+    if (
+        primary_score >= PINCH_MIN_SCORE
+        and primary_score >= secondary_score + 0.04
+        and primary_score >= max(open_score, closed_score) - 0.03
+    ):
+        return {"pose": POSE_PRIMARY_PINCH, "confidence": primary_score, "scores": scores}
+
+    if (
+        secondary_score >= PINCH_MIN_SCORE
+        and secondary_score >= primary_score + 0.04
+        and secondary_score >= max(open_score, closed_score) - 0.03
+    ):
+        return {"pose": POSE_SECONDARY_PINCH, "confidence": secondary_score, "scores": scores}
+
+    if closed_score >= STATIC_POSE_MIN_SCORE and closed_score >= open_score + 0.03:
+        return {"pose": POSE_CLOSED_FIST, "confidence": closed_score, "scores": scores}
+
+    if open_score >= STATIC_POSE_MIN_SCORE and open_score >= closed_score + 0.03:
+        return {"pose": POSE_OPEN_PALM, "confidence": open_score, "scores": scores}
+
+    return {"pose": POSE_NEUTRAL, "confidence": neutral_score, "scores": scores}
+
+
 def try_load_pose_model(path: Path | None) -> PoseModelArtifact | None:
     if path is None or not path.exists():
         return None
@@ -194,19 +265,25 @@ def classify_pose_with_mode(
     *,
     mode: PoseClassifierMode,
     learned_model: PoseModelArtifact | None,
+    static_gesture_scores: dict[str, float] | None = None,
 ) -> PoseClassificationResult:
-    rule_observation = classify_pose(features)
+    rule_observation = classify_hybrid_pose(features, static_gesture_scores=static_gesture_scores)
     learned_observation = (
         predict_pose_model(learned_model, feature_values) if learned_model is not None else None
+    )
+    hybrid_observation = classify_hybrid_pose(
+        features,
+        static_gesture_scores=static_gesture_scores,
+        learned_scores=learned_observation["scores"] if learned_observation is not None else None,
     )
 
     if mode == "learned" and learned_observation is not None:
         active = learned_observation
     else:
-        active = rule_observation
+        active = hybrid_observation if learned_observation is not None else rule_observation
 
     if mode == "shadow" and learned_observation is not None:
-        active = rule_observation
+        active = hybrid_observation
 
     return PoseClassificationResult(
         active=active,

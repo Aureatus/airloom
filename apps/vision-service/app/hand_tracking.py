@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
 
-from app.model_assets import ensure_hand_landmarker_model
+from app.model_assets import ensure_gesture_recognizer_model
 from app.pose_classifier import classify_pose_with_mode, try_load_pose_model
 from app.pose_features import extract_pose_features, flatten_pose_features
 from app.protocol import FrameState, Landmark, PoseClassifierMode, empty_pose_scores
@@ -39,7 +39,7 @@ class HandTracker:
     )
     capture_controller: Any | None = None
     _smoother: ExponentialSmoother = field(init=False)
-    _hands: Any | None = field(init=False, default=None)
+    _recognizer: Any | None = field(init=False, default=None)
     _mediapipe: Any | None = field(init=False, default=None)
     _pose_model: Any | None = field(init=False, default=None)
 
@@ -55,8 +55,8 @@ class HandTracker:
             self._mediapipe = cast(Any, mediapipe)
             tasks = importlib.import_module("mediapipe.tasks.python")
             vision = importlib.import_module("mediapipe.tasks.python.vision")
-            model_path = ensure_hand_landmarker_model()
-            options = vision.HandLandmarkerOptions(
+            model_path = ensure_gesture_recognizer_model()
+            options = vision.GestureRecognizerOptions(
                 base_options=tasks.BaseOptions(model_asset_path=str(model_path)),
                 running_mode=vision.RunningMode.VIDEO,
                 num_hands=1,
@@ -64,10 +64,23 @@ class HandTracker:
                 min_hand_presence_confidence=0.55,
                 min_tracking_confidence=0.55,
             )
-            self._hands = vision.HandLandmarker.create_from_options(options)
+            self._recognizer = vision.GestureRecognizer.create_from_options(options)
+
+    def _extract_static_gesture_scores(self, result: Any) -> dict[str, float]:
+        categories = getattr(result, "gestures", None)
+        if not categories:
+            return {}
+
+        scores: dict[str, float] = {}
+        for category in categories[0]:
+            label = getattr(category, "category_name", None)
+            score = getattr(category, "score", None)
+            if isinstance(label, str) and isinstance(score, int | float):
+                scores[label] = float(score)
+        return scores
 
     def process(self, frame: Any) -> FrameState:
-        if self._hands is None or self._mediapipe is None:
+        if self._recognizer is None or self._mediapipe is None:
             return {
                 "tracking": False,
                 "pose": "unknown",
@@ -92,7 +105,7 @@ class HandTracker:
             data=rgb_frame,
         )
         timestamp_ms = time.monotonic_ns() // 1_000_000
-        result = self._hands.detect_for_video(image, timestamp_ms)
+        result = self._recognizer.recognize_for_video(image, timestamp_ms)
         if not result.hand_landmarks:
             return {
                 "tracking": False,
@@ -116,11 +129,13 @@ class HandTracker:
         index_tip = hand_landmarks[8]
         features = extract_pose_features(hand_landmarks)
         feature_values = flatten_pose_features(hand_landmarks, features)
+        static_gesture_scores = self._extract_static_gesture_scores(result)
         classification = classify_pose_with_mode(
             features,
             feature_values,
             mode=self.classifier_mode,
             learned_model=self._pose_model,
+            static_gesture_scores=static_gesture_scores,
         )
         pose_observation = classification.active
         pointer_x = 1 - index_tip["x"] if self.mirror_x else index_tip["x"]
