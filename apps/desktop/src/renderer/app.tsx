@@ -10,6 +10,7 @@ type RuntimeState = {
   pinchStrength: number;
   pointerControlEnabled: boolean;
   inputSuppressed: boolean;
+  recentActions: string[];
   debug: {
     confidence: number;
     brightness: number;
@@ -110,6 +111,7 @@ const initialStatus: ServiceStatus = {
     pinchStrength: 0,
     pointerControlEnabled: false,
     inputSuppressed: false,
+    recentActions: [],
     debug: {
       confidence: 0,
       brightness: 0,
@@ -291,6 +293,40 @@ export const App = () => {
           >
             Stop service
           </button>
+        </div>
+      </section>
+
+      <section className="panel live-status-strip">
+        <div className="eyebrow">Live status</div>
+        <div className="metric-grid compact live-status-grid">
+          <div className="metric-card">
+            <span>Pose</span>
+            <strong>
+              {status.runtime.debug.pose} ({status.runtime.debug.poseConfidence.toFixed(2)})
+            </strong>
+          </div>
+          <div className="metric-card">
+            <span>Gesture</span>
+            <strong>{status.runtime.gesture}</strong>
+          </div>
+          <div className="metric-card">
+            <span>Tracking</span>
+            <strong>{status.runtime.tracking ? "Yes" : "No"}</strong>
+          </div>
+          <div className="metric-card">
+            <span>Pointer</span>
+            <strong>
+              {status.runtime.pointerControlEnabled ? "Armed" : "Frozen"}
+            </strong>
+          </div>
+          <div className="metric-card">
+            <span>Last action</span>
+            <strong>{status.runtime.recentActions.at(-1) ?? "Waiting"}</strong>
+          </div>
+          <div className="metric-card">
+            <span>Prev action</span>
+            <strong>{status.runtime.recentActions.at(-2) ?? "Waiting"}</strong>
+          </div>
         </div>
       </section>
 

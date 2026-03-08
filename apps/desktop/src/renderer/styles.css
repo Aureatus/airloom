@@ -82,6 +82,25 @@ button:hover {
   align-items: end;
 }
 
+.live-status-strip {
+  position: sticky;
+  top: 1rem;
+  z-index: 20;
+  padding-block: 1rem;
+}
+
+.live-status-grid {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.live-status-grid .metric-card {
+  padding: 0.85rem 0.95rem;
+}
+
+.live-status-grid .metric-card strong {
+  font-size: 0.95rem;
+}
+
 .hero h1,
 .panel h2 {
   margin: 0.3rem 0 0.6rem;
@@ -338,6 +357,7 @@ button:hover {
 @media (max-width: 900px) {
   .shell,
   .hero,
+  .live-status-grid,
   .dashboard,
   .dashboard-main,
   .calibration-layout,
@@ -358,5 +378,9 @@ button:hover {
 
   .event-log {
     min-height: 14rem;
+  }
+
+  .live-status-strip {
+    position: static;
   }
 }

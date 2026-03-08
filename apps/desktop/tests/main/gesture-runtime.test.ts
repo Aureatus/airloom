@@ -69,6 +69,7 @@ describe("createGestureRuntime", () => {
     });
 
     expect(calls).toEqual(["click:left", "key:Return"]);
+    expect(runtime.getState().recentActions).toEqual(["left click", "Key Return"]);
   });
 
   test("updates status state from status events", async () => {
@@ -114,6 +115,7 @@ describe("createGestureRuntime", () => {
       pinchStrength: 0.82,
       pointerControlEnabled: false,
       inputSuppressed: false,
+      recentActions: [],
       debug: {
         confidence: 0.74,
         brightness: 0.21,
@@ -170,6 +172,7 @@ describe("createGestureRuntime", () => {
 
     expect(calls).toEqual([]);
     expect(runtime.getState().inputSuppressed).toBe(true);
+    expect(runtime.getState().recentActions).toEqual([]);
 
     runtime.setInputSuppressed(false);
     await runtime.handleEvent({
@@ -185,6 +188,7 @@ describe("createGestureRuntime", () => {
     });
 
     expect(calls).toEqual(["move"]);
+    expect(runtime.getState().recentActions).toEqual(["Move 0.40, 0.50"]);
   });
 
   test("maps gesture triggers to configured keys", async () => {

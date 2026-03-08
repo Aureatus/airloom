@@ -15,6 +15,7 @@ export type RuntimeState = {
   pinchStrength: number;
   pointerControlEnabled: boolean;
   inputSuppressed: boolean;
+  recentActions: string[];
   debug: {
     confidence: number;
     brightness: number;
@@ -66,6 +67,7 @@ export const createGestureRuntime = (
     pinchStrength: 0,
     pointerControlEnabled: false,
     inputSuppressed: false,
+    recentActions: [],
     debug: {
       confidence: 0,
       brightness: 0,
@@ -97,7 +99,27 @@ export const createGestureRuntime = (
     state.pointerControlEnabled = state.mapper.pointerControlEnabled;
   };
 
+  const describeAction = (event: AirloomActionEvent) => {
+    switch (event.type) {
+      case "pointer.move":
+        return `Move ${event.x.toFixed(2)}, ${event.y.toFixed(2)}`;
+      case "pointer.down":
+        return `${event.button} down`;
+      case "pointer.up":
+        return `${event.button} up`;
+      case "click":
+        return `${event.button} click`;
+      case "key.tap":
+        return `Key ${event.key}`;
+    }
+  };
+
+  const rememberAction = (event: AirloomActionEvent) => {
+    state.recentActions = [...state.recentActions, describeAction(event)].slice(-2);
+  };
+
   const executeAction = async (event: AirloomActionEvent) => {
+    rememberAction(event);
     switch (event.type) {
       case "pointer.move": {
         await adapter.movePointer({ x: event.x, y: event.y });
@@ -178,7 +200,10 @@ export const createGestureRuntime = (
   };
 
   const getState = () => {
-    return { ...state };
+    return {
+      ...state,
+      recentActions: [...state.recentActions],
+    };
   };
 
   const setInputSuppressed = (suppressed: boolean) => {
