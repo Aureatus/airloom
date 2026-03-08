@@ -14,6 +14,9 @@ class Camera(AbstractContextManager["Camera"]):
         frame_timeout_s: float = 1.0,
         stale_after_s: float = 1.0,
         read_failure_limit: int = 5,
+        frame_width: int = 640,
+        frame_height: int = 480,
+        target_fps: int = 60,
         capture_factory: Any | None = None,
     ) -> None:
         import cv2
@@ -24,8 +27,9 @@ class Camera(AbstractContextManager["Camera"]):
             raise RuntimeError("Unable to open webcam")
 
         self._capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-        self._capture.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-        self._capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        self._capture.set(cv2.CAP_PROP_FRAME_WIDTH, max(160, frame_width))
+        self._capture.set(cv2.CAP_PROP_FRAME_HEIGHT, max(120, frame_height))
+        self._capture.set(cv2.CAP_PROP_FPS, max(1, target_fps))
 
         self._frame_timeout_s = frame_timeout_s
         self._stale_after_s = stale_after_s

@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
 
-from app.model_assets import ensure_gesture_recognizer_model
+from app.model_assets import ensure_gesture_recognizer_model, ensure_hand_landmarker_model
 from app.pose_classifier import classify_pose_with_mode, try_load_pose_model
 from app.pose_features import extract_pose_features, flatten_pose_features
 from app.protocol import FrameState, Landmark, PoseClassifierMode, empty_pose_scores
@@ -38,10 +38,16 @@ class HandTracker:
         default_factory=lambda: os.environ.get("AIRLOOM_POSE_MODEL_PATH")
     )
     capture_controller: Any | None = None
+    tracking_hold_frames: int = field(
+        default_factory=lambda: int(os.environ.get("AIRLOOM_TRACKING_HOLD_FRAMES", "3"))
+    )
     _smoother: ExponentialSmoother = field(init=False)
+    _hands: Any | None = field(init=False, default=None)
     _recognizer: Any | None = field(init=False, default=None)
     _mediapipe: Any | None = field(init=False, default=None)
     _pose_model: Any | None = field(init=False, default=None)
+    _last_frame_state: FrameState | None = field(init=False, default=None)
+    _tracking_hold_remaining: int = field(init=False, default=0)
 
     def __post_init__(self) -> None:
         self._smoother = ExponentialSmoother(alpha=self.smoothing_alpha)
@@ -55,16 +61,28 @@ class HandTracker:
             self._mediapipe = cast(Any, mediapipe)
             tasks = importlib.import_module("mediapipe.tasks.python")
             vision = importlib.import_module("mediapipe.tasks.python.vision")
-            model_path = ensure_gesture_recognizer_model()
-            options = vision.GestureRecognizerOptions(
-                base_options=tasks.BaseOptions(model_asset_path=str(model_path)),
+            hand_model_path = ensure_hand_landmarker_model()
+            hand_options = vision.HandLandmarkerOptions(
+                base_options=tasks.BaseOptions(model_asset_path=str(hand_model_path)),
                 running_mode=vision.RunningMode.VIDEO,
                 num_hands=1,
-                min_hand_detection_confidence=0.55,
-                min_hand_presence_confidence=0.55,
-                min_tracking_confidence=0.55,
+                min_hand_detection_confidence=0.45,
+                min_hand_presence_confidence=0.45,
+                min_tracking_confidence=0.4,
             )
-            self._recognizer = vision.GestureRecognizer.create_from_options(options)
+            self._hands = vision.HandLandmarker.create_from_options(hand_options)
+
+            if self.classifier_mode != "learned":
+                recognizer_model_path = ensure_gesture_recognizer_model()
+                recognizer_options = vision.GestureRecognizerOptions(
+                    base_options=tasks.BaseOptions(model_asset_path=str(recognizer_model_path)),
+                    running_mode=vision.RunningMode.VIDEO,
+                    num_hands=1,
+                    min_hand_detection_confidence=0.45,
+                    min_hand_presence_confidence=0.45,
+                    min_tracking_confidence=0.4,
+                )
+                self._recognizer = vision.GestureRecognizer.create_from_options(recognizer_options)
 
     def _extract_static_gesture_scores(self, result: Any) -> dict[str, float]:
         categories = getattr(result, "gestures", None)
@@ -79,8 +97,33 @@ class HandTracker:
                 scores[label] = float(score)
         return scores
 
+    def _fallback_frame_state(self, brightness: float) -> FrameState:
+        if self._last_frame_state is not None and self._tracking_hold_remaining > 0:
+            self._tracking_hold_remaining -= 1
+            held_state = dict(self._last_frame_state)
+            held_state["confidence"] = 0.0
+            held_state["brightness"] = brightness
+            return cast(FrameState, held_state)
+
+        self._last_frame_state = None
+        self._tracking_hold_remaining = 0
+        return {
+            "tracking": False,
+            "pose": "unknown",
+            "pose_confidence": 0.0,
+            "pose_scores": empty_pose_scores(),
+            "classifier_mode": self.classifier_mode,
+            "model_version": None,
+            "pinch_strength": 0.0,
+            "secondary_pinch_strength": 0.0,
+            "open_palm_hold": False,
+            "closed_fist": False,
+            "confidence": 0.0,
+            "brightness": brightness,
+        }
+
     def process(self, frame: Any) -> FrameState:
-        if self._recognizer is None or self._mediapipe is None:
+        if self._hands is None or self._mediapipe is None:
             return {
                 "tracking": False,
                 "pose": "unknown",
@@ -105,31 +148,24 @@ class HandTracker:
             data=rgb_frame,
         )
         timestamp_ms = time.monotonic_ns() // 1_000_000
-        result = self._recognizer.recognize_for_video(image, timestamp_ms)
-        if not result.hand_landmarks:
-            return {
-                "tracking": False,
-                "pose": "unknown",
-                "pose_confidence": 0.0,
-                "pose_scores": empty_pose_scores(),
-                "classifier_mode": self.classifier_mode,
-                "model_version": None,
-                "pinch_strength": 0.0,
-                "secondary_pinch_strength": 0.0,
-                "open_palm_hold": False,
-                "closed_fist": False,
-                "confidence": 0.0,
-                "brightness": brightness,
-            }
+        static_gesture_scores: dict[str, float] = {}
+        if self._recognizer is not None:
+            recognizer_result = self._recognizer.recognize_for_video(image, timestamp_ms)
+            hand_landmarks_result = recognizer_result
+            static_gesture_scores = self._extract_static_gesture_scores(recognizer_result)
+        else:
+            hand_landmarks_result = self._hands.detect_for_video(image, timestamp_ms)
 
-        landmarks = result.hand_landmarks[0]
+        if not hand_landmarks_result.hand_landmarks:
+            return self._fallback_frame_state(brightness)
+
+        landmarks = hand_landmarks_result.hand_landmarks[0]
         hand_landmarks = [
             cast(Landmark, {"x": landmark.x, "y": landmark.y}) for landmark in landmarks
         ]
         index_tip = hand_landmarks[8]
         features = extract_pose_features(hand_landmarks)
         feature_values = flatten_pose_features(hand_landmarks, features)
-        static_gesture_scores = self._extract_static_gesture_scores(result)
         classification = classify_pose_with_mode(
             features,
             feature_values,
@@ -161,6 +197,8 @@ class HandTracker:
             "hand_landmarks": hand_landmarks,
             "feature_values": feature_values,
         }
+        self._last_frame_state = frame_state
+        self._tracking_hold_remaining = max(0, self.tracking_hold_frames)
         if classification.learned is not None:
             frame_state["learned_pose"] = classification.learned["pose"]
             frame_state["learned_pose_confidence"] = classification.learned["confidence"]

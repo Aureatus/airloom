@@ -83,12 +83,16 @@ class GestureMachine:
         status_debug: StatusDebug = {
             "confidence": frame["confidence"],
             "brightness": frame.get("brightness", 0.0),
+            "frameDelayMs": frame.get("delay_ms", 0),
             "pose": pose,
             "poseConfidence": pose_confidence,
             "poseScores": pose_scores,
             "classifierMode": frame.get("classifier_mode", "rules"),
             "modelVersion": frame.get("model_version"),
             "closedFist": closed_fist,
+            "closedFistFrames": self.closed_fist_counter,
+            "closedFistReleaseFrames": self.closed_fist_release_counter,
+            "closedFistLatched": self.closed_fist_latched,
             "openPalmHold": open_palm_hold,
             "secondaryPinchStrength": secondary_pinch_strength,
         }
@@ -111,6 +115,9 @@ class GestureMachine:
             self.closed_fist_counter = 0
             self.closed_fist_release_counter = 0
             self.closed_fist_latched = False
+            status_debug["closedFistFrames"] = 0
+            status_debug["closedFistReleaseFrames"] = 0
+            status_debug["closedFistLatched"] = False
             status_event["gesture"] = "searching"
             events.append(status_event)
             return events
@@ -202,6 +209,10 @@ class GestureMachine:
             self.closed_fist_release_counter += 1
             if self.closed_fist_release_counter >= CLOSED_FIST_OFF_FRAMES:
                 self.closed_fist_latched = False
+
+        status_debug["closedFistFrames"] = self.closed_fist_counter
+        status_debug["closedFistReleaseFrames"] = self.closed_fist_release_counter
+        status_debug["closedFistLatched"] = self.closed_fist_latched
 
         if self.drag_active:
             status_event["gesture"] = "dragging"

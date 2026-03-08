@@ -21,8 +21,6 @@ from app.replay import iter_replay, load_fixture
 
 DEBUG_PREVIEW_MAX_WIDTH = 320
 DEBUG_PREVIEW_JPEG_QUALITY = 70
-DEBUG_PREVIEW_FPS = max(1, int(os.environ.get("AIRLOOM_DEBUG_PREVIEW_FPS", "12")))
-DEBUG_PREVIEW_INTERVAL_S = 1 / DEBUG_PREVIEW_FPS
 DEBUG_PREVIEW_ENABLED = os.environ.get("AIRLOOM_DEBUG_PREVIEW", "0") == "1"
 DEBUG_PREVIEW_FD = 3
 DEFAULT_CAPTURE_DIR = Path(os.environ.get("AIRLOOM_CAPTURE_DIR", Path.cwd() / ".airloom-captures"))
@@ -56,6 +54,7 @@ def emit_camera_unavailable(message: str, emit_event: Callable[[object], None]) 
             "debug": {
                 "confidence": 0.0,
                 "brightness": 0.0,
+                "frameDelayMs": 0,
                 "pose": "unknown",
                 "poseConfidence": 0.0,
                 "poseScores": empty_pose_scores(),
@@ -64,6 +63,9 @@ def emit_camera_unavailable(message: str, emit_event: Callable[[object], None]) 
                 ),
                 "modelVersion": None,
                 "closedFist": False,
+                "closedFistFrames": 0,
+                "closedFistReleaseFrames": 0,
+                "closedFistLatched": False,
                 "openPalmHold": False,
                 "secondaryPinchStrength": 0.0,
             },
@@ -290,7 +292,7 @@ def run_live(
                         tracker_factory=build_tracker,
                         machine_factory=machine_factory,
                         time_source=time_source,
-                        preview_interval_s=DEBUG_PREVIEW_INTERVAL_S,
+                        preview_interval_s=0.0,
                         preview_enabled=preview_enabled,
                         preview_emitter=emit_preview,
                         max_frames=max(0, max_frames - processed),

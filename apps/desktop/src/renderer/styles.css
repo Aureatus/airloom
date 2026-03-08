@@ -103,7 +103,13 @@ button:hover {
 
 .dashboard {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1.4fr) minmax(340px, 0.9fr);
+  gap: 1.5rem;
+  align-items: stretch;
+}
+
+.dashboard-main {
+  display: grid;
   gap: 1.5rem;
 }
 
@@ -172,10 +178,25 @@ button:hover {
 }
 
 .event-log {
-  height: 14rem;
+  flex: 1;
+  min-height: 24rem;
   margin: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.event-log-panel {
+  position: sticky;
+  top: 1rem;
+  height: calc(100vh - 2rem);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.recording-path {
+  margin: 0;
+  font-size: 0.82rem;
 }
 
 .error-text {
@@ -278,6 +299,11 @@ button:hover {
   margin: 0;
 }
 
+.sandbox-panel {
+  display: grid;
+  gap: 1rem;
+}
+
 .click-sandbox {
   position: relative;
   min-height: 18rem;
@@ -286,6 +312,10 @@ button:hover {
   background:
     linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.02)),
     radial-gradient(circle at center, rgba(94, 215, 190, 0.08), transparent 55%);
+}
+
+.click-sandbox-wide {
+  min-height: 24rem;
 }
 
 .sandbox-target {
@@ -309,6 +339,7 @@ button:hover {
   .shell,
   .hero,
   .dashboard,
+  .dashboard-main,
   .calibration-layout,
   .metric-grid,
   .settings-grid,
@@ -318,5 +349,14 @@ button:hover {
 
   .calibration-side {
     position: static;
+  }
+
+  .event-log-panel {
+    position: static;
+    height: auto;
+  }
+
+  .event-log {
+    min-height: 14rem;
   }
 }

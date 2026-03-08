@@ -121,6 +121,7 @@ class StatusEvent(TypedDict):
 class StatusDebug(TypedDict):
     confidence: float
     brightness: float
+    frameDelayMs: int
     pose: PoseName
     poseConfidence: float
     poseScores: PoseScores
@@ -130,6 +131,9 @@ class StatusDebug(TypedDict):
     learnedPoseConfidence: NotRequired[float]
     shadowDisagreement: NotRequired[bool]
     closedFist: bool
+    closedFistFrames: int
+    closedFistReleaseFrames: int
+    closedFistLatched: bool
     openPalmHold: bool
     secondaryPinchStrength: float
 

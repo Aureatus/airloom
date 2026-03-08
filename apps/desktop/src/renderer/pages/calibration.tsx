@@ -49,6 +49,7 @@ type CalibrationProps = {
   debug: {
     confidence: number;
     brightness: number;
+    frameDelayMs: number;
     pose: string;
     poseConfidence: number;
     poseScores: {
@@ -64,6 +65,9 @@ type CalibrationProps = {
     learnedPoseConfidence?: number;
     shadowDisagreement?: boolean;
     closedFist: boolean;
+    closedFistFrames: number;
+    closedFistReleaseFrames: number;
+    closedFistLatched: boolean;
     openPalmHold: boolean;
     secondaryPinchStrength: number;
   };
@@ -335,6 +339,10 @@ export const CalibrationPage = ({
               </strong>
             </div>
             <div className="metric-card">
+              <span>Frame delay</span>
+              <strong>{debug.frameDelayMs} ms</strong>
+            </div>
+            <div className="metric-card">
               <span>Pose</span>
               <strong>
                 {debug.pose} ({debug.poseConfidence.toFixed(2)})
@@ -367,6 +375,18 @@ export const CalibrationPage = ({
             <div className="metric-card">
               <span>Closed fist</span>
               <strong>{debug.closedFist ? "Seen" : "No"}</strong>
+            </div>
+            <div className="metric-card">
+              <span>Fist frames</span>
+              <strong>{debug.closedFistFrames}</strong>
+            </div>
+            <div className="metric-card">
+              <span>Fist release</span>
+              <strong>{debug.closedFistReleaseFrames}</strong>
+            </div>
+            <div className="metric-card">
+              <span>Fist latched</span>
+              <strong>{debug.closedFistLatched ? "Yes" : "No"}</strong>
             </div>
             <div className="metric-card">
               <span>Open palm</span>
@@ -539,6 +559,55 @@ export const CalibrationPage = ({
             `Backspace` discard, `E` export.
           </p>
 
+          <div className="eyebrow">Sandbox</div>
+          <h2>Click precision</h2>
+          <div className="sandbox-panel">
+            <div className="metric-grid compact">
+              <div className="metric-card">
+                <span>Hits</span>
+                <strong>{sandboxHits}</strong>
+              </div>
+              <div className="metric-card">
+                <span>Misses</span>
+                <strong>{sandboxMisses}</strong>
+              </div>
+              <div className="metric-card">
+                <span>Accuracy</span>
+                <strong>{sandboxAccuracy}%</strong>
+              </div>
+            </div>
+            <div
+              className="click-sandbox click-sandbox-wide"
+              onPointerDown={() => setSandboxMisses((current) => current + 1)}
+            >
+              <button
+                type="button"
+                className="sandbox-target"
+                style={{ left: `${sandboxTarget.x}%`, top: `${sandboxTarget.y}%` }}
+                onPointerDown={(event) => {
+                  event.stopPropagation();
+                }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setSandboxHits((current) => current + 1);
+                  setSandboxTarget(randomSandboxTarget());
+                }}
+                aria-label="Precision click target"
+              >
+                Hit
+              </button>
+            </div>
+            <div className="hero-actions">
+              <button type="button" className="ghost" onClick={resetSandbox}>
+                Reset sandbox
+              </button>
+            </div>
+            <p className="panel-copy camera-note">
+              Try landing left clicks on the moving square. Hits count when the
+              square is clicked; misses count when the sandbox background is clicked.
+            </p>
+          </div>
+
           <div className="hold-preview">
             <div className="hold-preview-copy">
               <span>Primary pinch hold</span>
@@ -571,54 +640,6 @@ export const CalibrationPage = ({
               reflects the actual camera frames the backend is processing. Teal
               dots show detected landmarks, amber marks the raw index pointer,
               and coral marks the smoothed pointer output.
-            </p>
-          </div>
-          <div className="eyebrow">Sandbox</div>
-          <h2>Click precision</h2>
-          <div className="camera-card">
-            <div className="metric-grid compact">
-              <div className="metric-card">
-                <span>Hits</span>
-                <strong>{sandboxHits}</strong>
-              </div>
-              <div className="metric-card">
-                <span>Misses</span>
-                <strong>{sandboxMisses}</strong>
-              </div>
-              <div className="metric-card">
-                <span>Accuracy</span>
-                <strong>{sandboxAccuracy}%</strong>
-              </div>
-            </div>
-            <div
-              className="click-sandbox"
-              onPointerDown={() => setSandboxMisses((current) => current + 1)}
-            >
-              <button
-                type="button"
-                className="sandbox-target"
-                style={{ left: `${sandboxTarget.x}%`, top: `${sandboxTarget.y}%` }}
-                onPointerDown={(event) => {
-                  event.stopPropagation();
-                }}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setSandboxHits((current) => current + 1);
-                  setSandboxTarget(randomSandboxTarget());
-                }}
-                aria-label="Precision click target"
-              >
-                Hit
-              </button>
-            </div>
-            <div className="hero-actions">
-              <button type="button" className="ghost" onClick={resetSandbox}>
-                Reset sandbox
-              </button>
-            </div>
-            <p className="panel-copy camera-note">
-              Try landing left clicks on the moving square. Hits count when the
-              square is clicked; misses count when the sandbox background is clicked.
             </p>
           </div>
         </aside>

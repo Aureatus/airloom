@@ -44,6 +44,7 @@ export const captureStateEventSchema = z.object({
 export const statusDebugSchema = z.object({
   confidence: z.number().min(0).max(1),
   brightness: z.number().min(0).max(1),
+  frameDelayMs: z.number().int().nonnegative(),
   pose: z.string().min(1),
   poseConfidence: z.number().min(0).max(1),
   poseScores: z.object({
@@ -59,6 +60,9 @@ export const statusDebugSchema = z.object({
   learnedPoseConfidence: z.number().min(0).max(1).optional(),
   shadowDisagreement: z.boolean().optional(),
   closedFist: z.boolean(),
+  closedFistFrames: z.number().int().nonnegative(),
+  closedFistReleaseFrames: z.number().int().nonnegative(),
+  closedFistLatched: z.boolean(),
   openPalmHold: z.boolean(),
   secondaryPinchStrength: z.number().min(0).max(1),
 });

@@ -99,6 +99,10 @@ def run_live_pipeline(
 
                 last_seen_version, captured = update
                 frame_state = tracker.process(captured.frame)
+                frame_state["delay_ms"] = max(
+                    0,
+                    int((time_source() - captured.captured_at) * 1000),
+                )
                 latest_frame_state.publish(frame_state)
                 for event in machine.update(frame_state):
                     emit_event(event)
@@ -114,10 +118,13 @@ def run_live_pipeline(
         next_tick_at = time_source()
 
         while not stop_event.is_set():
-            delay = max(0.0, next_tick_at - time_source())
-            if stop_event.wait(delay):
+            if preview_interval_s > 0:
+                delay = max(0.0, next_tick_at - time_source())
+                if stop_event.wait(delay):
+                    return
+                next_tick_at = max(next_tick_at + preview_interval_s, time_source())
+            elif stop_event.wait(0.01):
                 return
-            next_tick_at = max(next_tick_at + preview_interval_s, time_source())
 
             update = latest_capture.get_latest()
             if update is None:

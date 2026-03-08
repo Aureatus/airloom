@@ -54,12 +54,16 @@ class _FakeMachine:
                 "debug": {
                     "confidence": frame["confidence"],
                     "brightness": frame.get("brightness", 0.0),
+                    "frameDelayMs": frame.get("delay_ms", 0),
                     "pose": frame.get("pose", "unknown"),
                     "poseConfidence": frame.get("pose_confidence", 0.0),
                     "poseScores": frame.get("pose_scores", empty_pose_scores()),
                     "classifierMode": frame.get("classifier_mode", "rules"),
                     "modelVersion": frame.get("model_version"),
                     "closedFist": frame.get("closed_fist", False),
+                    "closedFistFrames": 0,
+                    "closedFistReleaseFrames": 0,
+                    "closedFistLatched": False,
                     "openPalmHold": frame["open_palm_hold"],
                     "secondaryPinchStrength": frame["secondary_pinch_strength"],
                 },
@@ -99,12 +103,16 @@ def test_run_live_emits_camera_unavailable_status_and_retries() -> None:
         "debug": {
             "confidence": 0.0,
             "brightness": 0.0,
+            "frameDelayMs": 0,
             "pose": "unknown",
             "poseConfidence": 0.0,
             "poseScores": empty_pose_scores(),
             "classifierMode": "learned",
             "modelVersion": None,
             "closedFist": False,
+            "closedFistFrames": 0,
+            "closedFistReleaseFrames": 0,
+            "closedFistLatched": False,
             "openPalmHold": False,
             "secondaryPinchStrength": 0.0,
         },
@@ -117,12 +125,16 @@ def test_run_live_emits_camera_unavailable_status_and_retries() -> None:
         "debug": {
             "confidence": 0.9,
             "brightness": 0.4,
+            "frameDelayMs": 0,
             "pose": "neutral",
             "poseConfidence": 0.74,
             "poseScores": pose_scores_for_pose("neutral", 0.74),
             "classifierMode": "learned",
             "modelVersion": None,
             "closedFist": False,
+            "closedFistFrames": 0,
+            "closedFistReleaseFrames": 0,
+            "closedFistLatched": False,
             "openPalmHold": False,
             "secondaryPinchStrength": 0.0,
         },
@@ -191,4 +203,4 @@ def test_run_live_emits_preview_frames_when_enabled() -> None:
 
     assert isinstance(status_event, dict)
     assert status_event["type"] == "status"
-    assert len(preview_frames) == 1
+    assert len(preview_frames) >= 1

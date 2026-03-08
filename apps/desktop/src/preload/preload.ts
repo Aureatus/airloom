@@ -17,6 +17,8 @@ const api = {
   stopCapture: () => ipcRenderer.invoke("airloom:stop-capture"),
   discardLastCapture: () => ipcRenderer.invoke("airloom:discard-last-capture"),
   exportCaptures: () => ipcRenderer.invoke("airloom:export-captures"),
+  startDebugRecording: () => ipcRenderer.invoke("airloom:start-debug-recording"),
+  stopDebugRecording: () => ipcRenderer.invoke("airloom:stop-debug-recording"),
   sendEvent: (payload: AirloomInputEvent) =>
     ipcRenderer.invoke("airloom:send-event", payload),
   onStatus: (listener: (value: unknown) => void) => {

@@ -16,11 +16,13 @@ class _ScriptedCapture:
         self._index = 0
         self._opened = opened
         self.released = False
+        self.set_calls: list[tuple[int, int]] = []
 
     def isOpened(self) -> bool:
         return self._opened
 
     def set(self, _prop: int, _value: int) -> bool:
+        self.set_calls.append((_prop, _value))
         return True
 
     def read(self) -> tuple[bool, object | None]:
@@ -55,6 +57,28 @@ def test_camera_returns_latest_frame_from_reader_thread() -> None:
     assert np.array_equal(received, frame)
     assert received is not frame
     assert capture.released is True
+
+
+def test_camera_requests_lower_resolution_and_higher_fps() -> None:
+    import cv2
+
+    frame = np.ones((4, 4, 3), dtype=np.uint8)
+    capture = _ScriptedCapture([(True, frame, 0.0)])
+    camera = Camera(
+        frame_width=640,
+        frame_height=480,
+        target_fps=60,
+        capture_factory=lambda _device_index: capture,
+    )
+
+    try:
+        camera.read()
+    finally:
+        camera.__exit__(None, None, None)
+
+    assert (cv2.CAP_PROP_FRAME_WIDTH, 640) in capture.set_calls
+    assert (cv2.CAP_PROP_FRAME_HEIGHT, 480) in capture.set_calls
+    assert (cv2.CAP_PROP_FPS, 60) in capture.set_calls
 
 
 def test_camera_raises_when_reader_hits_repeated_failures() -> None:

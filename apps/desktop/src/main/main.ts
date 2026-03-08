@@ -1,5 +1,6 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
+import { appendFile, mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import {
   type AirloomCaptureStateEvent,
@@ -25,7 +26,15 @@ type ServiceStatus = {
   lastEvent: AirloomInputEvent | null;
   runtime: RuntimeState;
   capture: AirloomCaptureStateEvent;
+  debugRecording: DebugRecordingState;
   warnings: string[];
+};
+
+type DebugRecordingState = {
+  recording: boolean;
+  sessionPath: string | null;
+  frames: number;
+  events: number;
 };
 
 const defaultCaptureState: AirloomCaptureStateEvent = {
@@ -44,6 +53,13 @@ const defaultCaptureState: AirloomCaptureStateEvent = {
   lastTakeId: null,
   exportPath: null,
   message: null,
+};
+
+const defaultDebugRecordingState: DebugRecordingState = {
+  recording: false,
+  sessionPath: null,
+  frames: 0,
+  events: 0,
 };
 
 const getPlatformWarnings = () => {
@@ -71,6 +87,7 @@ const adapter = resolveInputAdapter();
 let serviceProcess: ChildProcess | null = null;
 let lastEvent: AirloomInputEvent | null = null;
 let captureState: AirloomCaptureStateEvent = defaultCaptureState;
+let debugRecordingState: DebugRecordingState = defaultDebugRecordingState;
 let eventDispatcher: ReturnType<typeof createEventDispatcher> | null = null;
 let currentSettings: AirloomSettings = settingsSchema.parse({});
 const runtime = createGestureRuntime(
@@ -99,8 +116,82 @@ const getServiceStatus = (): ServiceStatus => {
     lastEvent,
     runtime: runtime.getState(),
     capture: captureState,
+    debugRecording: debugRecordingState,
     warnings: getPlatformWarnings(),
   };
+};
+
+const getDebugRecordingDir = () => {
+  return join(app.getPath("userData"), "debug-recordings");
+};
+
+const recordDebugEvent = (event: AirloomInputEvent) => {
+  if (!debugRecordingState.recording || debugRecordingState.sessionPath === null) {
+    return;
+  }
+
+  debugRecordingState = {
+    ...debugRecordingState,
+    events: debugRecordingState.events + 1,
+  };
+  const eventsPath = join(debugRecordingState.sessionPath, "events.jsonl");
+  void appendFile(
+    eventsPath,
+    `${JSON.stringify({ recordedAt: Date.now(), event })}\n`,
+  );
+};
+
+const recordDebugPreviewFrame = (frame: Uint8Array) => {
+  if (!debugRecordingState.recording || debugRecordingState.sessionPath === null) {
+    return;
+  }
+
+  const nextFrames = debugRecordingState.frames + 1;
+  debugRecordingState = {
+    ...debugRecordingState,
+    frames: nextFrames,
+  };
+  const previewDir = join(debugRecordingState.sessionPath, "preview");
+  const filePath = join(previewDir, `${String(nextFrames).padStart(5, "0")}.jpg`);
+  void writeFile(filePath, frame);
+};
+
+const startDebugRecording = async () => {
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const sessionPath = join(getDebugRecordingDir(), `session-${stamp}`);
+  await mkdir(join(sessionPath, "preview"), { recursive: true });
+  debugRecordingState = {
+    recording: true,
+    sessionPath,
+    frames: 0,
+    events: 0,
+  };
+  broadcastStatus();
+  return getServiceStatus();
+};
+
+const stopDebugRecording = async () => {
+  if (debugRecordingState.sessionPath !== null) {
+    const summaryPath = join(debugRecordingState.sessionPath, "summary.json");
+    await writeFile(
+      summaryPath,
+      JSON.stringify(
+        {
+          recordedAt: new Date().toISOString(),
+          frames: debugRecordingState.frames,
+          events: debugRecordingState.events,
+        },
+        null,
+        2,
+      ),
+    );
+  }
+  debugRecordingState = {
+    ...debugRecordingState,
+    recording: false,
+  };
+  broadcastStatus();
+  return getServiceStatus();
 };
 
 const sendServiceCommand = (payload: object) => {
@@ -139,6 +230,7 @@ const attachProcessReaders = (child: ChildProcess) => {
       try {
         const event = parseInputEvent(JSON.parse(line));
         lastEvent = event;
+        recordDebugEvent(event);
         if (event.type === "capture.state") {
           captureState = event;
         }
@@ -167,6 +259,7 @@ const attachProcessReaders = (child: ChildProcess) => {
   const previewStream = child.stdio[3];
   if (previewStream !== null && previewStream !== undefined) {
     const decodePreviewFrame = createPreviewStreamDecoder((frame) => {
+      recordDebugPreviewFrame(frame);
       mainWindow?.webContents.send("airloom:preview-frame", frame);
     });
 
@@ -179,6 +272,10 @@ const attachProcessReaders = (child: ChildProcess) => {
     eventDispatcher?.stop();
     eventDispatcher = null;
     serviceProcess = null;
+    debugRecordingState = {
+      ...debugRecordingState,
+      recording: false,
+    };
     broadcastStatus();
 
     if (headlessMode && exitOnServiceExit) {
@@ -230,6 +327,10 @@ const stopVisionService = () => {
     serviceProcess = null;
   }
   captureState = defaultCaptureState;
+  debugRecordingState = {
+    ...debugRecordingState,
+    recording: false,
+  };
 
   broadcastStatus();
   return getServiceStatus();
@@ -307,6 +408,8 @@ app.whenReady().then(async () => {
     sendServiceCommand({ type: "capture.export" });
     return getServiceStatus();
   });
+  ipcMain.handle("airloom:start-debug-recording", () => startDebugRecording());
+  ipcMain.handle("airloom:stop-debug-recording", () => stopDebugRecording());
   ipcMain.handle(
     "airloom:send-event",
     async (_event, payload: AirloomInputEvent) => {

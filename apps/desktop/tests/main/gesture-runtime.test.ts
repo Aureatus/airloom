@@ -87,6 +87,7 @@ describe("createGestureRuntime", () => {
       debug: {
         confidence: 0.74,
         brightness: 0.21,
+        frameDelayMs: 18,
         pose: "closed-fist",
         poseConfidence: 0.88,
         poseScores: {
@@ -99,6 +100,9 @@ describe("createGestureRuntime", () => {
         classifierMode: "rules",
         modelVersion: null,
         closedFist: true,
+        closedFistFrames: 4,
+        closedFistReleaseFrames: 0,
+        closedFistLatched: true,
         openPalmHold: false,
         secondaryPinchStrength: 0.14,
       },
@@ -113,6 +117,7 @@ describe("createGestureRuntime", () => {
       debug: {
         confidence: 0.74,
         brightness: 0.21,
+        frameDelayMs: 18,
         pose: "closed-fist",
         poseConfidence: 0.88,
         poseScores: {
@@ -125,6 +130,9 @@ describe("createGestureRuntime", () => {
         classifierMode: "rules",
         modelVersion: null,
         closedFist: true,
+        closedFistFrames: 4,
+        closedFistReleaseFrames: 0,
+        closedFistLatched: true,
         openPalmHold: false,
         secondaryPinchStrength: 0.14,
       },

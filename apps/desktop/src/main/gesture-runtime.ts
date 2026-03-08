@@ -18,6 +18,7 @@ export type RuntimeState = {
   debug: {
     confidence: number;
     brightness: number;
+    frameDelayMs: number;
     pose: string;
     poseConfidence: number;
     poseScores: {
@@ -33,6 +34,9 @@ export type RuntimeState = {
     learnedPoseConfidence?: number;
     shadowDisagreement?: boolean;
     closedFist: boolean;
+    closedFistFrames: number;
+    closedFistReleaseFrames: number;
+    closedFistLatched: boolean;
     openPalmHold: boolean;
     secondaryPinchStrength: number;
   };
@@ -65,6 +69,7 @@ export const createGestureRuntime = (
     debug: {
       confidence: 0,
       brightness: 0,
+      frameDelayMs: 0,
       pose: "unknown",
       poseConfidence: 0,
       poseScores: {
@@ -77,6 +82,9 @@ export const createGestureRuntime = (
       classifierMode: "learned",
       modelVersion: null,
       closedFist: false,
+      closedFistFrames: 0,
+      closedFistReleaseFrames: 0,
+      closedFistLatched: false,
       openPalmHold: false,
       secondaryPinchStrength: 0,
     },
