@@ -243,6 +243,11 @@ button:hover {
   gap: 1rem;
 }
 
+.calibration-side {
+  position: sticky;
+  top: 1rem;
+}
+
 .camera-frame {
   position: relative;
   aspect-ratio: 4 / 3;
@@ -273,6 +278,33 @@ button:hover {
   margin: 0;
 }
 
+.click-sandbox {
+  position: relative;
+  min-height: 18rem;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.02)),
+    radial-gradient(circle at center, rgba(94, 215, 190, 0.08), transparent 55%);
+}
+
+.sandbox-target {
+  position: absolute;
+  width: 4.5rem;
+  height: 4.5rem;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-color: rgba(255, 209, 102, 0.55);
+  background: rgba(255, 209, 102, 0.2);
+  color: var(--copy);
+  transform: translate(-50%, -50%);
+}
+
+.sandbox-target:hover {
+  transform: translate(-50%, -50%) scale(1.02);
+}
+
 @media (max-width: 900px) {
   .shell,
   .hero,
@@ -282,5 +314,9 @@ button:hover {
   .settings-grid,
   .mapping-editor-row {
     grid-template-columns: 1fr;
+  }
+
+  .calibration-side {
+    position: static;
   }
 }

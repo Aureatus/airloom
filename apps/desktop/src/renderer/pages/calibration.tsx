@@ -26,6 +26,11 @@ const durationHotkeys: Record<number, string> = {
   2500: "4",
 };
 
+const randomSandboxTarget = () => ({
+  x: 10 + Math.random() * 70,
+  y: 10 + Math.random() * 70,
+});
+
 const isEditableTarget = (target: EventTarget | null) => {
   if (!(target instanceof HTMLElement)) {
     return false;
@@ -85,8 +90,7 @@ type CalibrationProps = {
   onExportCaptures: () => Promise<unknown>;
   primaryPinchActive: boolean;
   primaryPinchHeldMs: number;
-  primaryPinchOutcome: "idle" | "click" | "drag";
-  dragHoldThresholdMs: number;
+  primaryPinchOutcome: "idle" | "click";
 };
 
 export const CalibrationPage = ({
@@ -105,7 +109,6 @@ export const CalibrationPage = ({
   primaryPinchActive,
   primaryPinchHeldMs,
   primaryPinchOutcome,
-  dragHoldThresholdMs,
 }: CalibrationProps) => {
   const [countdown, setCountdown] = useState<number | null>(null);
   const [captureBusy, setCaptureBusy] = useState(false);
@@ -115,10 +118,13 @@ export const CalibrationPage = ({
   const exportCapturesRef = useRef(onExportCaptures);
   const changeLabelRef = useRef(onCaptureLabelChange);
   const [captureDurationMs, setCaptureDurationMs] = useState<number>(1500);
-  const progress =
-    dragHoldThresholdMs <= 0
-      ? 1
-      : Math.min(primaryPinchHeldMs / dragHoldThresholdMs, 1);
+  const [sandboxHits, setSandboxHits] = useState(0);
+  const [sandboxMisses, setSandboxMisses] = useState(0);
+  const [sandboxTarget, setSandboxTarget] = useState(randomSandboxTarget);
+  const progress = Math.min(primaryPinchHeldMs / 450, 1);
+  const sandboxAttempts = sandboxHits + sandboxMisses;
+  const sandboxAccuracy =
+    sandboxAttempts === 0 ? 0 : Math.round((sandboxHits / sandboxAttempts) * 100);
 
   const brightnessLabel = useMemo(() => {
     if (debug.brightness < 0.18) {
@@ -209,6 +215,12 @@ export const CalibrationPage = ({
     await window.airloom.setInputSuppressed(false);
     setCaptureBusy(false);
   }, [onCaptureStop]);
+
+  const resetSandbox = useCallback(() => {
+    setSandboxHits(0);
+    setSandboxMisses(0);
+    setSandboxTarget(randomSandboxTarget());
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -365,7 +377,7 @@ export const CalibrationPage = ({
               <strong>{primaryPinchHeldMs} ms</strong>
             </div>
             <div className="metric-card">
-              <span>Mapper preview</span>
+              <span>Click preview</span>
               <strong>{primaryPinchOutcome}</strong>
             </div>
             <div className="metric-card">
@@ -529,10 +541,8 @@ export const CalibrationPage = ({
 
           <div className="hold-preview">
             <div className="hold-preview-copy">
-              <span>Click vs drag</span>
-              <strong>
-                {primaryPinchHeldMs} / {dragHoldThresholdMs} ms
-              </strong>
+              <span>Primary pinch hold</span>
+              <strong>{primaryPinchHeldMs} ms</strong>
             </div>
             <div className="hold-track" aria-hidden="true">
               <div
@@ -544,8 +554,8 @@ export const CalibrationPage = ({
             </div>
           </div>
           <p className="panel-copy">
-            A primary pinch released before {dragHoldThresholdMs} ms becomes a
-            click; held longer, it becomes a drag release.
+            Primary pinch now acts as a left click on release, while secondary
+            pinch stays reserved for right click.
           </p>
         </div>
         <aside className="calibration-side">
@@ -561,6 +571,54 @@ export const CalibrationPage = ({
               reflects the actual camera frames the backend is processing. Teal
               dots show detected landmarks, amber marks the raw index pointer,
               and coral marks the smoothed pointer output.
+            </p>
+          </div>
+          <div className="eyebrow">Sandbox</div>
+          <h2>Click precision</h2>
+          <div className="camera-card">
+            <div className="metric-grid compact">
+              <div className="metric-card">
+                <span>Hits</span>
+                <strong>{sandboxHits}</strong>
+              </div>
+              <div className="metric-card">
+                <span>Misses</span>
+                <strong>{sandboxMisses}</strong>
+              </div>
+              <div className="metric-card">
+                <span>Accuracy</span>
+                <strong>{sandboxAccuracy}%</strong>
+              </div>
+            </div>
+            <div
+              className="click-sandbox"
+              onPointerDown={() => setSandboxMisses((current) => current + 1)}
+            >
+              <button
+                type="button"
+                className="sandbox-target"
+                style={{ left: `${sandboxTarget.x}%`, top: `${sandboxTarget.y}%` }}
+                onPointerDown={(event) => {
+                  event.stopPropagation();
+                }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setSandboxHits((current) => current + 1);
+                  setSandboxTarget(randomSandboxTarget());
+                }}
+                aria-label="Precision click target"
+              >
+                Hit
+              </button>
+            </div>
+            <div className="hero-actions">
+              <button type="button" className="ghost" onClick={resetSandbox}>
+                Reset sandbox
+              </button>
+            </div>
+            <p className="panel-copy camera-note">
+              Try landing left clicks on the moving square. Hits count when the
+              square is clicked; misses count when the sandbox background is clicked.
             </p>
           </div>
         </aside>

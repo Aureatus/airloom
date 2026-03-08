@@ -9,3 +9,5 @@ __pycache__/
 .mypy_cache/
 coverage/
 reports/
+apps/vision-service/data/pose-captures/
+apps/vision-service/models/pose_classifier_v1.json

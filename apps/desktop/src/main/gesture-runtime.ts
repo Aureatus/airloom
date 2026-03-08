@@ -74,7 +74,7 @@ export const createGestureRuntime = (
         "primary-pinch": 0,
         "secondary-pinch": 0,
       },
-      classifierMode: "rules",
+      classifierMode: "learned",
       modelVersion: null,
       closedFist: false,
       openPalmHold: false,

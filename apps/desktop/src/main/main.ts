@@ -207,7 +207,7 @@ const startVisionService = () => {
       AIRLOOM_CAPTURE_DIR: join(app.getPath("userData"), "captures"),
       AIRLOOM_CAPTURE_EXPORT_DIR: join(rootDir, "apps/vision-service/data/pose-captures"),
       AIRLOOM_POSE_CLASSIFIER_MODE:
-        process.env.AIRLOOM_POSE_CLASSIFIER_MODE ?? "rules",
+        process.env.AIRLOOM_POSE_CLASSIFIER_MODE ?? "learned",
       AIRLOOM_POSE_MODEL_PATH:
         process.env.AIRLOOM_POSE_MODEL_PATH ??
         join(visionServiceDir, "models/pose_classifier_v1.json"),

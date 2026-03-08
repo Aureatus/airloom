@@ -7,8 +7,6 @@ from pathlib import Path
 
 import numpy as np
 
-from app.protocol import PoseName
-
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train Airloom pose classifier")
@@ -84,7 +82,7 @@ def train_model(
     y_train = y[train_mask]
     y_val = y[~train_mask] if (~train_mask).any() else y_train
 
-    model = LogisticRegression(max_iter=2000, multi_class="multinomial")
+    model = LogisticRegression(max_iter=2000)
     model.fit(x_train, y_train)
 
     predictions = model.predict(x_val)

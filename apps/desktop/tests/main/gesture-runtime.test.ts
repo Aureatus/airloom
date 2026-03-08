@@ -68,7 +68,7 @@ describe("createGestureRuntime", () => {
       phase: "instant",
     });
 
-    expect(calls).toEqual(["down", "up", "click:left", "key:Return"]);
+    expect(calls).toEqual(["click:left", "key:Return"]);
   });
 
   test("updates status state from status events", async () => {

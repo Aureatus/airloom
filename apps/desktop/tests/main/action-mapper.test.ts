@@ -30,7 +30,7 @@ describe("createActionMapper", () => {
         gesture: "primary-pinch",
         phase: "start",
       }),
-    ).toEqual([{ type: "pointer.down", button: "left" }]);
+    ).toEqual([]);
 
     time += 120;
 
@@ -40,10 +40,7 @@ describe("createActionMapper", () => {
         gesture: "primary-pinch",
         phase: "end",
       }),
-    ).toEqual([
-      { type: "pointer.up", button: "left" },
-      { type: "click", button: "left" },
-    ]);
+    ).toEqual([{ type: "click", button: "left" }]);
 
     expect(mapper.getDebugState()).toEqual({
       pointerControlEnabled: true,
@@ -53,7 +50,7 @@ describe("createActionMapper", () => {
     });
   });
 
-  test("maps a held primary pinch to drag release without click", () => {
+  test("maps a held primary pinch to the same left click", () => {
     let time = 100;
     const mapper = createActionMapper(
       () => createSettings(),
@@ -73,7 +70,7 @@ describe("createActionMapper", () => {
         gesture: "primary-pinch",
         phase: "start",
       }),
-    ).toEqual([{ type: "pointer.down", button: "left" }]);
+    ).toEqual([]);
 
     time += 320;
 
@@ -83,10 +80,10 @@ describe("createActionMapper", () => {
         gesture: "primary-pinch",
         phase: "end",
       }),
-    ).toEqual([{ type: "pointer.up", button: "left" }]);
+    ).toEqual([{ type: "click", button: "left" }]);
   });
 
-  test("reports click-vs-drag preview while pinch is active", () => {
+  test("reports click preview while pinch is active", () => {
     let time = 100;
     const mapper = createActionMapper(
       () => createSettings(),
@@ -119,7 +116,7 @@ describe("createActionMapper", () => {
       pointerControlEnabled: true,
       primaryPinchActive: true,
       primaryPinchHeldMs: 320,
-      primaryPinchOutcome: "drag",
+      primaryPinchOutcome: "click",
     });
   });
 
@@ -183,7 +180,7 @@ describe("createActionMapper", () => {
     ).toEqual([{ type: "pointer.move", x: 62, y: 42 }]);
   });
 
-  test("releases an active drag when control is frozen again", () => {
+  test("cancels an active pinch when control is frozen again", () => {
     const mapper = createActionMapper(
       () => createSettings(),
       (x, y) => ({ x: Math.round(x * 100), y: Math.round(y * 100) }),
@@ -206,7 +203,7 @@ describe("createActionMapper", () => {
         gesture: "closed-fist",
         phase: "instant",
       }),
-    ).toEqual([{ type: "pointer.up", button: "left" }]);
+    ).toEqual([]);
 
     expect(mapper.getDebugState()).toEqual({
       pointerControlEnabled: false,

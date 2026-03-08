@@ -56,11 +56,7 @@ export const SettingsPage = ({ settings, onSave }: SettingsPageProps) => {
         </div>
         <div className="mapping-row">
           <span>Left click</span>
-          <strong>Short pinch</strong>
-        </div>
-        <div className="mapping-row">
-          <span>Drag</span>
-          <strong>{draft.dragHoldThresholdMs} ms hold</strong>
+          <strong>Primary pinch</strong>
         </div>
         <div className="mapping-row">
           <span>Right click</span>
@@ -100,22 +96,6 @@ export const SettingsPage = ({ settings, onSave }: SettingsPageProps) => {
               setDraft((current) => ({
                 ...current,
                 clickPinchThreshold: Number(event.target.value),
-              }))
-            }
-          />
-        </label>
-        <label className="settings-field">
-          <span>Drag hold ms</span>
-          <input
-            type="number"
-            min="0"
-            max="2000"
-            step="10"
-            value={draft.dragHoldThresholdMs}
-            onChange={(event) =>
-              setDraft((current) => ({
-                ...current,
-                dragHoldThresholdMs: Number(event.target.value),
               }))
             }
           />
@@ -184,8 +164,8 @@ export const SettingsPage = ({ settings, onSave }: SettingsPageProps) => {
         </button>
       </div>
       <p className="panel-copy">
-        Gesture mapping is intentionally data-driven so new actions can be added
-        without changing platform input adapters.
+        Primary pinch now clicks on release instead of switching into drag, so
+        the learned pose model can be evaluated without drag timing noise.
       </p>
       <p className="panel-copy">
         Adaptive smoothing ignores tiny tremor, then ramps responsiveness up as

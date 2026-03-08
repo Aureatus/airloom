@@ -60,7 +60,7 @@ def emit_camera_unavailable(message: str, emit_event: Callable[[object], None]) 
                 "poseConfidence": 0.0,
                 "poseScores": empty_pose_scores(),
                 "classifierMode": cast(
-                    str, os.environ.get("AIRLOOM_POSE_CLASSIFIER_MODE", "rules")
+                    str, os.environ.get("AIRLOOM_POSE_CLASSIFIER_MODE", "learned")
                 ),
                 "modelVersion": None,
                 "closedFist": False,

@@ -31,7 +31,7 @@ class HandTracker:
     mirror_x: bool = field(default_factory=lambda: os.environ.get("AIRLOOM_MIRROR_X", "1") != "0")
     classifier_mode: PoseClassifierMode = field(
         default_factory=lambda: cast(
-            PoseClassifierMode, os.environ.get("AIRLOOM_POSE_CLASSIFIER_MODE", "rules")
+            PoseClassifierMode, os.environ.get("AIRLOOM_POSE_CLASSIFIER_MODE", "learned")
         )
     )
     pose_model_path: str | None = field(

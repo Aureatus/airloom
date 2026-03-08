@@ -12,7 +12,7 @@ export type ActionMapperDebugState = {
   pointerControlEnabled: boolean;
   primaryPinchActive: boolean;
   primaryPinchHeldMs: number;
-  primaryPinchOutcome: "idle" | "click" | "drag";
+  primaryPinchOutcome: "idle" | "click";
 };
 
 export const createActionMapper = (
@@ -24,8 +24,6 @@ export const createActionMapper = (
   let pointerControlEnabled = false;
 
   const getDebugState = (): ActionMapperDebugState => {
-    const settings = getSettings();
-
     if (primaryPinchStartedAt === null) {
       return {
         pointerControlEnabled,
@@ -41,8 +39,7 @@ export const createActionMapper = (
       pointerControlEnabled,
       primaryPinchActive: true,
       primaryPinchHeldMs: heldMs,
-      primaryPinchOutcome:
-        heldMs <= settings.dragHoldThresholdMs ? "click" : "drag",
+      primaryPinchOutcome: "click",
     };
   };
 
@@ -65,15 +62,9 @@ export const createActionMapper = (
         const settings = getSettings();
 
         if (event.gesture === "closed-fist" && event.phase === "instant") {
-          const nextActions: AirloomActionEvent[] = [];
-
-          if (pointerControlEnabled && primaryPinchStartedAt !== null) {
-            primaryPinchStartedAt = null;
-            nextActions.push({ type: "pointer.up", button: "left" });
-          }
-
+          primaryPinchStartedAt = null;
           pointerControlEnabled = !pointerControlEnabled;
-          return nextActions;
+          return [];
         }
 
         if (
@@ -86,22 +77,13 @@ export const createActionMapper = (
 
         if (event.gesture === "primary-pinch" && event.phase === "start") {
           primaryPinchStartedAt = now();
-          return [{ type: "pointer.down", button: "left" }];
+          return [];
         }
 
         if (event.gesture === "primary-pinch" && event.phase === "end") {
-          const heldForMs =
-            primaryPinchStartedAt === null
-              ? settings.dragHoldThresholdMs + 1
-              : now() - primaryPinchStartedAt;
+          const hadActivePinch = primaryPinchStartedAt !== null;
           primaryPinchStartedAt = null;
-
-          return heldForMs <= settings.dragHoldThresholdMs
-            ? [
-                { type: "pointer.up", button: "left" },
-                { type: "click", button: "left" },
-              ]
-            : [{ type: "pointer.up", button: "left" }];
+          return hadActivePinch ? [{ type: "click", button: "left" }] : [];
         }
 
         if (

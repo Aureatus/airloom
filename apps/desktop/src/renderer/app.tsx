@@ -35,7 +35,7 @@ type RuntimeState = {
     pointerControlEnabled: boolean;
     primaryPinchActive: boolean;
     primaryPinchHeldMs: number;
-    primaryPinchOutcome: "idle" | "click" | "drag";
+    primaryPinchOutcome: "idle" | "click";
   };
   lastError: string | null;
 };
@@ -110,7 +110,7 @@ const initialStatus: ServiceStatus = {
         "primary-pinch": 0,
         "secondary-pinch": 0,
       },
-      classifierMode: "rules",
+      classifierMode: "learned",
       modelVersion: null,
       closedFist: false,
       openPalmHold: false,
@@ -385,7 +385,6 @@ export const App = () => {
           primaryPinchActive={status.runtime.mapper.primaryPinchActive}
           primaryPinchHeldMs={status.runtime.mapper.primaryPinchHeldMs}
           primaryPinchOutcome={status.runtime.mapper.primaryPinchOutcome}
-          dragHoldThresholdMs={settings.dragHoldThresholdMs}
         />
       ) : (
         <SettingsPage settings={settings} onSave={saveSettings} />
