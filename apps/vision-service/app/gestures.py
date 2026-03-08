@@ -79,12 +79,17 @@ class GestureMachine:
             and pose not in {"primary-pinch", "secondary-pinch", "open-palm"}
             and closed_fist_score >= CLOSED_FIST_SUSTAIN_SCORE
         )
+        speech_blocked = action_hand_separate and closed_fist
         open_palm_hold = frame.get("action_open_palm_hold", action_pose == "open-palm")
-        peace_sign = action_pose == "peace-sign" or (
-            self.peace_sign_active
-            and peace_sign_score >= PEACE_SIGN_SUSTAIN_SCORE
-            and action_pose not in {"primary-pinch", "secondary-pinch", "closed-fist"}
+        peace_sign = not speech_blocked and (
+            action_pose == "peace-sign"
+            or (
+                self.peace_sign_active
+                and peace_sign_score >= PEACE_SIGN_SUSTAIN_SCORE
+                and action_pose not in {"primary-pinch", "secondary-pinch", "closed-fist"}
+            )
         )
+        peace_sign_off_frames = 1 if speech_blocked else PEACE_SIGN_OFF_FRAMES
         primary_pinch = action_pose == "primary-pinch" or (
             self.pinch_active
             and action_pose != "closed-fist"
@@ -121,6 +126,9 @@ class GestureMachine:
             "poseScores": pose_scores,
             "classifierMode": frame.get("classifier_mode", "rules"),
             "modelVersion": frame.get("model_version"),
+            "actionPose": action_pose,
+            "actionPoseConfidence": frame.get("action_pose_confidence", pose_confidence),
+            "actionPoseScores": action_pose_scores,
             "closedFist": closed_fist,
             "closedFistFrames": self.closed_fist_counter,
             "closedFistReleaseFrames": self.closed_fist_release_counter,
@@ -179,7 +187,7 @@ class GestureMachine:
             self.peace_sign_counter = 0
             if self.peace_sign_active:
                 self.peace_sign_release_counter += 1
-                if self.peace_sign_release_counter >= PEACE_SIGN_OFF_FRAMES:
+                if self.peace_sign_release_counter >= peace_sign_off_frames:
                     self.peace_sign_active = False
                     status_event["gesture"] = "push-to-talk-release"
                     events.append(

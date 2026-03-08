@@ -101,6 +101,19 @@ def _normalize_landmark(origin: Landmark, point: Landmark, scale: float) -> tupl
     return ((point["x"] - origin["x"]) / scale, (point["y"] - origin["y"]) / scale)
 
 
+def mirror_landmarks_horizontally(
+    landmarks: list[Landmark], *, axis_x: float | None = None
+) -> list[Landmark]:
+    if not landmarks:
+        return []
+
+    resolved_axis_x = landmarks[0]["x"] if axis_x is None else axis_x
+    return [
+        {"x": resolved_axis_x - (point["x"] - resolved_axis_x), "y": point["y"]}
+        for point in landmarks
+    ]
+
+
 def extract_pose_features(landmarks: list[Landmark]) -> PoseFeatures:
     wrist = landmarks[0]
     thumb_tip = landmarks[4]

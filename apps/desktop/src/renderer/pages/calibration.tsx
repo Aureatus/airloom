@@ -42,6 +42,21 @@ const isEditableTarget = (target: EventTarget | null) => {
   return tagName === "input" || tagName === "textarea" || tagName === "select" || target.isContentEditable;
 };
 
+const handSideLabel = (value?: string) => {
+  if (!value) {
+    return null;
+  }
+
+  const normalized = value.toLowerCase();
+  if (normalized.includes("left")) {
+    return "left";
+  }
+  if (normalized.includes("right")) {
+    return "right";
+  }
+  return null;
+};
+
 type CalibrationProps = {
   serviceRunning: boolean;
   tracking: boolean;
@@ -69,6 +84,16 @@ type CalibrationProps = {
     learnedPose?: string;
     learnedPoseConfidence?: number;
     shadowDisagreement?: boolean;
+    actionPose?: string;
+    actionPoseConfidence?: number;
+    actionPoseScores?: {
+      neutral: number;
+      "open-palm": number;
+      "closed-fist": number;
+      "primary-pinch": number;
+      "secondary-pinch": number;
+      "peace-sign": number;
+    };
     closedFist: boolean;
     closedFistFrames: number;
     closedFistReleaseFrames: number;
@@ -143,6 +168,25 @@ export const CalibrationPage = ({
   const sandboxAttempts = sandboxHits + sandboxMisses;
   const sandboxAccuracy =
     sandboxAttempts === 0 ? 0 : Math.round((sandboxHits / sandboxAttempts) * 100);
+  const actionPoseScores = debug.actionPoseScores ?? debug.poseScores;
+  const pointerSide = handSideLabel(debug.pointerHand);
+  const actionSide = handSideLabel(debug.actionHand);
+  const pointerPanelClassName = [
+    "hand-debug-panel",
+    "hand-debug-panel-pointer",
+    pointerSide === "right" ? "hand-debug-panel-right" : "",
+    pointerSide === "left" ? "hand-debug-panel-left" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const actionPanelClassName = [
+    "hand-debug-panel",
+    "hand-debug-panel-action",
+    actionSide === "right" ? "hand-debug-panel-right" : "",
+    actionSide === "left" ? "hand-debug-panel-left" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   const brightnessLabel = useMemo(() => {
     if (debug.brightness < 0.18) {
@@ -321,7 +365,7 @@ export const CalibrationPage = ({
       <h2>Live gesture signal</h2>
       <div className="calibration-layout">
         <div className="calibration-main">
-          <div className="metric-grid">
+          <div className="metric-grid calibration-summary-grid">
             <div className="metric-card">
               <span>Tracking</span>
               <strong>{tracking ? "Active" : "Searching"}</strong>
@@ -333,22 +377,6 @@ export const CalibrationPage = ({
             <div className="metric-card">
               <span>Pointer</span>
               <strong>{pointerControlEnabled ? "Hold-to-move" : "Frozen"}</strong>
-            </div>
-            <div className="metric-card">
-              <span>Pointer hand</span>
-              <strong>{debug.pointerHand ?? "unknown"}</strong>
-            </div>
-            <div className="metric-card">
-              <span>Action hand</span>
-              <strong>{debug.actionHand ?? "unknown"}</strong>
-            </div>
-            <div className="metric-card">
-              <span>Primary pinch</span>
-              <strong>{pinchStrength.toFixed(2)}</strong>
-            </div>
-            <div className="metric-card">
-              <span>Secondary pinch</span>
-              <strong>{debug.secondaryPinchStrength.toFixed(2)}</strong>
             </div>
             <div className="metric-card">
               <span>Confidence</span>
@@ -365,12 +393,6 @@ export const CalibrationPage = ({
               <strong>{debug.frameDelayMs} ms</strong>
             </div>
             <div className="metric-card">
-              <span>Pose</span>
-              <strong>
-                {debug.pose} ({debug.poseConfidence.toFixed(2)})
-              </strong>
-            </div>
-            <div className="metric-card">
               <span>Classifier</span>
               <strong>{debug.classifierMode}</strong>
             </div>
@@ -378,53 +400,120 @@ export const CalibrationPage = ({
               <span>Model</span>
               <strong>{debug.modelVersion ?? "rules only"}</strong>
             </div>
-            <div className="metric-card">
-              <span>Primary score</span>
-              <strong>{debug.poseScores["primary-pinch"].toFixed(2)}</strong>
-            </div>
-            <div className="metric-card">
-              <span>Fist score</span>
-              <strong>{debug.poseScores["closed-fist"].toFixed(2)}</strong>
-            </div>
-            <div className="metric-card">
-              <span>Palm score</span>
-              <strong>{debug.poseScores["open-palm"].toFixed(2)}</strong>
-            </div>
-            <div className="metric-card">
-              <span>Peace score</span>
-              <strong>{(debug.poseScores["peace-sign"] ?? 0).toFixed(2)}</strong>
-            </div>
-            <div className="metric-card">
-              <span>Neutral score</span>
-              <strong>{debug.poseScores.neutral.toFixed(2)}</strong>
-            </div>
-            <div className="metric-card">
-              <span>Closed fist</span>
-              <strong>{debug.closedFist ? "Seen" : "No"}</strong>
-            </div>
-            <div className="metric-card">
-              <span>Fist frames</span>
-              <strong>{debug.closedFistFrames}</strong>
-            </div>
+          </div>
+
+          <div className="hand-debug-sections">
+            <section className={pointerPanelClassName}>
+              <div className="hand-debug-header">
+                <div>
+                  <div className="eyebrow">Pointer side</div>
+                  <h3>{pointerSide === "right" ? "Right hand" : pointerSide === "left" ? "Left hand" : "Pointer hand"}</h3>
+                </div>
+                <div className="hand-debug-chip">Pointer · {debug.pointerHand ?? "unknown"}</div>
+              </div>
+              <div className="metric-grid hand-debug-grid">
+                <div className="metric-card">
+                  <span>Pose</span>
+                  <strong>
+                    {debug.pose} ({debug.poseConfidence.toFixed(2)})
+                  </strong>
+                </div>
+                <div className="metric-card">
+                  <span>Primary</span>
+                  <strong>{debug.poseScores["primary-pinch"].toFixed(2)}</strong>
+                </div>
+                <div className="metric-card">
+                  <span>Fist</span>
+                  <strong>{debug.poseScores["closed-fist"].toFixed(2)}</strong>
+                </div>
+                <div className="metric-card">
+                  <span>Palm</span>
+                  <strong>{debug.poseScores["open-palm"].toFixed(2)}</strong>
+                </div>
+                <div className="metric-card">
+                  <span>Peace</span>
+                  <strong>{(debug.poseScores["peace-sign"] ?? 0).toFixed(2)}</strong>
+                </div>
+                <div className="metric-card">
+                  <span>Neutral</span>
+                  <strong>{debug.poseScores.neutral.toFixed(2)}</strong>
+                </div>
+                <div className="metric-card">
+                  <span>Closed fist</span>
+                  <strong>{debug.closedFist ? "Seen" : "No"}</strong>
+                </div>
+                <div className="metric-card">
+                  <span>Fist frames</span>
+                  <strong>{debug.closedFistFrames}</strong>
+                </div>
+                <div className="metric-card">
+                  <span>Fist latched</span>
+                  <strong>{debug.closedFistLatched ? "Yes" : "No"}</strong>
+                </div>
+              </div>
+            </section>
+
+            <section className={actionPanelClassName}>
+              <div className="hand-debug-header">
+                <div>
+                  <div className="eyebrow">Action side</div>
+                  <h3>{actionSide === "right" ? "Right hand" : actionSide === "left" ? "Left hand" : "Action hand"}</h3>
+                </div>
+                <div className="hand-debug-chip">Action · {debug.actionHand ?? "unknown"}</div>
+              </div>
+              <div className="metric-grid hand-debug-grid">
+                <div className="metric-card">
+                  <span>Pose</span>
+                  <strong>
+                    {debug.actionPose ?? debug.pose} ({(
+                      debug.actionPoseConfidence ?? debug.poseConfidence
+                    ).toFixed(2)})
+                  </strong>
+                </div>
+                <div className="metric-card">
+                  <span>Primary</span>
+                  <strong>{actionPoseScores["primary-pinch"].toFixed(2)}</strong>
+                </div>
+                <div className="metric-card">
+                  <span>Secondary</span>
+                  <strong>{debug.secondaryPinchStrength.toFixed(2)}</strong>
+                </div>
+                <div className="metric-card">
+                  <span>Palm</span>
+                  <strong>{actionPoseScores["open-palm"].toFixed(2)}</strong>
+                </div>
+                <div className="metric-card">
+                  <span>Peace</span>
+                  <strong>{(actionPoseScores["peace-sign"] ?? 0).toFixed(2)}</strong>
+                </div>
+                <div className="metric-card">
+                  <span>Neutral</span>
+                  <strong>{actionPoseScores.neutral.toFixed(2)}</strong>
+                </div>
+                <div className="metric-card">
+                  <span>Pinch</span>
+                  <strong>{pinchStrength.toFixed(2)}</strong>
+                </div>
+                <div className="metric-card">
+                  <span>Open palm</span>
+                  <strong>{debug.openPalmHold ? "Seen" : "No"}</strong>
+                </div>
+                <div className="metric-card">
+                  <span>Click preview</span>
+                  <strong>{primaryPinchOutcome}</strong>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div className="metric-grid calibration-summary-grid">
             <div className="metric-card">
               <span>Fist release</span>
               <strong>{debug.closedFistReleaseFrames}</strong>
             </div>
             <div className="metric-card">
-              <span>Fist latched</span>
-              <strong>{debug.closedFistLatched ? "Yes" : "No"}</strong>
-            </div>
-            <div className="metric-card">
-              <span>Open palm</span>
-              <strong>{debug.openPalmHold ? "Seen" : "No"}</strong>
-            </div>
-            <div className="metric-card">
               <span>Pinch hold</span>
               <strong>{primaryPinchHeldMs} ms</strong>
-            </div>
-            <div className="metric-card">
-              <span>Click preview</span>
-              <strong>{primaryPinchOutcome}</strong>
             </div>
             <div className="metric-card">
               <span>Hold active</span>

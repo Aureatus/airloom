@@ -140,6 +140,9 @@ class StatusDebug(TypedDict):
     learnedPose: NotRequired[PoseName]
     learnedPoseConfidence: NotRequired[float]
     shadowDisagreement: NotRequired[bool]
+    actionPose: NotRequired[PoseName]
+    actionPoseConfidence: NotRequired[float]
+    actionPoseScores: NotRequired[PoseScores]
     closedFist: bool
     closedFistFrames: int
     closedFistReleaseFrames: int
@@ -190,6 +193,7 @@ class FrameState(TypedDict):
     confidence: float
     brightness: NotRequired[float]
     hand_landmarks: NotRequired[list[Landmark]]
+    action_hand_landmarks: NotRequired[list[Landmark]]
     feature_values: NotRequired[dict[str, float]]
     delay_ms: NotRequired[int]
     fallback_reason: NotRequired[str]

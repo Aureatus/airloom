@@ -1,4 +1,9 @@
-from app.pose_features import FEATURE_SCHEMA_VERSION, extract_pose_features, flatten_pose_features
+from app.pose_features import (
+    FEATURE_SCHEMA_VERSION,
+    extract_pose_features,
+    flatten_pose_features,
+    mirror_landmarks_horizontally,
+)
 from app.protocol import Landmark
 
 
@@ -60,3 +65,13 @@ def test_flatten_pose_features_exposes_stable_numeric_vector() -> None:
     assert "primary_pinch_strength" in values
     assert "lm_0_x" in values
     assert "lm_20_y" in values
+
+
+def test_mirror_landmarks_horizontally_reflects_points_around_wrist_x() -> None:
+    points = base_landmarks()
+
+    mirrored = mirror_landmarks_horizontally(points)
+
+    assert mirrored[0]["x"] == points[0]["x"]
+    assert mirrored[8]["x"] == points[0]["x"] + (points[0]["x"] - points[8]["x"])
+    assert mirrored[8]["y"] == points[8]["y"]

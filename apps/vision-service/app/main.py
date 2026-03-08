@@ -90,9 +90,18 @@ def annotate_debug_frame(frame: Any, frame_state: FrameState | None) -> Any:
         for point in frame_state.get("hand_landmarks", []):
             _draw_marker(annotated, point, (94, 215, 190), 3)
 
+        action_hand_landmarks = frame_state.get("action_hand_landmarks", [])
+        if frame_state.get("action_hand_separate"):
+            for point in action_hand_landmarks:
+                _draw_marker(annotated, point, (255, 209, 102), 3)
+
         raw_pointer = frame_state.get("raw_pointer")
         if raw_pointer is not None:
             _draw_marker(annotated, raw_pointer, (255, 209, 102), 6)
+
+        action_pointer = frame_state.get("action_pointer")
+        if frame_state.get("action_hand_separate") and action_pointer is not None:
+            _draw_marker(annotated, action_pointer, (255, 230, 163), 5)
 
         pointer = frame_state.get("pointer")
         if pointer is not None:

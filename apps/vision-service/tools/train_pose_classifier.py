@@ -2,10 +2,24 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
+import warnings
 from collections import defaultdict
 from pathlib import Path
+from typing import cast
 
 import numpy as np
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from app.pose_features import (
+    extract_pose_features,
+    flatten_pose_features,
+    mirror_landmarks_horizontally,
+)
+from app.protocol import Landmark
 
 
 def parse_args() -> argparse.Namespace:
@@ -26,6 +40,34 @@ def parse_args() -> argparse.Namespace:
 
 def iter_capture_documents(root: Path) -> list[dict[str, object]]:
     return [json.loads(path.read_text()) for path in sorted(root.glob("**/*.json"))]
+
+
+def _feature_rows_from_frame(frame: dict[str, object]) -> list[dict[str, float]]:
+    landmarks = frame.get("landmarks")
+    if not isinstance(landmarks, list) or not landmarks:
+        features = frame.get("features")
+        return [features] if isinstance(features, dict) else []
+
+    typed_landmarks = cast(
+        list[Landmark],
+        [
+            {"x": float(point["x"]), "y": float(point["y"])}
+            for point in landmarks
+            if isinstance(point, dict) and "x" in point and "y" in point
+        ],
+    )
+    if not typed_landmarks:
+        features = frame.get("features")
+        return [features] if isinstance(features, dict) else []
+
+    feature_rows: list[dict[str, float]] = []
+    for candidate_landmarks in (
+        typed_landmarks,
+        mirror_landmarks_horizontally(typed_landmarks),
+    ):
+        pose_features = extract_pose_features(candidate_landmarks)
+        feature_rows.append(flatten_pose_features(candidate_landmarks, pose_features))
+    return feature_rows
 
 
 def load_training_rows(
@@ -50,19 +92,110 @@ def load_training_rows(
                 continue
             if not isinstance(frame, dict) or not frame.get("tracking", False):
                 continue
-            features = frame.get("features")
-            if not isinstance(features, dict):
+            feature_rows = _feature_rows_from_frame(frame)
+            if not feature_rows:
                 continue
             if feature_names is None:
-                feature_names = sorted(str(name) for name in features)
-            rows.append([float(features[name]) for name in feature_names])
-            labels.append(label)
-            sessions.append(session_id)
+                feature_names = sorted(str(name) for name in feature_rows[0])
+            for features in feature_rows:
+                rows.append([float(features[name]) for name in feature_names])
+                labels.append(label)
+                sessions.append(session_id)
 
     if feature_names is None or not rows:
         raise ValueError("No capture frames with feature payloads were found")
 
     return feature_names, np.array(rows, dtype=np.float64), np.array(labels), sessions
+
+
+def _fallback_validation_split(y: np.ndarray, sessions: list[str]) -> tuple[np.ndarray, set[str]]:
+    validation_indices: set[int] = set()
+    for label in sorted(set(y)):
+        label_indices = [index for index, value in enumerate(y) if value == label]
+        if len(label_indices) <= 1:
+            continue
+        validation_indices.add(label_indices[0])
+
+    if validation_indices:
+        train_mask = np.array([index not in validation_indices for index in range(len(sessions))])
+        validation_refs = {f"row-{index}" for index in sorted(validation_indices)}
+        return train_mask, validation_refs
+
+    return np.ones(len(sessions), dtype=bool), set()
+
+
+def _select_validation_split(y: np.ndarray, sessions: list[str]) -> tuple[np.ndarray, set[str]]:
+    unique_sessions = sorted(set(sessions))
+    if not unique_sessions:
+        return np.ones(len(sessions), dtype=bool), set()
+
+    all_labels = {str(label) for label in y}
+    target_count = max(1, len(unique_sessions) // 5)
+    session_to_indices = {
+        session: [index for index, value in enumerate(sessions) if value == session]
+        for session in unique_sessions
+    }
+    session_to_labels = {
+        session: {str(y[index]) for index in indices}
+        for session, indices in session_to_indices.items()
+    }
+    label_to_sessions: dict[str, set[str]] = {label: set() for label in all_labels}
+    for session, labels in session_to_labels.items():
+        for label in labels:
+            label_to_sessions[label].add(session)
+
+    selected_sessions: set[str] = set()
+    uncovered_labels = set(all_labels)
+
+    def can_select(session: str) -> bool:
+        for label in session_to_labels[session]:
+            if len(label_to_sessions[label] - (selected_sessions | {session})) == 0:
+                return False
+        return True
+
+    while uncovered_labels:
+        candidates = [
+            session
+            for session in unique_sessions
+            if session not in selected_sessions
+            and can_select(session)
+            and session_to_labels[session] & uncovered_labels
+        ]
+        if not candidates:
+            break
+        chosen_session = sorted(
+            candidates,
+            key=lambda session: (
+                -len(session_to_labels[session] & uncovered_labels),
+                -len(session_to_indices[session]),
+                session,
+            ),
+        )[0]
+        selected_sessions.add(chosen_session)
+        uncovered_labels -= session_to_labels[chosen_session]
+
+    for session in unique_sessions:
+        if len(selected_sessions) >= target_count:
+            break
+        if session in selected_sessions or not can_select(session):
+            continue
+        selected_sessions.add(session)
+
+    if selected_sessions:
+        train_mask = np.array([session not in selected_sessions for session in sessions])
+        train_labels = {str(label) for label in y[train_mask]} if train_mask.any() else set()
+        validation_labels = (
+            {str(label) for label in y[~train_mask]} if (~train_mask).any() else set()
+        )
+        if (
+            train_mask.any()
+            and (~train_mask).any()
+            and train_labels == all_labels
+            and validation_labels == all_labels
+        ):
+            return train_mask, selected_sessions
+
+    return _fallback_validation_split(y, sessions)
 
 
 def train_model(
@@ -76,24 +209,7 @@ def train_model(
             "Training dependencies are missing. Run with `uv sync --group train` first."
         ) from error
 
-    unique_sessions = sorted(set(sessions))
-    validation_sessions = set(unique_sessions[::5] or unique_sessions[-1:])
-    train_mask = np.array([session not in validation_sessions for session in sessions])
-    if not train_mask.any() or train_mask.all() or set(y[train_mask]) != set(y):
-        validation_indices: set[int] = set()
-        for label in sorted(set(y)):
-            label_indices = [index for index, value in enumerate(y) if value == label]
-            if len(label_indices) <= 1:
-                continue
-            validation_indices.add(label_indices[0])
-        if validation_indices:
-            train_mask = np.array(
-                [index not in validation_indices for index in range(len(sessions))]
-            )
-            validation_sessions = {f"row-{index}" for index in sorted(validation_indices)}
-        else:
-            train_mask = np.ones(len(sessions), dtype=bool)
-            validation_sessions = set()
+    train_mask, validation_sessions = _select_validation_split(y, sessions)
 
     mean = x[train_mask].mean(axis=0)
     scale = x[train_mask].std(axis=0)
@@ -108,8 +224,19 @@ def train_model(
 
     predictions = model.predict(x_val)
     labels = [str(label) for label in model.classes_]
-    report = classification_report(y_val, predictions, labels=labels, output_dict=True)
-    matrix = confusion_matrix(y_val, predictions, labels=labels).tolist()
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message=".*Recall is ill-defined.*",
+            category=UserWarning,
+        )
+        report = classification_report(
+            y_val,
+            predictions,
+            labels=labels,
+            output_dict=True,
+        )
+    matrix = np.asarray(confusion_matrix(y_val, predictions, labels=labels)).tolist()
 
     return {
         "feature_schema_version": int(x[0][0]) if feature_names[0] == "schema_version" else 1,
@@ -117,8 +244,8 @@ def train_model(
         "labels": labels,
         "mean": mean.tolist(),
         "scale": scale.tolist(),
-        "weights": model.coef_.tolist(),
-        "bias": model.intercept_.tolist(),
+        "weights": np.asarray(model.coef_).tolist(),
+        "bias": np.asarray(model.intercept_).tolist(),
         "metrics": {
             "classification_report": report,
             "confusion_matrix": matrix,

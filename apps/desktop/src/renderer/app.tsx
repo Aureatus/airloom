@@ -38,6 +38,16 @@ type RuntimeState = {
     learnedPose?: string;
     learnedPoseConfidence?: number;
     shadowDisagreement?: boolean;
+    actionPose?: string;
+    actionPoseConfidence?: number;
+    actionPoseScores?: {
+      neutral: number;
+      "open-palm": number;
+      "closed-fist": number;
+      "primary-pinch": number;
+      "secondary-pinch": number;
+      "peace-sign": number;
+    };
     closedFist: boolean;
     closedFistFrames: number;
     closedFistReleaseFrames: number;

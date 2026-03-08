@@ -420,6 +420,7 @@ class HandTracker:
             "confidence": 0.9,
             "brightness": brightness,
             "hand_landmarks": pointer_hand.hand_landmarks,
+            "action_hand_landmarks": action_hand.hand_landmarks,
             "feature_values": pointer_hand.feature_values,
         }
         if role_reason is not None:

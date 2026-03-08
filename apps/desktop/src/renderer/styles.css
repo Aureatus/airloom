@@ -284,6 +284,75 @@ button:hover {
   gap: 1rem;
 }
 
+.calibration-summary-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.hand-debug-sections {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.hand-debug-panel {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.hand-debug-panel h3 {
+  margin: 0.2rem 0 0;
+}
+
+.hand-debug-panel-pointer {
+  border-color: rgba(94, 215, 190, 0.38);
+  background: linear-gradient(
+    180deg,
+    rgba(94, 215, 190, 0.08),
+    rgba(255, 255, 255, 0.025)
+  );
+}
+
+.hand-debug-panel-action {
+  border-color: rgba(255, 209, 102, 0.38);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 209, 102, 0.08),
+    rgba(255, 255, 255, 0.025)
+  );
+}
+
+.hand-debug-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: start;
+}
+
+.hand-debug-chip {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(7, 16, 21, 0.5);
+  padding: 0.45rem 0.7rem;
+  font-size: 0.84rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--copy);
+}
+
+.hand-debug-panel-left {
+  order: 1;
+}
+
+.hand-debug-panel-right {
+  order: 2;
+}
+
+.hand-debug-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .calibration-side {
   position: sticky;
   top: 1rem;
@@ -448,7 +517,9 @@ button:hover {
   .dashboard,
   .dashboard-main,
   .calibration-layout,
+  .hand-debug-sections,
   .metric-grid,
+  .hand-debug-grid,
   .settings-grid,
   .mapping-editor-row {
     grid-template-columns: 1fr;

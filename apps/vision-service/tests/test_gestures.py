@@ -418,6 +418,69 @@ def test_peace_sign_releases_when_tracking_is_lost() -> None:
     )
 
 
+def test_peace_sign_does_not_start_while_bimanual_pointer_control_is_active() -> None:
+    machine = GestureMachine()
+
+    events = machine.update(
+        frame_state(
+            pose="closed-fist",
+            pose_scores=pose_scores(pose="closed-fist", confidence=0.91),
+            closed_fist=True,
+            action_pose="peace-sign",
+            action_pose_scores=pose_scores(pose="peace-sign", confidence=0.92),
+            action_hand_separate=True,
+            confidence=0.91,
+        )
+    )
+
+    assert not any(
+        event.get("type") == "gesture.intent" and event.get("gesture") == "peace-sign"
+        for event in events
+    )
+    assert any(event.get("type") == "pointer.observed" for event in events)
+
+
+def test_bimanual_pointer_control_immediately_releases_active_peace_sign() -> None:
+    machine = GestureMachine()
+
+    machine.update(
+        frame_state(
+            pose="peace-sign",
+            pose_scores=pose_scores(pose="peace-sign", confidence=0.88),
+            pinch_strength=0.14,
+            secondary_pinch_strength=0.12,
+        )
+    )
+    machine.update(
+        frame_state(
+            pose="peace-sign",
+            pose_scores=pose_scores(pose="peace-sign", confidence=0.9),
+            pinch_strength=0.14,
+            secondary_pinch_strength=0.12,
+        )
+    )
+
+    release_events = machine.update(
+        frame_state(
+            pose="closed-fist",
+            pose_scores=pose_scores(pose="closed-fist", confidence=0.91),
+            closed_fist=True,
+            action_pose="peace-sign",
+            action_pose_scores=pose_scores(pose="peace-sign", confidence=0.92),
+            action_hand_separate=True,
+            confidence=0.91,
+        )
+    )
+
+    assert any(
+        event.get("type") == "gesture.intent"
+        and event.get("gesture") == "peace-sign"
+        and event.get("phase") == "end"
+        for event in release_events
+    )
+    assert any(event.get("type") == "pointer.observed" for event in release_events)
+
+
 def test_closed_fist_emits_pointer_observations_only_while_held() -> None:
     machine = GestureMachine()
     trigger_events = []

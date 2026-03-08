@@ -66,6 +66,18 @@ export const statusDebugSchema = z.object({
   learnedPose: z.string().min(1).optional(),
   learnedPoseConfidence: z.number().min(0).max(1).optional(),
   shadowDisagreement: z.boolean().optional(),
+  actionPose: z.string().min(1).optional(),
+  actionPoseConfidence: z.number().min(0).max(1).optional(),
+  actionPoseScores: z
+    .object({
+      neutral: z.number().min(0).max(1),
+      "open-palm": z.number().min(0).max(1),
+      "closed-fist": z.number().min(0).max(1),
+      "primary-pinch": z.number().min(0).max(1),
+      "secondary-pinch": z.number().min(0).max(1),
+      "peace-sign": z.number().min(0).max(1),
+    })
+    .optional(),
   closedFist: z.boolean(),
   closedFistFrames: z.number().int().nonnegative(),
   closedFistReleaseFrames: z.number().int().nonnegative(),
