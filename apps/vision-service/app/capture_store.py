@@ -5,13 +5,55 @@ import shutil
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Literal
 from uuid import uuid4
 
-from app.protocol import CaptureCounts, PoseClassifierMode, PoseName, empty_capture_counts
+from app.protocol import CaptureCounts, PoseClassifierMode, empty_capture_counts
+
+CaptureLabel = Literal[
+    "neutral",
+    "open-palm",
+    "closed-fist",
+    "primary-pinch",
+    "secondary-pinch",
+]
+
+
+@dataclass(frozen=True, slots=True)
+class CaptureTakeRecord:
+    take_id: str
+    path: Path
+    label: CaptureLabel
 
 
 def _timestamp() -> str:
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
+
+
+def _increment_count(counts: CaptureCounts, label: CaptureLabel) -> None:
+    if label == "neutral":
+        counts["neutral"] += 1
+    elif label == "open-palm":
+        counts["open-palm"] += 1
+    elif label == "closed-fist":
+        counts["closed-fist"] += 1
+    elif label == "primary-pinch":
+        counts["primary-pinch"] += 1
+    else:
+        counts["secondary-pinch"] += 1
+
+
+def _decrement_count(counts: CaptureCounts, label: CaptureLabel) -> None:
+    if label == "neutral":
+        counts["neutral"] = max(0, counts["neutral"] - 1)
+    elif label == "open-palm":
+        counts["open-palm"] = max(0, counts["open-palm"] - 1)
+    elif label == "closed-fist":
+        counts["closed-fist"] = max(0, counts["closed-fist"] - 1)
+    elif label == "primary-pinch":
+        counts["primary-pinch"] = max(0, counts["primary-pinch"] - 1)
+    else:
+        counts["secondary-pinch"] = max(0, counts["secondary-pinch"] - 1)
 
 
 @dataclass(slots=True)
@@ -24,6 +66,7 @@ class CaptureStore:
     last_take_id: str | None = None
     last_take_path: Path | None = None
     last_export_path: Path | None = None
+    take_history: list[CaptureTakeRecord] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         self.root_dir.mkdir(parents=True, exist_ok=True)
@@ -37,7 +80,7 @@ class CaptureStore:
     def save_take(
         self,
         *,
-        label: PoseName,
+        label: CaptureLabel,
         frames: list[dict[str, object]],
         classifier_mode: PoseClassifierMode,
         mirror_x: bool,
@@ -61,26 +104,25 @@ class CaptureStore:
         }
         path.write_text(json.dumps(document, indent=2))
         self.take_count += 1
-        self.counts[label] += 1
+        _increment_count(self.counts, label)
+        self.take_history.append(CaptureTakeRecord(take_id=take_id, path=path, label=label))
         self.last_take_id = take_id
         self.last_take_path = path
         return path
 
     def discard_last_take(self) -> bool:
-        if (
-            self.last_take_path is None
-            or not self.last_take_path.exists()
-            or self.last_take_id is None
-        ):
+        if not self.take_history:
             return False
-        payload = json.loads(self.last_take_path.read_text())
-        label = payload.get("label")
-        self.last_take_path.unlink()
+
+        latest_take = self.take_history.pop()
+        if latest_take.path.exists():
+            latest_take.path.unlink()
         self.take_count = max(0, self.take_count - 1)
-        if isinstance(label, str) and label in self.counts:
-            self.counts[label] = max(0, self.counts[label] - 1)
-        self.last_take_path = None
-        self.last_take_id = None
+        _decrement_count(self.counts, latest_take.label)
+
+        previous_take = self.take_history[-1] if self.take_history else None
+        self.last_take_path = previous_take.path if previous_take is not None else None
+        self.last_take_id = previous_take.take_id if previous_take is not None else None
         return True
 
     def export_session(self) -> Path:

@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import cast
 
-from app.capture_store import CaptureStore
+from app.capture_store import CaptureLabel, CaptureStore
 from app.protocol import CaptureCounts, CaptureStateEvent, FrameState, GestureEvent, PoseName
 
 CAPTUREABLE_POSES: set[PoseName] = {
@@ -95,7 +95,7 @@ class CaptureController:
                     self.emit_event(snapshot)
                     return
                 self._store.save_take(
-                    label=self.active_label,
+                    label=cast(CaptureLabel, self.active_label),
                     frames=self._current_frames,
                     classifier_mode=self._last_frame_state.get("classifier_mode", "rules"),
                     mirror_x=self.mirror_x,
