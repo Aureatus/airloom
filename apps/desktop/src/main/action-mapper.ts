@@ -12,7 +12,7 @@ export type ActionMapperDebugState = {
   pointerControlEnabled: boolean;
   primaryPinchActive: boolean;
   primaryPinchHeldMs: number;
-  primaryPinchOutcome: "idle" | "click";
+  primaryPinchOutcome: "idle" | "click" | "drag";
 };
 
 export const createActionMapper = (
@@ -21,7 +21,21 @@ export const createActionMapper = (
   now: Now = () => Date.now(),
 ) => {
   let primaryPinchStartedAt: number | null = null;
+  let primaryPinchDragging = false;
   let pointerControlEnabled = false;
+
+  const maybeStartDrag = (thresholdMs: number): AirloomActionEvent[] => {
+    if (primaryPinchStartedAt === null || primaryPinchDragging) {
+      return [];
+    }
+
+    if (Math.max(0, now() - primaryPinchStartedAt) < thresholdMs) {
+      return [];
+    }
+
+    primaryPinchDragging = true;
+    return [{ type: "pointer.down", button: "left" }];
+  };
 
   const getDebugState = (): ActionMapperDebugState => {
     if (primaryPinchStartedAt === null) {
@@ -39,18 +53,24 @@ export const createActionMapper = (
       pointerControlEnabled,
       primaryPinchActive: true,
       primaryPinchHeldMs: heldMs,
-      primaryPinchOutcome: "click",
+      primaryPinchOutcome:
+        primaryPinchDragging || heldMs >= getSettings().dragHoldThresholdMs
+          ? "drag"
+          : "click",
     };
   };
 
   const mapEvent = (event: AirloomInputEvent): AirloomActionEvent[] => {
     switch (event.type) {
       case "pointer.observed": {
+        const settings = getSettings();
+        const dragActions = maybeStartDrag(settings.dragHoldThresholdMs);
         if (!pointerControlEnabled) {
-          return [];
+          return dragActions;
         }
 
         return [
+          ...dragActions,
           {
             type: "pointer.move",
             ...normalizePosition(event.x, event.y),
@@ -63,13 +83,22 @@ export const createActionMapper = (
 
         if (event.gesture === "primary-pinch" && event.phase === "start") {
           primaryPinchStartedAt = now();
+          primaryPinchDragging = false;
           return [];
         }
 
         if (event.gesture === "primary-pinch" && event.phase === "end") {
           const hadActivePinch = primaryPinchStartedAt !== null;
+          const wasDragging = primaryPinchDragging;
           primaryPinchStartedAt = null;
-          return hadActivePinch ? [{ type: "click", button: "left" }] : [];
+          primaryPinchDragging = false;
+          if (!hadActivePinch) {
+            return [];
+          }
+
+          return wasDragging
+            ? [{ type: "pointer.up", button: "left" }]
+            : [{ type: "click", button: "left" }];
         }
 
         if (
@@ -92,7 +121,7 @@ export const createActionMapper = (
 
       case "status": {
         pointerControlEnabled = event.debug?.closedFist ?? false;
-        return [];
+        return maybeStartDrag(getSettings().dragHoldThresholdMs);
       }
     }
   };

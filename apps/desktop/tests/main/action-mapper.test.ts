@@ -44,7 +44,7 @@ describe("createActionMapper", () => {
     });
   });
 
-  test("maps a held primary pinch to the same left click", () => {
+  test("starts a drag after the hold threshold and releases on pinch end", () => {
     let time = 100;
     const mapper = createActionMapper(
       () => createSettings(),
@@ -64,14 +64,45 @@ describe("createActionMapper", () => {
 
     expect(
       mapper.mapEvent({
+        type: "status",
+        tracking: true,
+        pinchStrength: 0,
+        gesture: "closed-fist",
+        debug: {
+          confidence: 0.9,
+          brightness: 0.4,
+          frameDelayMs: 10,
+          pose: "closed-fist",
+          poseConfidence: 0.9,
+          poseScores: {
+            neutral: 0.05,
+            "open-palm": 0.04,
+            "closed-fist": 0.9,
+            "primary-pinch": 0.01,
+            "secondary-pinch": 0.01,
+          },
+          classifierMode: "learned",
+          modelVersion: null,
+          closedFist: true,
+          closedFistFrames: 2,
+          closedFistReleaseFrames: 0,
+          closedFistLatched: true,
+          openPalmHold: false,
+          secondaryPinchStrength: 0.1,
+        },
+      }),
+    ).toEqual([{ type: "pointer.down", button: "left" }]);
+
+    expect(
+      mapper.mapEvent({
         type: "gesture.intent",
         gesture: "primary-pinch",
         phase: "end",
       }),
-    ).toEqual([{ type: "click", button: "left" }]);
+    ).toEqual([{ type: "pointer.up", button: "left" }]);
   });
 
-  test("reports click preview while pinch is active", () => {
+  test("reports drag preview once pinch hold crosses threshold", () => {
     let time = 100;
     const mapper = createActionMapper(
       () => createSettings(),
@@ -98,8 +129,65 @@ describe("createActionMapper", () => {
       pointerControlEnabled: false,
       primaryPinchActive: true,
       primaryPinchHeldMs: 320,
-      primaryPinchOutcome: "click",
+      primaryPinchOutcome: "drag",
     });
+  });
+
+  test("emits pointer down before move when drag starts during clutch motion", () => {
+    let time = 100;
+    const mapper = createActionMapper(
+      () => createSettings(),
+      (x, y) => ({ x: Math.round(x * 100), y: Math.round(y * 100) }),
+      () => time,
+    );
+
+    mapper.mapEvent({
+      type: "status",
+      tracking: true,
+      pinchStrength: 0,
+      gesture: "closed-fist",
+      debug: {
+        confidence: 0.9,
+        brightness: 0.4,
+        frameDelayMs: 10,
+        pose: "closed-fist",
+        poseConfidence: 0.9,
+        poseScores: {
+          neutral: 0.05,
+          "open-palm": 0.04,
+          "closed-fist": 0.9,
+          "primary-pinch": 0.01,
+          "secondary-pinch": 0.01,
+        },
+        classifierMode: "learned",
+        modelVersion: null,
+        closedFist: true,
+        closedFistFrames: 2,
+        closedFistReleaseFrames: 0,
+        closedFistLatched: true,
+        openPalmHold: false,
+        secondaryPinchStrength: 0.1,
+      },
+    });
+    mapper.mapEvent({
+      type: "gesture.intent",
+      gesture: "primary-pinch",
+      phase: "start",
+    });
+
+    time += 260;
+
+    expect(
+      mapper.mapEvent({
+        type: "pointer.observed",
+        x: 0.62,
+        y: 0.42,
+        confidence: 0.91,
+      }),
+    ).toEqual([
+      { type: "pointer.down", button: "left" },
+      { type: "pointer.move", x: 62, y: 42 },
+    ]);
   });
 
   test("maps symbolic gestures to configurable actions", () => {

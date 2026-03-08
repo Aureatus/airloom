@@ -179,7 +179,13 @@ export const createGestureRuntime = (
         }
 
         case "status": {
-          actionMapper.mapEvent(event);
+          if (!state.inputSuppressed) {
+            for (const action of actionMapper.mapEvent(event)) {
+              await executeAction(action);
+            }
+          } else {
+            actionMapper.mapEvent(event);
+          }
           state.tracking = event.tracking;
           state.gesture = event.gesture;
           state.pinchStrength = event.pinchStrength;

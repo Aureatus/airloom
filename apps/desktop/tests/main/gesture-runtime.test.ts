@@ -72,6 +72,106 @@ describe("createGestureRuntime", () => {
     expect(runtime.getState().recentActions).toEqual(["left click", "Key Return"]);
   });
 
+  test("holds left button during a drag pinch and releases on pinch end", async () => {
+    const { adapter, calls } = createTestAdapter();
+    let time = 100;
+    const runtime = createGestureRuntime(
+      adapter,
+      (x, y) => ({ x, y }),
+      () => createTestSettings(),
+    );
+
+    await runtime.handleEvent({
+      type: "status",
+      tracking: true,
+      pinchStrength: 0,
+      gesture: "closed-fist",
+      debug: {
+        confidence: 0.74,
+        brightness: 0.21,
+        frameDelayMs: 18,
+        pose: "closed-fist",
+        poseConfidence: 0.88,
+        poseScores: {
+          neutral: 0.12,
+          "open-palm": 0.18,
+          "closed-fist": 0.88,
+          "primary-pinch": 0.14,
+          "secondary-pinch": 0.06,
+        },
+        classifierMode: "rules",
+        modelVersion: null,
+        closedFist: true,
+        closedFistFrames: 4,
+        closedFistReleaseFrames: 0,
+        closedFistLatched: true,
+        openPalmHold: false,
+        secondaryPinchStrength: 0.14,
+      },
+    });
+
+    const originalNow = Date.now;
+    Date.now = () => time;
+
+    try {
+      await runtime.handleEvent({
+        type: "gesture.intent",
+        gesture: "primary-pinch",
+        phase: "start",
+      });
+
+      time += 260;
+
+      await runtime.handleEvent({
+        type: "status",
+        tracking: true,
+        pinchStrength: 0,
+        gesture: "closed-fist",
+        debug: {
+          confidence: 0.74,
+          brightness: 0.21,
+          frameDelayMs: 18,
+          pose: "closed-fist",
+          poseConfidence: 0.88,
+          poseScores: {
+            neutral: 0.12,
+            "open-palm": 0.18,
+            "closed-fist": 0.88,
+            "primary-pinch": 0.14,
+            "secondary-pinch": 0.06,
+          },
+          classifierMode: "rules",
+          modelVersion: null,
+          closedFist: true,
+          closedFistFrames: 4,
+          closedFistReleaseFrames: 0,
+          closedFistLatched: true,
+          openPalmHold: false,
+          secondaryPinchStrength: 0.14,
+        },
+      });
+      await runtime.handleEvent({
+        type: "pointer.observed",
+        x: 0.4,
+        y: 0.5,
+        confidence: 0.92,
+      });
+      await runtime.handleEvent({
+        type: "gesture.intent",
+        gesture: "primary-pinch",
+        phase: "end",
+      });
+    } finally {
+      Date.now = originalNow;
+    }
+
+    expect(calls).toEqual(["down", "move", "up"]);
+    expect(runtime.getState().recentActions).toEqual([
+      "Move 0.40, 0.50",
+      "left up",
+    ]);
+  });
+
   test("updates status state from status events", async () => {
     const { adapter } = createTestAdapter();
     const runtime = createGestureRuntime(
