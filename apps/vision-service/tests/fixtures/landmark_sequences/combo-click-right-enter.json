@@ -1,8 +1,8 @@
 {
   "meta": {
     "name": "combo click right enter",
-    "description": "Short click, secondary click, then open-palm Enter trigger",
-    "expected": "left click + right click + Return"
+    "description": "Short click, secondary-pinch command cycle, then open-palm Enter trigger",
+    "expected": "left click + secondary-pinch start/end + Return"
   },
   "frames": [
     {
@@ -35,11 +35,46 @@
     {
       "tracking": true,
       "pointer": { "x": 0.5, "y": 0.5 },
+      "action_pointer": { "x": 0.5, "y": 0.5 },
+      "action_hand_separate": true,
       "pinch_strength": 0.1,
       "secondary_pinch_strength": 0.84,
       "open_palm_hold": false,
       "confidence": 0.95,
       "delay_ms": 60
+    },
+    {
+      "tracking": true,
+      "pointer": { "x": 0.5, "y": 0.5 },
+      "action_pointer": { "x": 0.5, "y": 0.5 },
+      "action_hand_separate": true,
+      "pinch_strength": 0.1,
+      "secondary_pinch_strength": 0.84,
+      "open_palm_hold": false,
+      "confidence": 0.95,
+      "delay_ms": 60
+    },
+    {
+      "tracking": true,
+      "pointer": { "x": 0.5, "y": 0.5 },
+      "action_pointer": { "x": 0.5, "y": 0.5 },
+      "action_hand_separate": true,
+      "pinch_strength": 0.1,
+      "secondary_pinch_strength": 0.1,
+      "open_palm_hold": true,
+      "confidence": 0.95,
+      "delay_ms": 40
+    },
+    {
+      "tracking": true,
+      "pointer": { "x": 0.5, "y": 0.5 },
+      "action_pointer": { "x": 0.5, "y": 0.5 },
+      "action_hand_separate": true,
+      "pinch_strength": 0.1,
+      "secondary_pinch_strength": 0.1,
+      "open_palm_hold": true,
+      "confidence": 0.95,
+      "delay_ms": 40
     },
     {
       "tracking": true,

@@ -3,11 +3,13 @@ import { useEffect, useRef, useState } from "react";
 type LivePreviewProps = {
   serviceRunning: boolean;
   cameraUnavailable: boolean;
+  compact?: boolean;
 };
 
 export const LivePreview = ({
   serviceRunning,
   cameraUnavailable,
+  compact = false,
 }: LivePreviewProps) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const pendingFrameRef = useRef<Uint8Array | null>(null);
@@ -95,8 +97,11 @@ export const LivePreview = ({
       : "Waiting for backend preview frames...";
 
   return (
-    <div className="camera-frame">
-      <canvas ref={canvasRef} className="camera-canvas" />
+    <div className={`camera-frame ${compact ? "camera-frame-compact" : ""}`}>
+      <canvas
+        ref={canvasRef}
+        className={`camera-canvas ${compact ? "camera-canvas-compact" : ""}`}
+      />
       {!hasFrame ? <div className="camera-overlay">{overlayText}</div> : null}
     </div>
   );

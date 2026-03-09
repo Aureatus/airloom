@@ -9,6 +9,8 @@ import {
   type FormEvent,
   type MouseEvent,
 } from "react";
+import { CameraHud } from "./components/camera-hud";
+import { CommandHud } from "./components/command-hud";
 import { CalibrationPage } from "./pages/calibration";
 import { SettingsPage } from "./pages/settings";
 
@@ -23,6 +25,11 @@ type RuntimeState = {
     confidence: number;
     brightness: number;
     frameDelayMs: number;
+    cameraWidth?: number;
+    cameraHeight?: number;
+    captureFps?: number;
+    processedFps?: number;
+    previewFps?: number;
     pose: string;
     poseConfidence: number;
     poseScores: {
@@ -54,6 +61,7 @@ type RuntimeState = {
     closedFistLatched: boolean;
     openPalmHold: boolean;
     secondaryPinchStrength: number;
+    secondaryPinchActive?: boolean;
     pointerHand?: string;
     actionHand?: string;
     fallbackReason?: string;
@@ -63,6 +71,11 @@ type RuntimeState = {
     primaryPinchActive: boolean;
     primaryPinchHeldMs: number;
     primaryPinchOutcome: "idle" | "click" | "drag";
+    commandModeActive: boolean;
+    commandModeSubmode: "idle" | "right-click" | "scroll" | "workspace";
+    commandDeltaX: number;
+    commandDeltaY: number;
+    workspaceDirection: "idle" | "previous" | "next";
   };
   lastError: string | null;
 };
@@ -173,6 +186,11 @@ const initialStatus: ServiceStatus = {
       primaryPinchActive: false,
       primaryPinchHeldMs: 0,
       primaryPinchOutcome: "idle",
+      commandModeActive: false,
+      commandModeSubmode: "idle",
+      commandDeltaX: 0,
+      commandDeltaY: 0,
+      workspaceDirection: "idle",
     },
     lastError: null,
   },
@@ -209,6 +227,16 @@ const defaultSettings: AirloomSettings = {
   clickPinchThreshold: 0.78,
   dragHoldThresholdMs: 220,
   rightClickGesture: "thumb-middle-pinch",
+  workspacePreviousKey: "",
+  workspaceNextKey: "",
+  commandHudPosition: "top-right",
+  cameraHudPosition: "top-left",
+  commandModeRightClickDeadzone: 0.04,
+  commandModeScrollDeadzone: 0.05,
+  commandModeScrollFastThreshold: 0.14,
+  commandModeScrollGain: 32,
+  commandModeWorkspaceThreshold: 0.08,
+  commandModeWorkspaceStep: 0.12,
   pushToTalkGesture: "peace-sign",
   pushToTalkKey: "Ctrl+Space",
   keyMappings: [{ gesture: "open-palm-hold", key: "Return" }],
@@ -222,6 +250,8 @@ const formatEventLogEntry = (event: AirloomInputEvent) => {
       return `pointer ${event.x.toFixed(2)},${event.y.toFixed(2)} conf=${event.confidence.toFixed(2)}`;
     case "scroll.observed":
       return `scroll ${event.amount.toFixed(2)}`;
+    case "command.observed":
+      return `command dx=${(event.normalizedDeltaX ?? event.deltaX).toFixed(2)} dy=${(event.normalizedDeltaY ?? event.deltaY).toFixed(2)}`;
     case "capture.state":
       return `capture ${event.recording ? "recording" : "idle"} label=${event.activeLabel} takes=${event.takeCount}`;
     case "debug.frame":
@@ -425,6 +455,52 @@ export const App = () => {
     const focusCount = clickInspectorLog.filter((entry) => entry.type === "focus").length;
     return { clickCount, doubleClickCount, focusCount };
   }, [clickInspectorLog]);
+
+  const overlayMode = useMemo(() => {
+    return new URLSearchParams(window.location.search).get("overlay");
+  }, []);
+
+  const cameraUnavailable =
+    status.runtime.gesture === "camera-unavailable" ||
+    status.runtime.debug.fallbackReason === "camera-unavailable";
+
+  useEffect(() => {
+    document.body.classList.toggle("overlay-mode", overlayMode !== null);
+    return () => {
+      document.body.classList.remove("overlay-mode");
+    };
+  }, [overlayMode]);
+
+  if (overlayMode === "command-hud") {
+    return (
+      <CommandHud
+        active={status.runtime.mapper.commandModeActive}
+        submode={status.runtime.mapper.commandModeSubmode}
+        deltaX={status.runtime.mapper.commandDeltaX}
+        deltaY={status.runtime.mapper.commandDeltaY}
+        workspaceDirection={status.runtime.mapper.workspaceDirection}
+        settings={settings}
+        overlayOnly
+      />
+    );
+  }
+
+  if (overlayMode === "camera-hud") {
+    return (
+      <CameraHud
+        serviceRunning={status.running}
+        cameraUnavailable={cameraUnavailable}
+        gesture={status.runtime.gesture}
+        tracking={status.runtime.tracking}
+        cameraWidth={status.runtime.debug.cameraWidth}
+        cameraHeight={status.runtime.debug.cameraHeight}
+        captureFps={status.runtime.debug.captureFps}
+        processedFps={status.runtime.debug.processedFps}
+        previewFps={status.runtime.debug.previewFps}
+        frameDelayMs={status.runtime.debug.frameDelayMs}
+      />
+    );
+  }
 
   return (
     <main className="shell">
@@ -853,6 +929,11 @@ export const App = () => {
           primaryPinchActive={status.runtime.mapper.primaryPinchActive}
           primaryPinchHeldMs={status.runtime.mapper.primaryPinchHeldMs}
           primaryPinchOutcome={status.runtime.mapper.primaryPinchOutcome}
+          commandModeActive={status.runtime.mapper.commandModeActive}
+          commandModeSubmode={status.runtime.mapper.commandModeSubmode}
+          commandDeltaX={status.runtime.mapper.commandDeltaX}
+          commandDeltaY={status.runtime.mapper.commandDeltaY}
+          workspaceDirection={status.runtime.mapper.workspaceDirection}
         />
       ) : (
         <SettingsPage settings={settings} onSave={saveSettings} />

@@ -69,6 +69,11 @@ type CalibrationProps = {
     confidence: number;
     brightness: number;
     frameDelayMs: number;
+    cameraWidth?: number;
+    cameraHeight?: number;
+    captureFps?: number;
+    processedFps?: number;
+    previewFps?: number;
     pose: string;
     poseConfidence: number;
     poseScores: {
@@ -100,6 +105,7 @@ type CalibrationProps = {
     closedFistLatched: boolean;
     openPalmHold: boolean;
     secondaryPinchStrength: number;
+    secondaryPinchActive?: boolean;
     pointerHand?: string;
     actionHand?: string;
     fallbackReason?: string;
@@ -129,6 +135,11 @@ type CalibrationProps = {
   primaryPinchActive: boolean;
   primaryPinchHeldMs: number;
   primaryPinchOutcome: "idle" | "click" | "drag";
+  commandModeActive: boolean;
+  commandModeSubmode: "idle" | "right-click" | "scroll" | "workspace";
+  commandDeltaX: number;
+  commandDeltaY: number;
+  workspaceDirection: "idle" | "previous" | "next";
 };
 
 export const CalibrationPage = ({
@@ -149,6 +160,11 @@ export const CalibrationPage = ({
   primaryPinchActive,
   primaryPinchHeldMs,
   primaryPinchOutcome,
+  commandModeActive,
+  commandModeSubmode,
+  commandDeltaX,
+  commandDeltaY,
+  workspaceDirection,
 }: CalibrationProps) => {
   const [countdown, setCountdown] = useState<number | null>(null);
   const [captureBusy, setCaptureBusy] = useState(false);
@@ -479,6 +495,10 @@ export const CalibrationPage = ({
                   <strong>{debug.secondaryPinchStrength.toFixed(2)}</strong>
                 </div>
                 <div className="metric-card">
+                  <span>Command mode</span>
+                  <strong>{commandModeActive ? commandModeSubmode : "idle"}</strong>
+                </div>
+                <div className="metric-card">
                   <span>Palm</span>
                   <strong>{actionPoseScores["open-palm"].toFixed(2)}</strong>
                 </div>
@@ -499,8 +519,8 @@ export const CalibrationPage = ({
                   <strong>{debug.openPalmHold ? "Seen" : "No"}</strong>
                 </div>
                 <div className="metric-card">
-                  <span>Click preview</span>
-                  <strong>{primaryPinchOutcome}</strong>
+                  <span>Command delta</span>
+                  <strong>{commandDeltaX.toFixed(2)}, {commandDeltaY.toFixed(2)}</strong>
                 </div>
               </div>
             </section>
@@ -518,6 +538,18 @@ export const CalibrationPage = ({
             <div className="metric-card">
               <span>Hold active</span>
               <strong>{primaryPinchActive ? "Yes" : "No"}</strong>
+            </div>
+            <div className="metric-card">
+              <span>Command hold</span>
+              <strong>{commandModeActive || debug.secondaryPinchActive ? "Yes" : "No"}</strong>
+            </div>
+            <div className="metric-card">
+              <span>Workspace dir</span>
+              <strong>{workspaceDirection}</strong>
+            </div>
+            <div className="metric-card">
+              <span>Click preview</span>
+              <strong>{primaryPinchOutcome}</strong>
             </div>
             {debug.learnedPose ? (
               <div className="metric-card">

@@ -12,10 +12,18 @@ export const scrollObservedEventSchema = z.object({
   amount: z.number(),
 });
 
+export const commandObservedEventSchema = z.object({
+  type: z.literal("command.observed"),
+  deltaX: z.number(),
+  deltaY: z.number(),
+  normalizedDeltaX: z.number().optional(),
+  normalizedDeltaY: z.number().optional(),
+});
+
 export const gestureIntentEventSchema = z.object({
   type: z.literal("gesture.intent"),
   gesture: z.string().min(1),
-  phase: z.enum(["start", "end", "instant"]),
+  phase: z.enum(["start", "end", "cancel", "instant"]),
 });
 
 export const debugFrameEventSchema = z.object({
@@ -51,6 +59,11 @@ export const statusDebugSchema = z.object({
   confidence: z.number().min(0).max(1),
   brightness: z.number().min(0).max(1),
   frameDelayMs: z.number().int().nonnegative(),
+  cameraWidth: z.number().int().positive().optional(),
+  cameraHeight: z.number().int().positive().optional(),
+  captureFps: z.number().nonnegative().optional(),
+  processedFps: z.number().nonnegative().optional(),
+  previewFps: z.number().nonnegative().optional(),
   pose: z.string().min(1),
   poseConfidence: z.number().min(0).max(1),
   poseScores: z.object({
@@ -84,6 +97,7 @@ export const statusDebugSchema = z.object({
   closedFistLatched: z.boolean(),
   openPalmHold: z.boolean(),
   secondaryPinchStrength: z.number().min(0).max(1),
+  secondaryPinchActive: z.boolean().optional(),
   pointerHand: z.string().min(1).optional(),
   actionHand: z.string().min(1).optional(),
   fallbackReason: z.string().min(1).optional(),
@@ -100,6 +114,7 @@ export const statusEventSchema = z.object({
 export const inputEventSchema = z.discriminatedUnion("type", [
   pointerObservedEventSchema,
   scrollObservedEventSchema,
+  commandObservedEventSchema,
   gestureIntentEventSchema,
   debugFrameEventSchema,
   captureStateEventSchema,

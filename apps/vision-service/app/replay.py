@@ -6,7 +6,18 @@ from pathlib import Path
 from typing import Any, cast
 
 from app.gestures import GestureMachine
-from app.protocol import FrameState, GestureEvent, PoseName, pose_scores_for_pose
+from app.protocol import FrameState, GestureEvent, PoseName, empty_pose_scores, pose_scores_for_pose
+
+
+def _normalize_pose_scores(raw_scores: dict[str, Any] | None) -> dict[str, float]:
+    scores = empty_pose_scores()
+    if raw_scores is None:
+        return scores
+
+    for key, value in raw_scores.items():
+        if key in scores:
+            scores[key] = float(value)
+    return scores
 
 
 def infer_legacy_pose(frame: dict[str, Any]) -> tuple[PoseName, float]:
@@ -35,10 +46,11 @@ def normalize_fixture_frame(frame: dict[str, Any]) -> FrameState:
             "tracking": bool(frame.get("tracking", True)),
             "pose": frame.get("rulePose", "unknown"),
             "pose_confidence": float(frame.get("ruleConfidence", 0.0)),
-            "pose_scores": frame.get(
-                "ruleScores",
-                pose_scores_for_pose(cast(PoseName, frame.get("rulePose", "unknown")), 0.0),
-            ),
+            "pose_scores": _normalize_pose_scores(
+                cast(dict[str, Any] | None, frame.get("ruleScores"))
+            )
+            if isinstance(frame.get("ruleScores"), dict)
+            else pose_scores_for_pose(cast(PoseName, frame.get("rulePose", "unknown")), 0.0),
             "pinch_strength": float(frame.get("features", {}).get("primary_pinch_strength", 0.0)),
             "secondary_pinch_strength": float(
                 frame.get("features", {}).get("secondary_pinch_strength", 0.0)
@@ -72,7 +84,11 @@ def normalize_fixture_frame(frame: dict[str, Any]) -> FrameState:
         }
         return cast(FrameState, normalized_frame)
 
-    return cast(FrameState, frame)
+    normalized_frame = {
+        **frame,
+        "pose_scores": _normalize_pose_scores(cast(dict[str, Any], frame.get("pose_scores", {}))),
+    }
+    return cast(FrameState, normalized_frame)
 
 
 def load_fixture(path: Path) -> list[FrameState]:

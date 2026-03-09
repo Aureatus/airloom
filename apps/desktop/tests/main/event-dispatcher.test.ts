@@ -199,4 +199,60 @@ describe("createEventDispatcher", () => {
 
     expect(processed).toEqual(["pointer:0.1", "status:fist", "pointer:0.8"]);
   });
+
+  test("keeps only the newest command observation while work is in flight", async () => {
+    const processed: string[] = [];
+    let releaseWork: (() => void) | null = null;
+    const dispatcher = createEventDispatcher(
+      (event) => {
+        processed.push(
+          event.type === "command.observed"
+            ? `command:${event.deltaX.toFixed(2)},${event.deltaY.toFixed(2)}`
+            : event.type,
+        );
+
+        if (processed.length === 1) {
+          return new Promise<void>((resolve) => {
+            releaseWork = resolve;
+          });
+        }
+
+        return Promise.resolve();
+      },
+      () => {},
+    );
+
+    dispatcher.enqueue({
+      type: "gesture.intent",
+      gesture: "secondary-pinch",
+      phase: "start",
+    });
+    await Promise.resolve();
+
+    dispatcher.enqueue({
+      type: "command.observed",
+      deltaX: 0.04,
+      deltaY: 0.02,
+    });
+    dispatcher.enqueue({
+      type: "command.observed",
+      deltaX: 0.11,
+      deltaY: 0.02,
+    });
+    dispatcher.enqueue({
+      type: "status",
+      tracking: true,
+      pinchStrength: 0,
+      gesture: "command-mode",
+    });
+
+    releaseWork?.();
+    await waitForDrain();
+
+    expect(processed).toEqual([
+      "gesture.intent",
+      "status",
+      "command:0.11,0.02",
+    ]);
+  });
 });

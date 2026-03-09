@@ -4,7 +4,7 @@ from __future__ import annotations
 from contextlib import AbstractContextManager
 from threading import Condition, Event, Thread
 from time import monotonic, sleep
-from typing import Any
+from typing import Any, cast
 
 
 class Camera(AbstractContextManager["Camera"]):
@@ -29,6 +29,10 @@ class Camera(AbstractContextManager["Camera"]):
         self._capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         self._capture.set(cv2.CAP_PROP_FRAME_WIDTH, max(160, frame_width))
         self._capture.set(cv2.CAP_PROP_FRAME_HEIGHT, max(120, frame_height))
+        video_writer_fourcc = getattr(cv2, "VideoWriter_fourcc", None)
+        if callable(video_writer_fourcc):
+            mjpg_fourcc = cast(int, video_writer_fourcc(*"MJPG"))
+            self._capture.set(cv2.CAP_PROP_FOURCC, mjpg_fourcc)
         self._capture.set(cv2.CAP_PROP_FPS, max(1, target_fps))
 
         self._frame_timeout_s = frame_timeout_s

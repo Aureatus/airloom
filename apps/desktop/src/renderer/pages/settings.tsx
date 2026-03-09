@@ -60,7 +60,15 @@ export const SettingsPage = ({ settings, onSave }: SettingsPageProps) => {
         </div>
         <div className="mapping-row">
           <span>Right click</span>
-          <strong>{draft.rightClickGesture}</strong>
+          <strong>Secondary pinch release</strong>
+        </div>
+        <div className="mapping-row">
+          <span>Scroll</span>
+          <strong>Secondary pinch + vertical pull</strong>
+        </div>
+        <div className="mapping-row">
+          <span>Workspace nav</span>
+          <strong>Secondary pinch + horizontal pull</strong>
         </div>
         <div className="mapping-row">
           <span>Mapped keybind</span>
@@ -123,7 +131,163 @@ export const SettingsPage = ({ settings, onSave }: SettingsPageProps) => {
           />
         </label>
         <label className="settings-field">
-          <span>Right click gesture</span>
+          <span>Workspace previous key</span>
+          <input
+            type="text"
+            value={draft.workspacePreviousKey}
+            onChange={(event) =>
+              setDraft((current) => ({
+                ...current,
+                workspacePreviousKey: event.target.value,
+              }))
+            }
+          />
+        </label>
+        <label className="settings-field">
+          <span>Workspace next key</span>
+          <input
+            type="text"
+            value={draft.workspaceNextKey}
+            onChange={(event) =>
+              setDraft((current) => ({
+                ...current,
+                workspaceNextKey: event.target.value,
+              }))
+            }
+          />
+        </label>
+        <label className="settings-field">
+          <span>Command HUD position</span>
+          <select
+            value={draft.commandHudPosition}
+            onChange={(event) =>
+              setDraft((current) => ({
+                ...current,
+                commandHudPosition: event.target.value as AirloomSettings["commandHudPosition"],
+              }))
+            }
+          >
+            <option value="top-right">Top right</option>
+            <option value="top-left">Top left</option>
+            <option value="bottom-right">Bottom right</option>
+            <option value="bottom-left">Bottom left</option>
+          </select>
+        </label>
+        <label className="settings-field">
+          <span>Camera HUD position</span>
+          <select
+            value={draft.cameraHudPosition}
+            onChange={(event) =>
+              setDraft((current) => ({
+                ...current,
+                cameraHudPosition: event.target.value as AirloomSettings["cameraHudPosition"],
+              }))
+            }
+          >
+            <option value="top-right">Top right</option>
+            <option value="top-left">Top left</option>
+            <option value="bottom-right">Bottom right</option>
+            <option value="bottom-left">Bottom left</option>
+          </select>
+        </label>
+        <label className="settings-field">
+          <span>Right-click deadzone</span>
+          <input
+            type="number"
+            min="0"
+            max="0.2"
+            step="0.01"
+            value={draft.commandModeRightClickDeadzone}
+            onChange={(event) =>
+              setDraft((current) => ({
+                ...current,
+                commandModeRightClickDeadzone: Number(event.target.value),
+              }))
+            }
+          />
+        </label>
+        <label className="settings-field">
+          <span>Scroll deadzone</span>
+          <input
+            type="number"
+            min="0"
+            max="0.3"
+            step="0.01"
+            value={draft.commandModeScrollDeadzone}
+            onChange={(event) =>
+              setDraft((current) => ({
+                ...current,
+                commandModeScrollDeadzone: Number(event.target.value),
+              }))
+            }
+          />
+        </label>
+        <label className="settings-field">
+          <span>Fast scroll threshold</span>
+          <input
+            type="number"
+            min="0.05"
+            max="0.4"
+            step="0.01"
+            value={draft.commandModeScrollFastThreshold}
+            onChange={(event) =>
+              setDraft((current) => ({
+                ...current,
+                commandModeScrollFastThreshold: Number(event.target.value),
+              }))
+            }
+          />
+        </label>
+        <label className="settings-field">
+          <span>Scroll gain</span>
+          <input
+            type="number"
+            min="1"
+            max="200"
+            step="1"
+            value={draft.commandModeScrollGain}
+            onChange={(event) =>
+              setDraft((current) => ({
+                ...current,
+                commandModeScrollGain: Number(event.target.value),
+              }))
+            }
+          />
+        </label>
+        <label className="settings-field">
+          <span>Workspace threshold</span>
+          <input
+            type="number"
+            min="0.01"
+            max="0.5"
+            step="0.01"
+            value={draft.commandModeWorkspaceThreshold}
+            onChange={(event) =>
+              setDraft((current) => ({
+                ...current,
+                commandModeWorkspaceThreshold: Number(event.target.value),
+              }))
+            }
+          />
+        </label>
+        <label className="settings-field">
+          <span>Workspace step</span>
+          <input
+            type="number"
+            min="0.01"
+            max="0.5"
+            step="0.01"
+            value={draft.commandModeWorkspaceStep}
+            onChange={(event) =>
+              setDraft((current) => ({
+                ...current,
+                commandModeWorkspaceStep: Number(event.target.value),
+              }))
+            }
+          />
+        </label>
+        <label className="settings-field">
+          <span>Legacy right click gesture</span>
           <input
             type="text"
             value={draft.rightClickGesture}
@@ -228,13 +392,18 @@ export const SettingsPage = ({ settings, onSave }: SettingsPageProps) => {
         directly.
       </p>
       <p className="panel-copy">
-        Key mappings can use modifier chords such as `Ctrl+Space`, `Shift+Tab`,
-        or `Super+K`.
+        Key mappings and workspace shortcuts can use modifier chords such as
+        `Ctrl+Space`, `Shift+Tab`, `Ctrl+Alt+Left`, or `Super+K`.
       </p>
       <p className="panel-copy">
         Push-to-talk is a held gesture: Airloom sends key down when the gesture
         starts and key up when it ends. The default pairing is `peace-sign` {"->"}
         `Ctrl+Space`.
+      </p>
+      <p className="panel-copy">
+        Secondary pinch now acts like a transient command mode: centered release
+        right-clicks, vertical motion scrolls, and horizontal motion can step
+        between workspaces using the shortcuts above.
       </p>
       <p className="panel-copy">
         Pointer margin trims the camera edges out of the active tracking area,

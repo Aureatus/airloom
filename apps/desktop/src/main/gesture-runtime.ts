@@ -20,6 +20,11 @@ export type RuntimeState = {
     confidence: number;
     brightness: number;
     frameDelayMs: number;
+    cameraWidth?: number;
+    cameraHeight?: number;
+    captureFps?: number;
+    processedFps?: number;
+    previewFps?: number;
     pose: string;
     poseConfidence: number;
     poseScores: {
@@ -51,6 +56,7 @@ export type RuntimeState = {
     closedFistLatched: boolean;
     openPalmHold: boolean;
     secondaryPinchStrength: number;
+    secondaryPinchActive?: boolean;
     pointerHand?: string;
     actionHand?: string;
     fallbackReason?: string;
@@ -204,6 +210,16 @@ export const createGestureRuntime = (
         }
 
         case "scroll.observed": {
+          if (!state.inputSuppressed) {
+            for (const action of actionMapper.mapEvent(event)) {
+              await executeAction(action);
+            }
+          }
+          syncMapperState();
+          return state;
+        }
+
+        case "command.observed": {
           if (!state.inputSuppressed) {
             for (const action of actionMapper.mapEvent(event)) {
               await executeAction(action);

@@ -12,7 +12,7 @@ import {
   parseAirloomSettings,
   settingsSchema,
 } from "@airloom/shared/settings-schema";
-import { BrowserWindow, app, ipcMain } from "electron";
+import { BrowserWindow, app, ipcMain, screen } from "electron";
 import { createEventDispatcher } from "./event-dispatcher";
 import { type RuntimeState, createGestureRuntime } from "./gesture-runtime";
 import { normalizedToScreenPosition, resolveInputAdapter } from "./input";
@@ -36,6 +36,8 @@ type DebugRecordingState = {
   frames: number;
   events: number;
 };
+
+type OverlayMode = "command-hud" | "camera-hud";
 
 const defaultCaptureState: AirloomCaptureStateEvent = {
   type: "capture.state",
@@ -84,6 +86,8 @@ const getPlatformWarnings = () => {
 };
 
 let mainWindow: BrowserWindow | null = null;
+let commandHudWindow: BrowserWindow | null = null;
+let cameraHudWindow: BrowserWindow | null = null;
 const adapter = resolveInputAdapter();
 let serviceProcess: ChildProcess | null = null;
 let lastEvent: AirloomInputEvent | null = null;
@@ -120,6 +124,35 @@ const getServiceStatus = (): ServiceStatus => {
     debugRecording: debugRecordingState,
     warnings: getPlatformWarnings(),
   };
+};
+
+const getRendererTargetUrl = (overlay: OverlayMode | null = null) => {
+  if (rendererDevUrl) {
+    const url = new URL(rendererDevUrl);
+    if (overlay !== null) {
+      url.searchParams.set("overlay", overlay);
+    }
+    return { type: "url" as const, value: url.toString() };
+  }
+
+  return { type: "file" as const, value: rendererIndexPath, overlay };
+};
+
+const loadRenderer = async (
+  window: BrowserWindow,
+  overlay: OverlayMode | null = null,
+) => {
+  const target = getRendererTargetUrl(overlay);
+  if (target.type === "url") {
+    await window.loadURL(target.value);
+    return;
+  }
+
+  if (!existsSync(target.value)) {
+    throw new Error(`Renderer build missing at ${target.value}`);
+  }
+
+  await window.loadFile(target.value, overlay ? { query: { overlay } } : undefined);
 };
 
 const getDebugRecordingDir = () => {
@@ -204,7 +237,63 @@ const sendServiceCommand = (payload: object) => {
 
 const broadcastStatus = () => {
   const status = getServiceStatus();
-  mainWindow?.webContents.send("airloom:status", status);
+  for (const window of BrowserWindow.getAllWindows()) {
+    window.webContents.send("airloom:status", status);
+  }
+};
+
+const resolveOverlayBounds = (
+  position: AirloomSettings["commandHudPosition"],
+  width: number,
+  height: number,
+  stackOffset = 0,
+) => {
+  const inset = 16;
+  const workArea = screen.getPrimaryDisplay().workArea;
+  const anchorRight = position.endsWith("right");
+  const anchorBottom = position.startsWith("bottom");
+  return {
+    x: Math.round(
+      anchorRight ? workArea.x + workArea.width - width - inset : workArea.x + inset,
+    ),
+    y: Math.round(
+      anchorBottom
+        ? workArea.y + workArea.height - height - inset - stackOffset
+        : workArea.y + inset + stackOffset,
+    ),
+    width,
+    height,
+  };
+};
+
+const positionOverlayWindows = () => {
+  const commandHudWidth = 288;
+  const commandHudHeight = 336;
+  const cameraHudWidth = 420;
+  const cameraHudHeight = 560;
+  const stackGap = 12;
+  const sharedCorner = currentSettings.commandHudPosition === currentSettings.cameraHudPosition;
+
+  if (commandHudWindow !== null) {
+    commandHudWindow.setBounds(
+      resolveOverlayBounds(
+        currentSettings.commandHudPosition,
+        commandHudWidth,
+        commandHudHeight,
+      ),
+    );
+  }
+
+  if (cameraHudWindow !== null) {
+    cameraHudWindow.setBounds(
+      resolveOverlayBounds(
+        currentSettings.cameraHudPosition,
+        cameraHudWidth,
+        cameraHudHeight,
+        sharedCorner ? commandHudHeight + stackGap : 0,
+      ),
+    );
+  }
 };
 
 const attachProcessReaders = (child: ChildProcess) => {
@@ -261,7 +350,9 @@ const attachProcessReaders = (child: ChildProcess) => {
   if (previewStream !== null && previewStream !== undefined) {
     const decodePreviewFrame = createPreviewStreamDecoder((frame) => {
       recordDebugPreviewFrame(frame);
-      mainWindow?.webContents.send("airloom:preview-frame", frame);
+      for (const window of BrowserWindow.getAllWindows()) {
+        window.webContents.send("airloom:preview-frame", frame);
+      }
     });
 
     previewStream.on("data", (chunk) => {
@@ -353,19 +444,94 @@ const createMainWindow = async () => {
     },
   });
 
-  if (rendererDevUrl) {
-    await mainWindow.loadURL(rendererDevUrl);
-  } else {
-    if (!existsSync(rendererIndexPath)) {
-      throw new Error(`Renderer build missing at ${rendererIndexPath}`);
-    }
-
-    await mainWindow.loadFile(rendererIndexPath);
-  }
+  await loadRenderer(mainWindow);
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
 };
+
+const createCommandHudWindow = async () => {
+  commandHudWindow = new BrowserWindow({
+    width: 288,
+    height: 336,
+    frame: false,
+    transparent: true,
+    backgroundColor: "#00000000",
+    resizable: false,
+    movable: false,
+    focusable: false,
+    skipTaskbar: true,
+    show: false,
+    hasShadow: false,
+    fullscreenable: false,
+    alwaysOnTop: true,
+    webPreferences: {
+      preload: join(import.meta.dirname, "../preload/preload.cjs"),
+    },
+  });
+
+  commandHudWindow.setIgnoreMouseEvents(true, { forward: true });
+  commandHudWindow.setAlwaysOnTop(true, "screen-saver");
+  commandHudWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  positionOverlayWindows();
+  commandHudWindow.once("ready-to-show", () => {
+    commandHudWindow?.showInactive();
+  });
+  await loadRenderer(commandHudWindow, "command-hud");
+  commandHudWindow.on("closed", () => {
+    commandHudWindow = null;
+  });
+};
+
+const createCameraHudWindow = async () => {
+  cameraHudWindow = new BrowserWindow({
+    width: 420,
+    height: 560,
+    frame: false,
+    transparent: true,
+    backgroundColor: "#00000000",
+    resizable: false,
+    movable: false,
+    focusable: false,
+    skipTaskbar: true,
+    show: false,
+    hasShadow: false,
+    fullscreenable: false,
+    alwaysOnTop: true,
+    webPreferences: {
+      preload: join(import.meta.dirname, "../preload/preload.cjs"),
+    },
+  });
+
+  cameraHudWindow.setIgnoreMouseEvents(true, { forward: true });
+  cameraHudWindow.setAlwaysOnTop(true, "screen-saver");
+  cameraHudWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  positionOverlayWindows();
+  cameraHudWindow.once("ready-to-show", () => {
+    cameraHudWindow?.showInactive();
+  });
+  await loadRenderer(cameraHudWindow, "camera-hud");
+  cameraHudWindow.on("closed", () => {
+    cameraHudWindow = null;
+  });
+};
+
+const focusOrCreateMainWindow = async () => {
+  if (mainWindow === null) {
+    await createMainWindow();
+  }
+  mainWindow?.show();
+  mainWindow?.focus();
+};
+
+const singleInstanceLock = app.requestSingleInstanceLock();
+if (!singleInstanceLock) {
+  app.quit();
+}
+
+app.on("second-instance", () => {
+  void focusOrCreateMainWindow();
+});
 
 app.whenReady().then(async () => {
   currentSettings = await loadSettings();
@@ -376,6 +542,7 @@ app.whenReady().then(async () => {
     "airloom:update-settings",
     async (_event, payload: unknown) => {
       currentSettings = await saveSettings(parseAirloomSettings(payload));
+      positionOverlayWindows();
       if (serviceProcess !== null) {
         await restartVisionService();
       }
@@ -424,6 +591,11 @@ app.whenReady().then(async () => {
 
   if (!headlessMode) {
     await createMainWindow();
+    await createCommandHudWindow();
+    await createCameraHudWindow();
+    screen.on("display-metrics-changed", positionOverlayWindows);
+    screen.on("display-added", positionOverlayWindows);
+    screen.on("display-removed", positionOverlayWindows);
   }
 
   if (startupDelayMs > 0) {
@@ -436,8 +608,14 @@ app.whenReady().then(async () => {
 
   if (!headlessMode) {
     app.on("activate", async () => {
-      if (BrowserWindow.getAllWindows().length === 0) {
+      if (mainWindow === null) {
         await createMainWindow();
+      }
+      if (commandHudWindow === null) {
+        await createCommandHudWindow();
+      }
+      if (cameraHudWindow === null) {
+        await createCameraHudWindow();
       }
     });
   }

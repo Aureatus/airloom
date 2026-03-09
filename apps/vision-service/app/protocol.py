@@ -94,10 +94,18 @@ class ScrollObservedEvent(TypedDict):
     amount: float
 
 
+class CommandObservedEvent(TypedDict):
+    type: Literal["command.observed"]
+    deltaX: float
+    deltaY: float
+    normalizedDeltaX: NotRequired[float]
+    normalizedDeltaY: NotRequired[float]
+
+
 class GestureIntentEvent(TypedDict):
     type: Literal["gesture.intent"]
     gesture: str
-    phase: Literal["start", "end", "instant"]
+    phase: Literal["start", "end", "cancel", "instant"]
 
 
 class DebugFrameEvent(TypedDict):
@@ -132,6 +140,11 @@ class StatusDebug(TypedDict):
     confidence: float
     brightness: float
     frameDelayMs: int
+    cameraWidth: NotRequired[int]
+    cameraHeight: NotRequired[int]
+    captureFps: NotRequired[float]
+    processedFps: NotRequired[float]
+    previewFps: NotRequired[float]
     pose: PoseName
     poseConfidence: float
     poseScores: PoseScores
@@ -149,6 +162,7 @@ class StatusDebug(TypedDict):
     closedFistLatched: bool
     openPalmHold: bool
     secondaryPinchStrength: float
+    secondaryPinchActive: NotRequired[bool]
     pointerHand: NotRequired[str]
     actionHand: NotRequired[str]
     fallbackReason: NotRequired[str]
@@ -157,6 +171,7 @@ class StatusDebug(TypedDict):
 GestureEvent = (
     PointerObservedEvent
     | ScrollObservedEvent
+    | CommandObservedEvent
     | GestureIntentEvent
     | DebugFrameEvent
     | StatusEvent
@@ -168,6 +183,11 @@ class FrameState(TypedDict):
     tracking: bool
     pointer: NotRequired[Landmark]
     raw_pointer: NotRequired[Landmark]
+    camera_width: NotRequired[int]
+    camera_height: NotRequired[int]
+    capture_fps: NotRequired[float]
+    processed_fps: NotRequired[float]
+    preview_fps: NotRequired[float]
     pose: PoseName
     pose_confidence: float
     pose_scores: NotRequired[PoseScores]

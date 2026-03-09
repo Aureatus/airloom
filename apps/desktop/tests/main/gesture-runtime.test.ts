@@ -44,6 +44,16 @@ const createTestSettings = (key = "Return") => {
     clickPinchThreshold: 0.78,
     dragHoldThresholdMs: 220,
     rightClickGesture: "thumb-middle-pinch",
+    workspacePreviousKey: "Ctrl+Alt+Left",
+    workspaceNextKey: "Ctrl+Alt+Right",
+    commandHudPosition: "top-right",
+    cameraHudPosition: "top-left",
+    commandModeRightClickDeadzone: 0.04,
+    commandModeScrollDeadzone: 0.05,
+    commandModeScrollFastThreshold: 0.14,
+    commandModeScrollGain: 32,
+    commandModeWorkspaceThreshold: 0.08,
+    commandModeWorkspaceStep: 0.12,
     pushToTalkGesture: "peace-sign",
     pushToTalkKey: "Ctrl+Space",
     keyMappings: [{ gesture: "open-palm-hold", key }],
@@ -259,9 +269,37 @@ describe("createGestureRuntime", () => {
         primaryPinchActive: false,
         primaryPinchHeldMs: 0,
         primaryPinchOutcome: "idle",
+        commandModeActive: false,
+        commandModeSubmode: "idle",
+        commandDeltaX: 0,
+        commandDeltaY: 0,
+        workspaceDirection: "idle",
       },
       lastError: null,
     });
+  });
+
+  test("routes command mode workspace taps to adapter", async () => {
+    const { adapter, calls } = createTestAdapter();
+    const runtime = createGestureRuntime(
+      adapter,
+      (x, y) => ({ x, y }),
+      () => createTestSettings(),
+    );
+
+    await runtime.handleEvent({
+      type: "gesture.intent",
+      gesture: "secondary-pinch",
+      phase: "start",
+    });
+    await runtime.handleEvent({
+      type: "command.observed",
+      deltaX: 0.09,
+      deltaY: 0.01,
+    });
+
+    expect(calls).toEqual(["key:Ctrl+Alt+Right"]);
+    expect(runtime.getState().mapper.commandModeSubmode).toBe("workspace");
   });
 
   test("suppresses pointer and gesture actions during capture mode", async () => {

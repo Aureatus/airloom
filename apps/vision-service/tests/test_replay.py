@@ -5,7 +5,7 @@ from app.replay import load_fixture, run_replay
 FIXTURES = Path(__file__).parent / "fixtures" / "landmark_sequences"
 
 
-def test_combo_fixture_emits_click_right_and_enter_intents() -> None:
+def test_combo_fixture_emits_secondary_pinch_and_enter_intents() -> None:
     events = run_replay(load_fixture(FIXTURES / "combo-click-right-enter.json"))
 
     assert any(
@@ -22,8 +22,14 @@ def test_combo_fixture_emits_click_right_and_enter_intents() -> None:
     )
     assert any(
         event.get("type") == "gesture.intent"
-        and event.get("gesture") == "thumb-middle-pinch"
-        and event.get("phase") == "instant"
+        and event.get("gesture") == "secondary-pinch"
+        and event.get("phase") == "start"
+        for event in events
+    )
+    assert any(
+        event.get("type") == "gesture.intent"
+        and event.get("gesture") == "secondary-pinch"
+        and event.get("phase") == "end"
         for event in events
     )
     assert any(
@@ -45,7 +51,7 @@ def test_drag_fixture_emits_one_press_cycle_without_secondary_intents() -> None:
 
     assert [event.get("phase") for event in primary_events] == ["start", "end"]
     assert not any(
-        event.get("type") == "gesture.intent" and event.get("gesture") == "thumb-middle-pinch"
+        event.get("type") == "gesture.intent" and event.get("gesture") == "secondary-pinch"
         for event in events
     )
 

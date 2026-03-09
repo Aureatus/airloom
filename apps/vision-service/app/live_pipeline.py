@@ -42,6 +42,7 @@ def run_live_pipeline(
 ) -> int:
     latest_capture = LatestValue[CapturedFrame]()
     latest_frame_state = LatestValue[FrameState]()
+    latest_preview_fps = LatestValue[float]()
     stop_event = Event()
     processed_lock = Lock()
     processed_frames = 0
@@ -92,6 +93,8 @@ def run_live_pipeline(
             tracker = tracker_factory()
             machine = machine_factory()
             last_seen_version = 0
+            last_captured: CapturedFrame | None = None
+            last_processed_at: float | None = None
             while not stop_event.is_set():
                 update = latest_capture.wait_for_update(last_seen_version, timeout=0.1)
                 if update is None:
@@ -99,13 +102,31 @@ def run_live_pipeline(
 
                 last_seen_version, captured = update
                 frame_state = tracker.process(captured.frame)
+                if hasattr(captured.frame, "shape"):
+                    frame_state["camera_width"] = int(captured.frame.shape[1])
+                    frame_state["camera_height"] = int(captured.frame.shape[0])
+                if last_captured is not None:
+                    elapsed_capture = max(1e-6, captured.captured_at - last_captured.captured_at)
+                    frame_state["capture_fps"] = max(
+                        0.0,
+                        (captured.seq - last_captured.seq) / elapsed_capture,
+                    )
+                processed_at = time_source()
+                if last_processed_at is not None:
+                    elapsed_processed = max(1e-6, processed_at - last_processed_at)
+                    frame_state["processed_fps"] = max(0.0, 1.0 / elapsed_processed)
+                preview_snapshot = latest_preview_fps.get_latest()
+                if preview_snapshot is not None:
+                    frame_state["preview_fps"] = preview_snapshot[1]
                 frame_state["delay_ms"] = max(
                     0,
-                    int((time_source() - captured.captured_at) * 1000),
+                    int((processed_at - captured.captured_at) * 1000),
                 )
                 latest_frame_state.publish(frame_state)
                 for event in machine.update(frame_state):
                     emit_event(event)
+                last_captured = captured
+                last_processed_at = processed_at
                 note_processed_frame()
         except Exception as error:  # pragma: no cover - exercised via tests
             fail(error)
@@ -116,6 +137,7 @@ def run_live_pipeline(
 
         last_sent_version = 0
         next_tick_at = time_source()
+        last_preview_sent_at: float | None = None
 
         while not stop_event.is_set():
             if preview_interval_s > 0:
@@ -143,6 +165,11 @@ def run_live_pipeline(
                 return
 
             if emitted:
+                sent_at = time_source()
+                if last_preview_sent_at is not None:
+                    elapsed_preview = max(1e-6, sent_at - last_preview_sent_at)
+                    latest_preview_fps.publish(max(0.0, 1.0 / elapsed_preview))
+                last_preview_sent_at = sent_at
                 last_sent_version = version
 
     threads = [

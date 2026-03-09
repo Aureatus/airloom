@@ -76,8 +76,10 @@ def test_camera_requests_lower_resolution_and_higher_fps() -> None:
     finally:
         camera.__exit__(None, None, None)
 
+    video_writer_fourcc = getattr(cv2, "VideoWriter_fourcc")
     assert (cv2.CAP_PROP_FRAME_WIDTH, 640) in capture.set_calls
     assert (cv2.CAP_PROP_FRAME_HEIGHT, 480) in capture.set_calls
+    assert (cv2.CAP_PROP_FOURCC, video_writer_fourcc(*"MJPG")) in capture.set_calls
     assert (cv2.CAP_PROP_FPS, 60) in capture.set_calls
 
 

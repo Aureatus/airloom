@@ -241,85 +241,245 @@ def test_open_palm_hold_emits_enter() -> None:
     )
 
 
-def test_secondary_pinch_emits_right_click_once_per_cycle() -> None:
+def test_secondary_pinch_enters_and_exits_command_mode_with_hysteresis() -> None:
     machine = GestureMachine()
 
-    armed_events = machine.update(
+    first_hold_events = machine.update(
         frame_state(
             pointer={"x": 0.4, "y": 0.3},
+            action_pointer={"x": 0.4, "y": 0.3},
+            action_hand_separate=True,
             pose="secondary-pinch",
             pinch_strength=0.2,
             secondary_pinch_strength=0.84,
         )
     )
-    held_events = machine.update(
+    second_hold_events = machine.update(
         frame_state(
             pointer={"x": 0.41, "y": 0.3},
+            action_pointer={"x": 0.41, "y": 0.3},
+            action_hand_separate=True,
             pose="secondary-pinch",
             pinch_strength=0.2,
             secondary_pinch_strength=0.86,
         )
     )
-    release_events = machine.update(
+    first_release_events = machine.update(
         frame_state(
             pointer={"x": 0.42, "y": 0.31},
+            action_pointer={"x": 0.42, "y": 0.31},
+            action_hand_separate=True,
+            pose="neutral",
+            pinch_strength=0.2,
+            secondary_pinch_strength=0.2,
+        )
+    )
+    second_release_events = machine.update(
+        frame_state(
+            pointer={"x": 0.42, "y": 0.31},
+            action_pointer={"x": 0.42, "y": 0.31},
+            action_hand_separate=True,
             pose="neutral",
             pinch_strength=0.2,
             secondary_pinch_strength=0.2,
         )
     )
 
-    assert not any(event.get("type") == "gesture.intent" for event in armed_events)
-    assert not any(event.get("type") == "gesture.intent" for event in held_events)
-    assert (
-        sum(
-            1
-            for event in release_events
-            if event.get("type") == "gesture.intent"
-            and event.get("gesture") == "thumb-middle-pinch"
-            and event.get("phase") == "instant"
-        )
-        == 1
+    assert not any(event.get("type") == "gesture.intent" for event in first_hold_events)
+    assert any(
+        event.get("type") == "gesture.intent"
+        and event.get("gesture") == "secondary-pinch"
+        and event.get("phase") == "start"
+        for event in second_hold_events
+    )
+    assert any(
+        event.get("type") == "status" and event.get("gesture") == "command-mode"
+        for event in second_hold_events
+    )
+    assert not any(event.get("type") == "gesture.intent" for event in first_release_events)
+    assert any(
+        event.get("type") == "gesture.intent"
+        and event.get("gesture") == "secondary-pinch"
+        and event.get("phase") == "end"
+        for event in second_release_events
     )
 
 
-def test_secondary_pinch_can_emit_scroll_without_right_click() -> None:
+def test_secondary_pinch_emits_anchor_relative_command_observations() -> None:
     machine = GestureMachine()
 
     machine.update(
         frame_state(
             pointer={"x": 0.4, "y": 0.3},
             action_pointer={"x": 0.4, "y": 0.3},
+            action_hand_separate=True,
             pose="secondary-pinch",
             pinch_strength=0.2,
             secondary_pinch_strength=0.84,
         )
     )
-    scroll_events = machine.update(
+    start_events = machine.update(
         frame_state(
             pointer={"x": 0.4, "y": 0.3},
-            action_pointer={"x": 0.4, "y": 0.33},
+            action_pointer={"x": 0.4, "y": 0.3},
+            action_hand_separate=True,
             pose="secondary-pinch",
             pinch_strength=0.2,
             secondary_pinch_strength=0.86,
         )
     )
-    release_events = machine.update(
+    command_events = machine.update(
+        frame_state(
+            pointer={"x": 0.4, "y": 0.3},
+            action_pointer={"x": 0.46, "y": 0.33},
+            action_hand_separate=True,
+            pose="secondary-pinch",
+            pinch_strength=0.2,
+            secondary_pinch_strength=0.86,
+        )
+    )
+
+    assert any(
+        event.get("type") == "gesture.intent"
+        and event.get("gesture") == "secondary-pinch"
+        and event.get("phase") == "start"
+        for event in start_events
+    )
+    assert any(
+        event.get("type") == "command.observed"
+        and abs(cast(float, event.get("deltaX", 0.0)) - 0.06) < 1e-6
+        and abs(cast(float, event.get("deltaY", 0.0)) - 0.03) < 1e-6
+        and abs(cast(float, event.get("normalizedDeltaX", 0.0)) - 0.1) < 1e-6
+        and abs(cast(float, event.get("normalizedDeltaY", 0.0)) - (0.03 / 0.7)) < 1e-6
+        for event in command_events
+    )
+
+
+def test_secondary_pinch_cancels_when_tracking_is_lost() -> None:
+    machine = GestureMachine()
+
+    machine.update(
+        frame_state(
+            pointer={"x": 0.4, "y": 0.3},
+            action_pointer={"x": 0.4, "y": 0.3},
+            action_hand_separate=True,
+            pose="secondary-pinch",
+            pinch_strength=0.2,
+            secondary_pinch_strength=0.84,
+        )
+    )
+    machine.update(
+        frame_state(
+            pointer={"x": 0.41, "y": 0.3},
+            action_pointer={"x": 0.41, "y": 0.3},
+            action_hand_separate=True,
+            pose="secondary-pinch",
+            pinch_strength=0.2,
+            secondary_pinch_strength=0.86,
+        )
+    )
+
+    cancel_events = machine.update(
+        frame_state(
+            tracking=False,
+            pose="unknown",
+            pose_confidence=0.0,
+            pose_scores=pose_scores(pose="unknown", confidence=0.0),
+            pinch_strength=0.0,
+            secondary_pinch_strength=0.0,
+            confidence=0.0,
+        )
+    )
+
+    assert any(
+        event.get("type") == "gesture.intent"
+        and event.get("gesture") == "secondary-pinch"
+        and event.get("phase") == "cancel"
+        for event in cancel_events
+    )
+
+
+def test_secondary_pinch_cancels_when_action_hand_disappears() -> None:
+    machine = GestureMachine()
+
+    machine.update(
+        frame_state(
+            pointer={"x": 0.4, "y": 0.3},
+            action_pointer={"x": 0.4, "y": 0.3},
+            action_hand_separate=True,
+            pose="secondary-pinch",
+            pinch_strength=0.2,
+            secondary_pinch_strength=0.84,
+        )
+    )
+    machine.update(
+        frame_state(
+            pointer={"x": 0.41, "y": 0.3},
+            action_pointer={"x": 0.41, "y": 0.3},
+            action_hand_separate=True,
+            pose="secondary-pinch",
+            pinch_strength=0.2,
+            secondary_pinch_strength=0.86,
+        )
+    )
+    machine.update(
         frame_state(
             pointer={"x": 0.42, "y": 0.31},
-            action_pointer={"x": 0.4, "y": 0.33},
+            action_pointer=None,
+            action_hand_separate=False,
+            pose="neutral",
+            pinch_strength=0.2,
+            secondary_pinch_strength=0.2,
+        )
+    )
+    cancel_events = machine.update(
+        frame_state(
+            pointer={"x": 0.42, "y": 0.31},
+            action_pointer=None,
+            action_hand_separate=False,
             pose="neutral",
             pinch_strength=0.2,
             secondary_pinch_strength=0.2,
         )
     )
 
-    assert any(event.get("type") == "scroll.observed" for event in scroll_events)
     assert any(
-        event.get("type") == "status" and event.get("gesture") == "scrolling"
-        for event in scroll_events
+        event.get("type") == "gesture.intent"
+        and event.get("gesture") == "secondary-pinch"
+        and event.get("phase") == "cancel"
+        for event in cancel_events
     )
-    assert not any(event.get("gesture") == "thumb-middle-pinch" for event in release_events)
+
+
+def test_same_hand_pointer_clutch_blocks_primary_pinch_false_positive() -> None:
+    machine = GestureMachine()
+
+    machine.update(
+        frame_state(
+            pose="closed-fist",
+            pose_scores=pose_scores(pose="closed-fist", confidence=0.91),
+            closed_fist=True,
+            action_hand_separate=False,
+            confidence=0.91,
+        )
+    )
+
+    jitter_events = machine.update(
+        frame_state(
+            pose="primary-pinch",
+            pose_scores=pose_scores(pose="primary-pinch", confidence=0.83, closed_fist=0.62),
+            pinch_strength=0.84,
+            action_pose="primary-pinch",
+            action_pose_scores=pose_scores(pose="primary-pinch", confidence=0.86, closed_fist=0.42),
+            action_hand_separate=False,
+            confidence=0.9,
+        )
+    )
+
+    assert not any(
+        event.get("type") == "gesture.intent" and event.get("gesture") == "primary-pinch"
+        for event in jitter_events
+    )
 
 
 def test_peace_sign_emits_push_to_talk_start_and_end() -> None:

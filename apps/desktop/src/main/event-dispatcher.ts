@@ -9,6 +9,7 @@ export const createEventDispatcher = (
 ) => {
   const gestureQueue: AirloomInputEvent[] = [];
   let latestPointer: AirloomInputEvent | null = null;
+  let latestCommand: AirloomInputEvent | null = null;
   let latestStatus: AirloomInputEvent | null = null;
   let draining = false;
   let stopped = false;
@@ -25,6 +26,12 @@ export const createEventDispatcher = (
       return status;
     }
 
+    if (latestCommand !== null) {
+      const command = latestCommand;
+      latestCommand = null;
+      return command;
+    }
+
     if (latestPointer !== null) {
       const pointer = latestPointer;
       latestPointer = null;
@@ -35,8 +42,11 @@ export const createEventDispatcher = (
   };
 
   const hasPending = () => {
-    return (
-      gestureQueue.length > 0 || latestPointer !== null || latestStatus !== null
+      return (
+      gestureQueue.length > 0 ||
+      latestPointer !== null ||
+      latestCommand !== null ||
+      latestStatus !== null
     );
   };
 
@@ -84,6 +94,11 @@ export const createEventDispatcher = (
         break;
       }
 
+      case "command.observed": {
+        latestCommand = event;
+        break;
+      }
+
       default: {
         gestureQueue.push(event);
       }
@@ -96,6 +111,7 @@ export const createEventDispatcher = (
     stopped = true;
     gestureQueue.length = 0;
     latestPointer = null;
+    latestCommand = null;
     latestStatus = null;
   };
 

@@ -49,6 +49,15 @@
       "open_palm_hold": false,
       "confidence": 0.95,
       "delay_ms": 40
+    },
+    {
+      "tracking": true,
+      "pointer": { "x": 0.56, "y": 0.54 },
+      "pinch_strength": 0.2,
+      "secondary_pinch_strength": 0.1,
+      "open_palm_hold": false,
+      "confidence": 0.95,
+      "delay_ms": 40
     }
   ]
 }
