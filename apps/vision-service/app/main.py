@@ -22,7 +22,7 @@ from app.replay import iter_replay, load_fixture
 DEBUG_PREVIEW_MAX_WIDTH = 320
 DEBUG_PREVIEW_JPEG_QUALITY = 70
 DEBUG_PREVIEW_ENABLED = (
-    os.environ.get("AIRLOOM_DEBUG_PREVIEW") or os.environ.get("AIRLOOM_DEBUG_PREVIEW", "0")
+    os.environ.get("INCANTATION_DEBUG_PREVIEW") or os.environ.get("AIRLOOM_DEBUG_PREVIEW", "0")
 ) == "1"
 DEBUG_PREVIEW_FD = 3
 
@@ -36,12 +36,12 @@ def env_value(name: str, legacy_name: str, default: str | Path) -> str:
 
 DEFAULT_CAPTURE_DIR = Path(
     env_value(
-        "AIRLOOM_CAPTURE_DIR", "AIRLOOM_CAPTURE_DIR", Path.cwd() / ".airloom-captures"
+        "INCANTATION_CAPTURE_DIR", "AIRLOOM_CAPTURE_DIR", Path.cwd() / ".incantation-captures"
     )
 )
 DEFAULT_CAPTURE_EXPORT_DIR = Path(
     env_value(
-        "AIRLOOM_CAPTURE_EXPORT_DIR",
+        "INCANTATION_CAPTURE_EXPORT_DIR",
         "AIRLOOM_CAPTURE_EXPORT_DIR",
         Path.cwd() / "data" / "pose-captures",
     )
@@ -49,7 +49,7 @@ DEFAULT_CAPTURE_EXPORT_DIR = Path(
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Airloom vision service")
+    parser = argparse.ArgumentParser(description="Incantation vision service")
     parser.add_argument("--stdio", action="store_true", help="emit events as JSON lines to stdout")
     parser.add_argument("--fixture", type=Path, help="replay a landmark/frame-state fixture")
     parser.add_argument(
@@ -78,7 +78,7 @@ def emit_camera_unavailable(message: str, emit_event: Callable[[object], None]) 
                 "poseConfidence": 0.0,
                 "poseScores": empty_pose_scores(),
                 "classifierMode": env_value(
-                    "AIRLOOM_POSE_CLASSIFIER_MODE",
+                    "INCANTATION_POSE_CLASSIFIER_MODE",
                     "AIRLOOM_POSE_CLASSIFIER_MODE",
                     "learned",
                 ),
@@ -271,7 +271,7 @@ def run_live(
         root_dir=DEFAULT_CAPTURE_DIR,
         export_dir=DEFAULT_CAPTURE_EXPORT_DIR,
         emit_event=emit_event,
-        mirror_x=env_value("AIRLOOM_MIRROR_X", "AIRLOOM_MIRROR_X", "1") != "0",
+        mirror_x=env_value("INCANTATION_MIRROR_X", "AIRLOOM_MIRROR_X", "1") != "0",
     )
     preview_pipe = open_preview_pipe() if preview_enabled and preview_emitter is None else None
     emit_preview = preview_emitter or (
@@ -310,7 +310,7 @@ def run_live(
         except OSError:
             return
 
-    command_thread = Thread(target=command_loop, name="airloom-commands", daemon=True)
+    command_thread = Thread(target=command_loop, name="incantation-commands", daemon=True)
     command_thread.start()
     capture_controller.emit_state(None)
 

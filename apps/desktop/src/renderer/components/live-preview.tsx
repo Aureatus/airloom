@@ -62,7 +62,7 @@ export const LivePreview = ({
       drawingRef.current = false;
     };
 
-    const unsubscribe = window.airloom.onPreviewFrame((frame) => {
+    const unsubscribe = window.incantation.onPreviewFrame((frame) => {
       pendingFrameRef.current = new Uint8Array(frame);
       void renderLatestFrame();
     });

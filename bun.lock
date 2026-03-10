@@ -10,10 +10,10 @@
       },
     },
     "apps/desktop": {
-      "name": "@airloom/desktop",
+      "name": "@incantation/desktop",
       "version": "0.1.0",
       "dependencies": {
-        "@airloom/shared": "workspace:*",
+        "@incantation/shared": "workspace:*",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
         "zod": "^3.24.2",
@@ -30,7 +30,7 @@
       },
     },
     "packages/shared": {
-      "name": "@airloom/shared",
+      "name": "@incantation/shared",
       "version": "0.1.0",
       "dependencies": {
         "zod": "^3.24.2",
@@ -43,10 +43,6 @@
   },
   "packages": {
     "7zip-bin": ["7zip-bin@5.2.0", "", {}, "sha512-ukTPVhqG4jNzMro2qA9HSCSSVJN3aN7tlb+hfqYCt3ER0yWroeA2VR38MNrOHLQ/cVj+DaIMad0kFCtWWowh/A=="],
-
-    "@airloom/desktop": ["@airloom/desktop@workspace:apps/desktop"],
-
-    "@airloom/shared": ["@airloom/shared@workspace:packages/shared"],
 
     "@babel/generator": ["@babel/generator@7.29.1", "", { "dependencies": { "@babel/parser": "^7.29.0", "@babel/types": "^7.29.0", "@jridgewell/gen-mapping": "^0.3.12", "@jridgewell/trace-mapping": "^0.3.28", "jsesc": "^3.0.2" } }, "sha512-qsaF+9Qcm2Qv8SRIMMscAvG4O3lJ0F1GuMo5HR/Bp02LopNgnZBC/EkbevHFeGs4ls/oPz9v+Bsmzbkbe+0dUw=="],
 
@@ -149,6 +145,10 @@
     "@esbuild/win32-x64": ["@esbuild/win32-x64@0.25.12", "", { "os": "win32", "cpu": "x64" }, "sha512-alJC0uCZpTFrSL0CCDjcgleBXPnCrEAhTBILpeAp7M/OFgoqtAetfBzX0xM00MUsVVPpVjlPuMbREqnZCXaTnA=="],
 
     "@gar/promisify": ["@gar/promisify@1.1.3", "", {}, "sha512-k2Ty1JcVojjJFwrg/ThKi2ujJ7XNLYaFGNB/bWT9wGR+oSMJHMa5w+CUq6p/pVrKeNNgA7pCqEcjSnHVoqJQFw=="],
+
+    "@incantation/desktop": ["@incantation/desktop@workspace:apps/desktop"],
+
+    "@incantation/shared": ["@incantation/shared@workspace:packages/shared"],
 
     "@isaacs/cliui": ["@isaacs/cliui@8.0.2", "", { "dependencies": { "string-width": "^5.1.2", "string-width-cjs": "npm:string-width@^4.2.0", "strip-ansi": "^7.0.1", "strip-ansi-cjs": "npm:strip-ansi@^6.0.1", "wrap-ansi": "^8.1.0", "wrap-ansi-cjs": "npm:wrap-ansi@^7.0.0" } }, "sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA=="],
 

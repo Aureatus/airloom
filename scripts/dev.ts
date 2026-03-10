@@ -6,7 +6,7 @@ const rootDir = resolve(import.meta.dirname, "..");
 const desktopDir = resolve(rootDir, "apps/desktop");
 const viteHost = "127.0.0.1";
 const vitePort = Number(
-  process.env.AIRLOOM_DEV_PORT ?? process.env.AIRLOOM_DEV_PORT ?? "5173",
+  process.env.INCANTATION_DEV_PORT ?? process.env.AIRLOOM_DEV_PORT ?? "5173",
 );
 const viteReadyPattern = /(https?:\/\/[\w.:-]+)/;
 
@@ -107,7 +107,7 @@ const waitForVite = async () => {
       resolved = true;
       rejectUrl?.(
         new Error(
-          `Vite could not start on ${existingUrl}. Set AIRLOOM_DEV_PORT (or legacy AIRLOOM_DEV_PORT) to another port or stop the process already using it.`,
+          `Vite could not start on ${existingUrl}. Set INCANTATION_DEV_PORT (or legacy AIRLOOM_DEV_PORT) to another port or stop the process already using it.`,
         ),
       );
     }
@@ -133,6 +133,7 @@ const startElectron = (rendererUrl: string) => {
     stdio: ["inherit", "pipe", "pipe"],
     env: {
       ...process.env,
+      INCANTATION_RENDERER_URL: rendererUrl,
       AIRLOOM_RENDERER_URL: rendererUrl,
     },
   });

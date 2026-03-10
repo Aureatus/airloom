@@ -23,7 +23,7 @@ from app.protocol import Landmark  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Train Airloom pose classifier")
+    parser = argparse.ArgumentParser(description="Train Incantation pose classifier")
     parser.add_argument("input", type=Path, help="Exported capture root directory")
     parser.add_argument("output", type=Path, help="Output model JSON path")
     parser.add_argument("--stride", type=int, default=3, help="Keep every Nth frame")

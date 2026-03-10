@@ -1,8 +1,8 @@
 import type {
   AirloomActionEvent,
   AirloomInputEvent,
-} from "@airloom/shared/gesture-events";
-import type { AirloomSettings } from "@airloom/shared/settings-schema";
+} from "@incantation/shared/gesture-events";
+import type { AirloomSettings } from "@incantation/shared/settings-schema";
 import {
   type ActionMapperDebugState,
   createActionMapper,

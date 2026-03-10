@@ -1,4 +1,4 @@
-# Airloom Architecture
+# Incantation Architecture
 
 `airloom` is split into two runtimes:
 

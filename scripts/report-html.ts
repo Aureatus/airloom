@@ -81,7 +81,7 @@ run("bunx", [
   "-o",
   htmlPath,
   "-t",
-  "Airloom Test Report",
+  "Incantation Test Report",
 ]);
 
 console.log(`HTML report written to ${htmlPath}`);

@@ -1,4 +1,4 @@
-import type { AirloomInputEvent } from "@airloom/shared/gesture-events";
+import type { AirloomInputEvent } from "@incantation/shared/gesture-events";
 
 type ProcessEvent = (event: AirloomInputEvent) => Promise<void>;
 type AfterEvent = () => void;

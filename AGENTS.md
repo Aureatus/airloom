@@ -104,7 +104,7 @@ uv run --directory apps/vision-service --group train python tools/train_pose_cla
 - Important local-only paths include:
   - `apps/vision-service/data/pose-captures/`
   - `apps/vision-service/models/pose_classifier_v1.json`
-  - `~/.config/@airloom/desktop/`
+  - `~/.config/@incantation/desktop/`
 - The training script is `apps/vision-service/tools/train_pose_classifier.py`.
 - Use `--exclude-label` for classes that should remain out of the active model.
 - The current trainer supports mirrored landmark augmentation from stored raw landmarks. Preserve that behavior when modifying training.

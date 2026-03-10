@@ -1,4 +1,4 @@
-import type { AirloomSettings } from "@airloom/shared/settings-schema";
+import type { AirloomSettings } from "@incantation/shared/settings-schema";
 
 type CommandHudProps = {
   active: boolean;

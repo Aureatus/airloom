@@ -172,8 +172,8 @@ const main = async () => {
     rootDir,
     "apps/desktop/node_modules/.bin/electron",
   );
-  const tempRoot = mkdtempSync(join(tmpdir(), "airloom-pipeline-smoke-"));
-  const targetTitle = "Airloom Pipeline Smoke Target";
+  const tempRoot = mkdtempSync(join(tmpdir(), "incantation-pipeline-smoke-"));
+  const targetTitle = "Incantation Pipeline Smoke Target";
   const fixtureRoot = join(
     rootDir,
     "apps/vision-service/tests/fixtures/landmark_sequences",
@@ -265,8 +265,11 @@ const main = async () => {
         cwd: rootDir,
         env: {
           ...process.env,
+          INCANTATION_HEADLESS: "1",
           AIRLOOM_HEADLESS: "1",
+          INCANTATION_STARTUP_DELAY_MS: "500",
           AIRLOOM_STARTUP_DELAY_MS: "500",
+          INCANTATION_FIXTURE: fixturePath,
           AIRLOOM_FIXTURE: fixturePath,
         },
         stdio: ["ignore", "pipe", "pipe"],
@@ -321,7 +324,7 @@ const main = async () => {
 
         if (reportPath) {
           writeJUnitReport(reportPath, {
-            name: "airloom-pipeline-smoke",
+            name: "incantation-pipeline-smoke",
             testCases,
           });
         }
@@ -356,12 +359,12 @@ const main = async () => {
 
     if (reportPath) {
       writeJUnitReport(reportPath, {
-        name: "airloom-pipeline-smoke",
+        name: "incantation-pipeline-smoke",
         testCases,
       });
     }
 
-    console.log("Airloom pipeline smoke harness passed.");
+    console.log("Incantation pipeline smoke harness passed.");
   } finally {
     desktopProcess?.kill();
     targetProcess.kill();
@@ -373,7 +376,7 @@ main().catch((error) => {
   const reportPath = getArgValue("--junit");
   if (reportPath && !existsSync(reportPath)) {
     writeJUnitReport(reportPath, {
-      name: "airloom-pipeline-smoke",
+      name: "incantation-pipeline-smoke",
       testCases: [
         {
           name: "pipeline smoke bootstrap",

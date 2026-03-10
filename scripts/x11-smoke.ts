@@ -127,7 +127,7 @@ const main = async () => {
     throw new Error("The Linux X11 adapter is not available in this session.");
   }
 
-  const targetTitle = "Airloom X11 Smoke Target";
+  const targetTitle = "Incantation X11 Smoke Target";
   const targetProcess = spawn(
     "xev",
     ["-name", targetTitle, "-geometry", "480x320+180+180"],
@@ -175,7 +175,7 @@ const main = async () => {
       ) {
         if (reportPath) {
           writeJUnitReport(reportPath, {
-            name: "airloom-x11-smoke",
+            name: "incantation-x11-smoke",
             testCases: [
               {
                 name: "adapter smoke",
@@ -186,7 +186,7 @@ const main = async () => {
           });
         }
 
-        console.log("Airloom X11 smoke harness passed.");
+        console.log("Incantation X11 smoke harness passed.");
         return;
       }
 
@@ -205,7 +205,7 @@ main().catch((error) => {
   const reportPath = getArgValue("--junit");
   if (reportPath) {
     writeJUnitReport(reportPath, {
-      name: "airloom-x11-smoke",
+      name: "incantation-x11-smoke",
       testCases: [
         {
           name: "adapter smoke",

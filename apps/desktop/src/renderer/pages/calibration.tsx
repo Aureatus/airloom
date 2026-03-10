@@ -249,7 +249,7 @@ export const CalibrationPage = ({
 
   useEffect(() => {
     return () => {
-      void window.airloom.setInputSuppressed(false);
+      void window.incantation.setInputSuppressed(false);
     };
   }, []);
 
@@ -260,7 +260,7 @@ export const CalibrationPage = ({
     if (countdown <= 0) {
       captureStartRef
         .current()
-        .catch(() => window.airloom.setInputSuppressed(false))
+        .catch(() => window.incantation.setInputSuppressed(false))
         .finally(() => {
           setCountdown(null);
           setCaptureBusy(false);
@@ -283,7 +283,7 @@ export const CalibrationPage = ({
       setCaptureBusy(true);
       captureStopRef
         .current()
-        .finally(() => window.airloom.setInputSuppressed(false))
+        .finally(() => window.incantation.setInputSuppressed(false))
         .finally(() => setCaptureBusy(false));
     }, captureDurationMs);
 
@@ -292,14 +292,14 @@ export const CalibrationPage = ({
 
   const startCapture = useCallback(async () => {
     setCaptureBusy(true);
-    await window.airloom.setInputSuppressed(true);
+    await window.incantation.setInputSuppressed(true);
     setCountdown(3);
   }, []);
 
   const stopCapture = useCallback(async () => {
     setCaptureBusy(true);
     await onCaptureStop();
-    await window.airloom.setInputSuppressed(false);
+    await window.incantation.setInputSuppressed(false);
     setCaptureBusy(false);
   }, [onCaptureStop]);
 
@@ -322,7 +322,7 @@ export const CalibrationPage = ({
           event.preventDefault();
           setCountdown(null);
           setCaptureBusy(false);
-          void window.airloom.setInputSuppressed(false);
+          void window.incantation.setInputSuppressed(false);
           return;
         }
 
@@ -369,7 +369,7 @@ export const CalibrationPage = ({
         if (countdown !== null) {
           setCountdown(null);
           setCaptureBusy(false);
-          void window.airloom.setInputSuppressed(false);
+          void window.incantation.setInputSuppressed(false);
           return;
         }
         if (capture.recording) {
@@ -771,7 +771,7 @@ export const CalibrationPage = ({
                   if (countdown !== null) {
                     setCountdown(null);
                     setCaptureBusy(false);
-                    void window.airloom.setInputSuppressed(false);
+                    void window.incantation.setInputSuppressed(false);
                     return;
                   }
                   void stopCapture();

@@ -167,31 +167,31 @@ class _TrackedHand:
 class HandTracker:
     smoothing_alpha: float = field(
         default_factory=lambda: float(
-            _env_value("AIRLOOM_SMOOTHING_ALPHA", "AIRLOOM_SMOOTHING_ALPHA", "0.72")
+            _env_value("INCANTATION_SMOOTHING_ALPHA", "AIRLOOM_SMOOTHING_ALPHA", "0.72")
         )
     )
     mirror_x: bool = field(
-        default_factory=lambda: _env_value("AIRLOOM_MIRROR_X", "AIRLOOM_MIRROR_X", "1") != "0"
+        default_factory=lambda: _env_value("INCANTATION_MIRROR_X", "AIRLOOM_MIRROR_X", "1") != "0"
     )
     classifier_mode: PoseClassifierMode = field(
         default_factory=lambda: cast(
             PoseClassifierMode,
             _env_value(
-                "AIRLOOM_POSE_CLASSIFIER_MODE",
+                "INCANTATION_POSE_CLASSIFIER_MODE",
                 "AIRLOOM_POSE_CLASSIFIER_MODE",
                 "learned",
             ),
         )
     )
     pose_model_path: str | None = field(
-        default_factory=lambda: os.environ.get("AIRLOOM_POSE_MODEL_PATH")
+        default_factory=lambda: os.environ.get("INCANTATION_POSE_MODEL_PATH")
         or os.environ.get("AIRLOOM_POSE_MODEL_PATH")
     )
     capture_controller: Any | None = None
     tracking_hold_frames: int = field(
         default_factory=lambda: int(
             _env_value(
-                "AIRLOOM_TRACKING_HOLD_FRAMES",
+                "INCANTATION_TRACKING_HOLD_FRAMES",
                 "AIRLOOM_TRACKING_HOLD_FRAMES",
                 "3",
             )
@@ -200,7 +200,7 @@ class HandTracker:
     pointer_region_margin: float = field(
         default_factory=lambda: float(
             _env_value(
-                "AIRLOOM_POINTER_REGION_MARGIN",
+                "INCANTATION_POINTER_REGION_MARGIN",
                 "AIRLOOM_POINTER_REGION_MARGIN",
                 "0.12",
             )

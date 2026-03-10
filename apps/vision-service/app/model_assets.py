@@ -18,9 +18,9 @@ GESTURE_RECOGNIZER_MODEL_URL = (
 def _default_cache_dir() -> Path:
     xdg_cache = os.environ.get("XDG_CACHE_HOME")
     if xdg_cache:
-        return Path(xdg_cache) / "airloom" / "models"
+        return Path(xdg_cache) / "incantation" / "models"
 
-    return Path.home() / ".cache" / "airloom" / "models"
+    return Path.home() / ".cache" / "incantation" / "models"
 
 
 def _legacy_cache_dir() -> Path:
@@ -43,13 +43,13 @@ def _prepare_cache_dir() -> Path:
 
 
 def ensure_hand_landmarker_model() -> Path:
-    override = os.environ.get("AIRLOOM_HAND_LANDMARKER_MODEL") or os.environ.get(
+    override = os.environ.get("INCANTATION_HAND_LANDMARKER_MODEL") or os.environ.get(
         "AIRLOOM_HAND_LANDMARKER_MODEL"
     )
     if override:
         path = Path(override).expanduser().resolve()
         if not path.exists():
-            raise RuntimeError(f"AIRLOOM_HAND_LANDMARKER_MODEL does not exist: {path}")
+            raise RuntimeError(f"INCANTATION_HAND_LANDMARKER_MODEL does not exist: {path}")
         return path
 
     cache_dir = _prepare_cache_dir()
@@ -66,13 +66,13 @@ def ensure_hand_landmarker_model() -> Path:
 
 
 def ensure_gesture_recognizer_model() -> Path:
-    override = os.environ.get("AIRLOOM_GESTURE_RECOGNIZER_MODEL") or os.environ.get(
+    override = os.environ.get("INCANTATION_GESTURE_RECOGNIZER_MODEL") or os.environ.get(
         "AIRLOOM_GESTURE_RECOGNIZER_MODEL"
     )
     if override:
         path = Path(override).expanduser().resolve()
         if not path.exists():
-            raise RuntimeError(f"AIRLOOM_GESTURE_RECOGNIZER_MODEL does not exist: {path}")
+            raise RuntimeError(f"INCANTATION_GESTURE_RECOGNIZER_MODEL does not exist: {path}")
         return path
 
     cache_dir = _prepare_cache_dir()

@@ -173,11 +173,11 @@ def run_live_pipeline(
                 last_sent_version = version
 
     threads = [
-        Thread(target=capture_loop, name="airloom-capture", daemon=True),
-        Thread(target=inference_loop, name="airloom-inference", daemon=True),
+        Thread(target=capture_loop, name="incantation-capture", daemon=True),
+        Thread(target=inference_loop, name="incantation-inference", daemon=True),
     ]
     if preview_enabled:
-        threads.append(Thread(target=preview_loop, name="airloom-preview", daemon=True))
+        threads.append(Thread(target=preview_loop, name="incantation-preview", daemon=True))
 
     for thread in threads:
         thread.start()

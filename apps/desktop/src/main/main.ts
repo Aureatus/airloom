@@ -6,21 +6,21 @@ import {
   type AirloomCaptureStateEvent,
   type AirloomInputEvent,
   parseInputEvent,
-} from "@airloom/shared/gesture-events";
+} from "@incantation/shared/gesture-events";
 import {
   type AirloomSettings,
   parseAirloomSettings,
   settingsSchema,
-} from "@airloom/shared/settings-schema";
+} from "@incantation/shared/settings-schema";
 import { BrowserWindow, app, ipcMain, screen } from "electron";
 import { createEventDispatcher } from "./event-dispatcher";
 import { type RuntimeState, createGestureRuntime } from "./gesture-runtime";
 import {
   APP_NAMESPACE,
   PRODUCT_NAME,
-  ensureAirloomUserDataPath,
-  primeAirloomUserDataPath,
-  readAirloomEnv,
+  ensureUserDataPath,
+  primeUserDataPath,
+  readEnv,
 } from "./identity";
 import { normalizedToScreenPosition, resolveInputAdapter } from "./input";
 import { getLinuxX11DependencyWarning } from "./input/linux-x11";
@@ -85,7 +85,7 @@ const getPlatformWarnings = () => {
     process.env.XDG_SESSION_TYPE === "wayland"
   ) {
     warnings.push(
-      "Wayland support is limited right now. X11 is the best-supported Linux path for Airloom.",
+      "Wayland support is limited right now. X11 is the best-supported Linux path for Incantation.",
     );
   }
 
@@ -111,13 +111,20 @@ const runtime = createGestureRuntime(
 const rootDir = resolve(import.meta.dirname, "../../../../");
 const visionServiceDir = join(rootDir, "apps/vision-service");
 const rendererIndexPath = join(import.meta.dirname, "../renderer/index.html");
-const rendererDevUrl = readAirloomEnv("AIRLOOM_RENDERER_URL");
-const startupDelayMs = Number(
-  readAirloomEnv("AIRLOOM_STARTUP_DELAY_MS") ?? "0",
+const rendererDevUrl = readEnv(
+  "INCANTATION_RENDERER_URL",
+  "AIRLOOM_RENDERER_URL",
 );
-const headlessMode = readAirloomEnv("AIRLOOM_HEADLESS") === "1";
+const startupDelayMs = Number(
+  readEnv("INCANTATION_STARTUP_DELAY_MS", "AIRLOOM_STARTUP_DELAY_MS") ?? "0",
+);
+const headlessMode =
+  readEnv("INCANTATION_HEADLESS", "AIRLOOM_HEADLESS") === "1";
 const exitOnServiceExit =
-  readAirloomEnv("AIRLOOM_EXIT_ON_SERVICE_EXIT") === "1";
+  readEnv(
+    "INCANTATION_EXIT_ON_SERVICE_EXIT",
+    "AIRLOOM_EXIT_ON_SERVICE_EXIT",
+  ) === "1";
 const ignoredVisionLogPatterns = [
   "WARNING: All log messages before absl::InitializeLog() is called are written to STDERR",
   "inference_feedback_manager.cc:114",
@@ -406,7 +413,7 @@ const startVisionService = () => {
     return getServiceStatus();
   }
 
-  const fixture = readAirloomEnv("AIRLOOM_FIXTURE");
+  const fixture = readEnv("INCANTATION_FIXTURE", "AIRLOOM_FIXTURE");
   const args = ["run", "python", "-m", "app.main", "--stdio"];
   if (fixture) {
     args.push("--fixture", fixture);
@@ -416,21 +423,43 @@ const startVisionService = () => {
     cwd: visionServiceDir,
     env: {
       ...process.env,
+      INCANTATION_DEBUG_PREVIEW: "1",
       AIRLOOM_DEBUG_PREVIEW: "1",
+      INCANTATION_CAPTURE_DIR: join(app.getPath("userData"), "captures"),
       AIRLOOM_CAPTURE_DIR: join(app.getPath("userData"), "captures"),
+      INCANTATION_CAPTURE_EXPORT_DIR: join(
+        rootDir,
+        "apps/vision-service/data/pose-captures",
+      ),
       AIRLOOM_CAPTURE_EXPORT_DIR: join(
         rootDir,
         "apps/vision-service/data/pose-captures",
       ),
+      INCANTATION_POSE_CLASSIFIER_MODE:
+        readEnv(
+          "INCANTATION_POSE_CLASSIFIER_MODE",
+          "AIRLOOM_POSE_CLASSIFIER_MODE",
+        ) ?? "learned",
       AIRLOOM_POSE_CLASSIFIER_MODE:
-        readAirloomEnv("AIRLOOM_POSE_CLASSIFIER_MODE") ?? "learned",
-      AIRLOOM_POSE_MODEL_PATH:
-        readAirloomEnv("AIRLOOM_POSE_MODEL_PATH") ??
+        readEnv(
+          "INCANTATION_POSE_CLASSIFIER_MODE",
+          "AIRLOOM_POSE_CLASSIFIER_MODE",
+        ) ?? "learned",
+      INCANTATION_POSE_MODEL_PATH:
+        readEnv("INCANTATION_POSE_MODEL_PATH", "AIRLOOM_POSE_MODEL_PATH") ??
         join(visionServiceDir, "models/pose_classifier_v1.json"),
+      AIRLOOM_POSE_MODEL_PATH:
+        readEnv("INCANTATION_POSE_MODEL_PATH", "AIRLOOM_POSE_MODEL_PATH") ??
+        join(visionServiceDir, "models/pose_classifier_v1.json"),
+      INCANTATION_SMOOTHING_ALPHA: String(currentSettings.smoothing),
       AIRLOOM_SMOOTHING_ALPHA: String(currentSettings.smoothing),
+      INCANTATION_POINTER_REGION_MARGIN: String(
+        currentSettings.pointerRegionMargin,
+      ),
       AIRLOOM_POINTER_REGION_MARGIN: String(
         currentSettings.pointerRegionMargin,
       ),
+      INCANTATION_MIRROR_X: "1",
       AIRLOOM_MIRROR_X: "1",
       GLOG_minloglevel: process.env.GLOG_minloglevel ?? "2",
       TF_CPP_MIN_LOG_LEVEL: process.env.TF_CPP_MIN_LOG_LEVEL ?? "2",
@@ -558,7 +587,7 @@ const focusOrCreateMainWindow = async () => {
   mainWindow?.focus();
 };
 
-primeAirloomUserDataPath();
+primeUserDataPath();
 
 if (!headlessMode) {
   const singleInstanceLock = app.requestSingleInstanceLock();
@@ -582,7 +611,7 @@ const registerIpcHandler = (
 };
 
 app.whenReady().then(async () => {
-  await ensureAirloomUserDataPath();
+  await ensureUserDataPath();
   currentSettings = await loadSettings();
 
   registerIpcHandler("get-status", () => getServiceStatus());

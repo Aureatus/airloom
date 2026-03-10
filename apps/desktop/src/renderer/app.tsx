@@ -1,5 +1,5 @@
-import type { AirloomInputEvent } from "@airloom/shared/gesture-events";
-import type { AirloomSettings } from "@airloom/shared/settings-schema";
+import type { AirloomInputEvent } from "@incantation/shared/gesture-events";
+import type { AirloomSettings } from "@incantation/shared/settings-schema";
 import {
   type FocusEvent,
   type FormEvent,
@@ -126,7 +126,7 @@ type ServiceStatus = {
 
 declare global {
   interface Window {
-    airloom: {
+    incantation: {
       getStatus: () => Promise<ServiceStatus>;
       getSettings: () => Promise<AirloomSettings>;
       updateSettings: (payload: AirloomSettings) => Promise<AirloomSettings>;
@@ -304,9 +304,9 @@ export const App = () => {
   const clickInspectorStartRef = useRef(performance.now());
 
   useEffect(() => {
-    window.airloom.getStatus().then(setStatus).catch(console.error);
-    window.airloom.getSettings().then(setSettings).catch(console.error);
-    return window.airloom.onStatus((nextStatus) => {
+    window.incantation.getStatus().then(setStatus).catch(console.error);
+    window.incantation.getSettings().then(setSettings).catch(console.error);
+    return window.incantation.onStatus((nextStatus) => {
       setStatus(nextStatus);
       if (nextStatus.lastEvent === null) {
         return;
@@ -341,19 +341,19 @@ export const App = () => {
   });
 
   const sendMockEvent = async (event: AirloomInputEvent) => {
-    const nextStatus = await window.airloom.sendEvent(event);
+    const nextStatus = await window.incantation.sendEvent(event);
     setStatus(nextStatus);
   };
 
   const sendMockEvents = async (events: AirloomInputEvent[]) => {
     for (const event of events) {
-      const nextStatus = await window.airloom.sendEvent(event);
+      const nextStatus = await window.incantation.sendEvent(event);
       setStatus(nextStatus);
     }
   };
 
   const saveSettings = async (nextSettings: AirloomSettings) => {
-    const saved = await window.airloom.updateSettings(nextSettings);
+    const saved = await window.incantation.updateSettings(nextSettings);
     setSettings(saved);
   };
 
@@ -532,14 +532,14 @@ export const App = () => {
         <div className="hero-actions">
           <button
             type="button"
-            onClick={() => window.airloom.startService().then(setStatus)}
+            onClick={() => window.incantation.startService().then(setStatus)}
           >
             Start service
           </button>
           <button
             type="button"
             className="ghost"
-            onClick={() => window.airloom.stopService().then(setStatus)}
+            onClick={() => window.incantation.stopService().then(setStatus)}
           >
             Stop service
           </button>
@@ -923,8 +923,8 @@ export const App = () => {
                 type="button"
                 onClick={() =>
                   (status.debugRecording.recording
-                    ? window.airloom.stopDebugRecording()
-                    : window.airloom.startDebugRecording()
+                    ? window.incantation.stopDebugRecording()
+                    : window.incantation.startDebugRecording()
                   ).then(setStatus)
                 }
               >
@@ -990,15 +990,17 @@ export const App = () => {
           debug={status.runtime.debug}
           capture={status.capture}
           onCaptureLabelChange={(label) =>
-            window.airloom.setCaptureLabel(label).then(setStatus)
+            window.incantation.setCaptureLabel(label).then(setStatus)
           }
-          onCaptureStart={() => window.airloom.startCapture().then(setStatus)}
-          onCaptureStop={() => window.airloom.stopCapture().then(setStatus)}
+          onCaptureStart={() =>
+            window.incantation.startCapture().then(setStatus)
+          }
+          onCaptureStop={() => window.incantation.stopCapture().then(setStatus)}
           onDiscardLastCapture={() =>
-            window.airloom.discardLastCapture().then(setStatus)
+            window.incantation.discardLastCapture().then(setStatus)
           }
           onExportCaptures={() =>
-            window.airloom.exportCaptures().then(setStatus)
+            window.incantation.exportCaptures().then(setStatus)
           }
           primaryPinchActive={status.runtime.mapper.primaryPinchActive}
           primaryPinchHeldMs={status.runtime.mapper.primaryPinchHeldMs}

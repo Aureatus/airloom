@@ -44,7 +44,7 @@ class Camera(AbstractContextManager["Camera"]):
         self._latest_frame_seq = 0
         self._latest_frame_at = 0.0
         self._reader_error: RuntimeError | None = None
-        self._reader = Thread(target=self._reader_loop, name="airloom-camera", daemon=True)
+        self._reader = Thread(target=self._reader_loop, name="incantation-camera", daemon=True)
         self._reader.start()
 
     def _reader_loop(self) -> None:

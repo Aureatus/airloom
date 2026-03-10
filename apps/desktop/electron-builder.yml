@@ -1,4 +1,4 @@
-appId: dev.airloom.desktop
+appId: dev.incantation.desktop
 productName: Incantation
 directories:
   output: dist/package

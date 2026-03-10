@@ -4,7 +4,7 @@ import {
   type AirloomSettings,
   parseAirloomSettings,
   settingsSchema,
-} from "@airloom/shared/settings-schema";
+} from "@incantation/shared/settings-schema";
 import { app } from "electron";
 
 const defaultSettings = settingsSchema.parse({});

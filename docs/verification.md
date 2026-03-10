@@ -27,4 +27,4 @@ bun run test:smoke:pipeline
 - `bun run report:open` renders the current XML set into `reports/html/index.html` using `xunit-viewer` and attempts to open it with the local desktop opener.
 - `bun run test:report:open` is the convenience command when you want a fresh run and then a report window immediately.
 - `xdotool` is the best current default for X11 because it is simple and battle-tested, but it is not usually installed by default on many distros.
-- Alternatives exist, such as `ydotool` and `xte`, but they are either less universal, more awkward to ship, or a worse fit for Airloom's current X11-first architecture.
+- Alternatives exist, such as `ydotool` and `xte`, but they are either less universal, more awkward to ship, or a worse fit for Incantation's current X11-first architecture.

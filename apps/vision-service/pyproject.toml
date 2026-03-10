@@ -1,7 +1,7 @@
 [project]
-name = "airloom-vision-service"
+name = "incantation-vision-service"
 version = "0.1.0"
-description = "Gesture inference and replay service for Airloom"
+description = "Gesture inference and replay service for Incantation"
 requires-python = ">=3.12"
 dependencies = [
     "mediapipe>=0.10.20",

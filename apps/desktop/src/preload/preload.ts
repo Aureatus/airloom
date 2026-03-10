@@ -1,5 +1,5 @@
-import type { AirloomInputEvent } from "@airloom/shared/gesture-events";
-import type { AirloomSettings } from "@airloom/shared/settings-schema";
+import type { AirloomInputEvent } from "@incantation/shared/gesture-events";
+import type { AirloomSettings } from "@incantation/shared/settings-schema";
 import { contextBridge, ipcRenderer } from "electron";
 import { APP_NAMESPACE } from "../main/identity";
 
