@@ -1,16 +1,21 @@
 # AGENTS
 
-Project-level guidance for agentic work in `airloom`.
+Project-level guidance for agentic work in the `Incantation` codebase.
 
 ## Repository Snapshot
 
-- `airloom` is a Bun workspace with three main layers:
+- The repo directory is still `airloom`, but the product/app identity is now `Incantation`.
+- The workspace/package identity is now `incantation` with:
+  - `@incantation/desktop`
+  - `@incantation/shared`
+- The repo has three main layers:
   - `apps/desktop`: Electron shell, React renderer, OS input adapters, and runtime mapping logic
   - `apps/vision-service`: Python webcam tracking, gesture state machine, replay tooling, and pose training
   - `packages/shared`: shared Zod schemas and cross-process event/settings contracts
 - The runtime boundary is intentional: Python emits input/gesture/debug events, Electron maps them into actions, and the platform adapter injects real OS input.
 - Linux/X11 is the primary target. Wayland exists but is intentionally limited and should be treated as secondary.
 - The repo now includes always-on overlay windows (`command-hud`, `camera-hud`) in addition to the main desktop app window.
+- Internal desktop bridge / IPC namespace is `incantation`, with legacy `airloom` compatibility still present in some places.
 
 ## Toolchain & Environment
 
@@ -61,6 +66,7 @@ uv run --directory apps/vision-service --group train python tools/train_pose_cla
 
 - Main process behavior lives under `apps/desktop/src/main`.
 - Renderer UI lives under `apps/desktop/src/renderer`.
+- Product identity and migration helpers live in `apps/desktop/src/main/identity.ts`.
 - Overlay windows are created in `apps/desktop/src/main/main.ts`; keep overlay-specific renderer logic query-param driven instead of duplicating entry points.
 - Input semantics live in:
   - `apps/desktop/src/main/action-mapper.ts`
@@ -69,6 +75,7 @@ uv run --directory apps/vision-service --group train python tools/train_pose_cla
 - Keep `action-mapper.ts` as the single source of truth for command-mode, click/drag, scroll, workspace stepping, and held key semantics.
 - Keep renderer overlays lightweight. The camera HUD and command HUD should stay readable and low-overhead because they are used during live testing while the main app is minimized.
 - When changing overlay placement or renderer plumbing, preserve single-instance behavior and always-on-top behavior in `apps/desktop/src/main/main.ts`.
+- The renderer currently uses `window.incantation` as the main preload bridge.
 
 ## Vision Service Guidance
 
@@ -105,6 +112,7 @@ uv run --directory apps/vision-service --group train python tools/train_pose_cla
   - `apps/vision-service/data/pose-captures/`
   - `apps/vision-service/models/pose_classifier_v1.json`
   - `~/.config/@incantation/desktop/`
+- Desktop startup now migrates legacy `@airloom` user data forward into `@incantation` paths. Preserve migration behavior when touching identity/path code.
 - The training script is `apps/vision-service/tools/train_pose_classifier.py`.
 - Use `--exclude-label` for classes that should remain out of the active model.
 - The current trainer supports mirrored landmark augmentation from stored raw landmarks. Preserve that behavior when modifying training.
@@ -152,6 +160,7 @@ bun run --cwd apps/desktop build
 ## UI / UX Principles
 
 - Favor practical, legible, high-signal interfaces over decorative complexity.
+- Current visual language is intentionally occult / hex / sigil themed, but operational labels should remain literal and functional (`Scroll`, `Workspace`, `Right click`, `Command mode`, etc.).
 - Calibration/debug UI should help diagnose real gesture problems quickly:
   - pointer vs action hand separation
   - command mode state
@@ -181,6 +190,7 @@ bun run --cwd apps/desktop build
 ## Useful Repo Paths
 
 - `apps/desktop/src/main/main.ts` - Electron lifecycle, overlays, service bridge
+- `apps/desktop/src/main/identity.ts` - product identity, namespace, and user-data migration
 - `apps/desktop/src/main/action-mapper.ts` - gesture-to-action mapping
 - `apps/desktop/src/main/gesture-runtime.ts` - runtime execution + state
 - `apps/desktop/src/renderer/pages/calibration.tsx` - calibration/debug UI
