@@ -52,6 +52,14 @@ uv run --directory apps/vision-service ty check
 uv run --directory apps/vision-service --group train python tools/train_pose_classifier.py ...
 ```
 
+## Project Skills
+
+- Project-local OpenCode skills live under `.opencode/skills/`.
+- Use `hand-gesture-recognition` when working on hand landmarks, gesture classification, multi-hand role assignment, calibration, false-positive reduction, or gesture-to-action mapping.
+- Use `mediapipe-pose-detection` when working on smoothing, confidence tuning, tracking-loss handling, debug overlays, runtime metrics, or frame-by-frame validation workflows.
+- Treat `hand-gesture-recognition` as the primary skill for the current webcam control path in `apps/vision-service`.
+- Treat `mediapipe-pose-detection` as a secondary reference skill for motion-pipeline debugging and validation techniques, not as a source of new gesture semantics by itself.
+
 ## Core Architecture Rules
 
 - Do not blur the runtime layers.
