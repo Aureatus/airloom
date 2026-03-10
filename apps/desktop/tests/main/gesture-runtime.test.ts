@@ -92,7 +92,10 @@ describe("createGestureRuntime", () => {
     });
 
     expect(calls).toEqual(["click:left", "key:Return"]);
-    expect(runtime.getState().recentActions).toEqual(["left click", "Key Return"]);
+    expect(runtime.getState().recentActions).toEqual([
+      "left click",
+      "Key Return",
+    ]);
   });
 
   test("holds left button during a drag pinch and releases on pinch end", async () => {
@@ -195,7 +198,10 @@ describe("createGestureRuntime", () => {
     }
 
     expect(calls).toEqual(["down", "move", "move", "up"]);
-    expect(runtime.getState().recentActions).toEqual(["Move 0.42, 0.54", "left up"]);
+    expect(runtime.getState().recentActions).toEqual([
+      "Move 0.42, 0.54",
+      "left up",
+    ]);
   });
 
   test("updates status state from status events", async () => {

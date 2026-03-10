@@ -1,6 +1,6 @@
-# airloom
+# Airloom
 
-Webcam-based computer control with gesture input.
+Spell-inspired webcam-based computer control with gesture input.
 
 ## Stack
 

@@ -69,23 +69,35 @@ export const CameraHud = ({
                 <strong>{tracking ? gesture : "searching"}</strong>
               </div>
               <div className="camera-hud-chip">
-                {serviceRunning ? (cameraUnavailable ? "camera issue" : "live") : "offline"}
+                {serviceRunning
+                  ? cameraUnavailable
+                    ? "camera issue"
+                    : "live"
+                  : "offline"}
               </div>
             </div>
             <div className="camera-hud-metrics">
               <span className="camera-hud-metric camera-hud-metric-neutral">
                 Camera {cameraWidth ?? 0}x{cameraHeight ?? 0}
               </span>
-              <span className={`camera-hud-metric camera-hud-metric-${fpsTone(captureFps)}`}>
+              <span
+                className={`camera-hud-metric camera-hud-metric-${fpsTone(captureFps)}`}
+              >
                 Capture {formatMetric(captureFps)} fps
               </span>
-              <span className={`camera-hud-metric camera-hud-metric-${fpsTone(processedFps, processedBaseline)}`}>
+              <span
+                className={`camera-hud-metric camera-hud-metric-${fpsTone(processedFps, processedBaseline)}`}
+              >
                 Processed {formatMetric(processedFps)} fps
               </span>
-              <span className={`camera-hud-metric camera-hud-metric-${fpsTone(previewFps, previewBaseline)}`}>
+              <span
+                className={`camera-hud-metric camera-hud-metric-${fpsTone(previewFps, previewBaseline)}`}
+              >
                 Preview {formatMetric(previewFps)} fps
               </span>
-              <span className={`camera-hud-metric camera-hud-metric-${delayTone(frameDelayMs)}`}>
+              <span
+                className={`camera-hud-metric camera-hud-metric-${delayTone(frameDelayMs)}`}
+              >
                 Delay {frameDelayMs ?? 0} ms
               </span>
             </div>
@@ -97,7 +109,8 @@ export const CameraHud = ({
           compact
         />
         <p className="camera-hud-copy">
-          Teal is pointer hand, amber is action hand. The frame edge shows your usable camera bounds.
+          Teal marks the pointer hand, amber marks the action hand, and the
+          frame edge shows the live camera bounds.
         </p>
       </section>
     </div>

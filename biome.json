@@ -11,6 +11,12 @@
     }
   },
   "files": {
-    "ignore": ["dist", "node_modules", ".venv"]
+    "ignore": [
+      "dist",
+      "node_modules",
+      ".venv",
+      "apps/vision-service/data/pose-captures/**",
+      "apps/vision-service/models/pose_classifier_v1.json"
+    ]
   }
 }

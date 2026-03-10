@@ -1,5 +1,5 @@
 appId: dev.airloom.desktop
-productName: Airloom
+productName: Incantation
 directories:
   output: dist/package
 files:

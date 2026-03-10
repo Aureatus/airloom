@@ -1,13 +1,13 @@
 import type { AirloomInputEvent } from "@airloom/shared/gesture-events";
 import type { AirloomSettings } from "@airloom/shared/settings-schema";
 import {
+  type FocusEvent,
+  type FormEvent,
+  type MouseEvent,
   useEffect,
   useMemo,
   useRef,
   useState,
-  type FocusEvent,
-  type FormEvent,
-  type MouseEvent,
 } from "react";
 import { CameraHud } from "./components/camera-hud";
 import { CommandHud } from "./components/command-hud";
@@ -96,14 +96,14 @@ type CaptureState = {
   activeLabel: string;
   recording: boolean;
   takeCount: number;
-    counts: {
-      neutral: number;
-      "open-palm": number;
-      "closed-fist": number;
-      "primary-pinch": number;
-      "secondary-pinch": number;
-      "peace-sign": number;
-    };
+  counts: {
+    neutral: number;
+    "open-palm": number;
+    "closed-fist": number;
+    "primary-pinch": number;
+    "secondary-pinch": number;
+    "peace-sign": number;
+  };
   lastTakeId: string | null;
   exportPath: string | null;
   message: string | null;
@@ -290,7 +290,9 @@ export const App = () => {
   const [status, setStatus] = useState(initialStatus);
   const [settings, setSettings] = useState(defaultSettings);
   const [eventLog, setEventLog] = useState<string[]>([]);
-  const [clickInspectorLog, setClickInspectorLog] = useState<InspectorLogEntry[]>([]);
+  const [clickInspectorLog, setClickInspectorLog] = useState<
+    InspectorLogEntry[]
+  >([]);
   const [shapeInspectorState, setShapeInspectorState] = useState<
     "idle" | "selected" | "editing"
   >("idle");
@@ -448,11 +450,15 @@ export const App = () => {
   };
 
   const clickInspectorSummary = useMemo(() => {
-    const clickCount = clickInspectorLog.filter((entry) => entry.type === "click").length;
+    const clickCount = clickInspectorLog.filter(
+      (entry) => entry.type === "click",
+    ).length;
     const doubleClickCount = clickInspectorLog.filter(
       (entry) => entry.type === "dblclick",
     ).length;
-    const focusCount = clickInspectorLog.filter((entry) => entry.type === "focus").length;
+    const focusCount = clickInspectorLog.filter(
+      (entry) => entry.type === "focus",
+    ).length;
     return { clickCount, doubleClickCount, focusCount };
   }, [clickInspectorLog]);
 
@@ -505,13 +511,23 @@ export const App = () => {
   return (
     <main className="shell">
       <section className="hero panel">
-        <div>
-          <div className="eyebrow">Airloom</div>
+        <div className="hero-copy">
+          <div className="eyebrow">Incantation</div>
           <h1>Gesture control for the rest of your desktop.</h1>
           <p>
-            Linux-first webcam control with a replayable Python gesture engine
-            and a focused Electron shell.
+            Linux-first webcam control with live overlays, replayable vision
+            logic, and a command wheel built for real desktop work.
           </p>
+          <div className="hero-note-grid">
+            <div className="hero-note-card">
+              <span>Core loop</span>
+              <strong>Clutch, pinch, command, speak</strong>
+            </div>
+            <div className="hero-note-card">
+              <span>Mode</span>
+              <strong>{status.running ? "Live" : "Offline"}</strong>
+            </div>
+          </div>
         </div>
         <div className="hero-actions">
           <button
@@ -536,7 +552,8 @@ export const App = () => {
           <div className="metric-card">
             <span>Pose</span>
             <strong>
-              {status.runtime.debug.pose} ({status.runtime.debug.poseConfidence.toFixed(2)})
+              {status.runtime.debug.pose} (
+              {status.runtime.debug.poseConfidence.toFixed(2)})
             </strong>
           </div>
           <div className="metric-card">
@@ -585,7 +602,9 @@ export const App = () => {
               <div className="metric-card">
                 <span>Pointer</span>
                 <strong>
-                  {status.runtime.pointerControlEnabled ? "Hold-to-move" : "Frozen"}
+                  {status.runtime.pointerControlEnabled
+                    ? "Hold-to-move"
+                    : "Frozen"}
                 </strong>
               </div>
               <div className="metric-card">
@@ -605,102 +624,114 @@ export const App = () => {
 
           <div className="panel control-panel">
             <div className="eyebrow">Debug</div>
-            <h2>Trigger mock actions</h2>
+            <h2>Trigger mock gestures</h2>
             <div className="mock-grid">
-            <button
-              type="button"
-              onClick={() =>
-                sendMockEvent({
-                  type: "gesture.intent",
-                  gesture: "closed-fist",
-                  phase: "instant",
-                })
-              }
-            >
-              Toggle pointer
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                sendMockEvent({
-                  type: "pointer.observed",
-                  x: 0.62,
-                  y: 0.42,
-                  confidence: 0.91,
-                })
-              }
-            >
-              Move pointer
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                sendMockEvents([
-                  {
+              <button
+                type="button"
+                onClick={() =>
+                  sendMockEvent({
                     type: "gesture.intent",
-                    gesture: "primary-pinch",
-                    phase: "start",
-                  },
-                  {
+                    gesture: "closed-fist",
+                    phase: "instant",
+                  })
+                }
+              >
+                Toggle pointer
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  sendMockEvent({
+                    type: "pointer.observed",
+                    x: 0.62,
+                    y: 0.42,
+                    confidence: 0.91,
+                  })
+                }
+              >
+                Move pointer
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  sendMockEvents([
+                    {
+                      type: "gesture.intent",
+                      gesture: "primary-pinch",
+                      phase: "start",
+                    },
+                    {
+                      type: "gesture.intent",
+                      gesture: "primary-pinch",
+                      phase: "end",
+                    },
+                  ])
+                }
+              >
+                Left click
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  sendMockEvents([
+                    {
+                      type: "gesture.intent",
+                      gesture: "secondary-pinch",
+                      phase: "start",
+                    },
+                    {
+                      type: "gesture.intent",
+                      gesture: "secondary-pinch",
+                      phase: "end",
+                    },
+                  ])
+                }
+              >
+                Command right click
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  sendMockEvent({
                     type: "gesture.intent",
-                    gesture: "primary-pinch",
-                    phase: "end",
-                  },
-                ])
-              }
-            >
-              Left click
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                sendMockEvent({
-                  type: "gesture.intent",
-                  gesture: "thumb-middle-pinch",
-                  phase: "instant",
-                })
-              }
-            >
-              Right click
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                sendMockEvent({
-                  type: "gesture.intent",
-                  gesture: "open-palm-hold",
-                  phase: "instant",
-                })
-              }
-            >
-              Trigger mapped key
-            </button>
-            <button
-              type="button"
-              className="ghost"
-              onClick={() =>
-                sendMockEvent({
-                  type: "status",
-                  tracking: true,
-                  pinchStrength: 0.83,
-                  gesture: "short-pinch",
-                })
-              }
-            >
-              Status: pinch
-             </button>
-             </div>
+                    gesture: "open-palm-hold",
+                    phase: "instant",
+                  })
+                }
+              >
+                Trigger mapped key
+              </button>
+              <button
+                type="button"
+                className="ghost"
+                onClick={() =>
+                  sendMockEvent({
+                    type: "status",
+                    tracking: true,
+                    pinchStrength: 0.83,
+                    gesture: "short-pinch",
+                  })
+                }
+              >
+                Status: pinch
+              </button>
+            </div>
             <div className="click-inspector-panel">
               <div className="click-inspector-header">
                 <div>
                   <div className="eyebrow">Click inspector</div>
                   <p className="panel-copy">
-                    Use your live pinch on these targets to see whether the browser receives
-                    `click`, `dblclick`, extra `mousedown` / `mouseup`, or focus/input events.
+                    Use your live pinch on these targets to see whether the
+                    browser receives `click`, `dblclick`, extra `mousedown` /
+                    `mouseup`, or focus/input events.
                   </p>
                 </div>
                 <div className="hero-actions">
-                  <button type="button" className="ghost" onClick={resetClickInspector}>
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={resetClickInspector}
+                  >
                     Clear log
                   </button>
                 </div>
@@ -733,12 +764,18 @@ export const App = () => {
                   onMouseUp={(event) =>
                     logMouseInspectorEvent("button-target", "mouseup", event)
                   }
-                  onClick={(event) => logMouseInspectorEvent("button-target", "click", event)}
+                  onClick={(event) =>
+                    logMouseInspectorEvent("button-target", "click", event)
+                  }
                   onDoubleClick={(event) =>
                     logMouseInspectorEvent("button-target", "dblclick", event)
                   }
-                  onFocus={(event) => logFocusInspectorEvent("button-target", "focus", event)}
-                  onBlur={(event) => logFocusInspectorEvent("button-target", "blur", event)}
+                  onFocus={(event) =>
+                    logFocusInspectorEvent("button-target", "focus", event)
+                  }
+                  onBlur={(event) =>
+                    logFocusInspectorEvent("button-target", "blur", event)
+                  }
                 >
                   Selection target
                 </button>
@@ -748,33 +785,48 @@ export const App = () => {
                     "Editable target. A normal single click should focus it; a true double click should log dblclick."
                   }
                   onMouseDown={(event) =>
-                    logMouseInspectorEvent("editable-target", "mousedown", event)
+                    logMouseInspectorEvent(
+                      "editable-target",
+                      "mousedown",
+                      event,
+                    )
                   }
                   onMouseUp={(event) =>
                     logMouseInspectorEvent("editable-target", "mouseup", event)
                   }
-                  onClick={(event) => logMouseInspectorEvent("editable-target", "click", event)}
+                  onClick={(event) =>
+                    logMouseInspectorEvent("editable-target", "click", event)
+                  }
                   onDoubleClick={(event) =>
                     logMouseInspectorEvent("editable-target", "dblclick", event)
                   }
                   onFocus={(event) =>
                     logFocusInspectorEvent("editable-target", "focus", event)
                   }
-                  onBlur={(event) => logFocusInspectorEvent("editable-target", "blur", event)}
+                  onBlur={(event) =>
+                    logFocusInspectorEvent("editable-target", "blur", event)
+                  }
                   onKeyDown={() => {}}
-                  onInput={(event) => logInputInspectorEvent("editable-target", "input", event)}
+                  onInput={(event) =>
+                    logInputInspectorEvent("editable-target", "input", event)
+                  }
                 />
                 <div className="click-inspector-shape-panel">
                   <div className="click-inspector-shape-copy">
-                    Single click selects. A second click on the selected shape enters edit mode.
-                    Use this to catch accidental re-entry that feels like a double activation.
+                    Single click selects. A second click on the selected shape
+                    enters edit mode. Use this to catch accidental re-entry that
+                    feels like a double activation.
                   </div>
                   {shapeInspectorState === "editing" ? (
                     <textarea
                       className="click-inspector-editable click-inspector-shape-editor"
                       defaultValue={"Shape text editor"}
                       onMouseDown={(event) =>
-                        logMouseInspectorEvent("shape-editor", "mousedown", event)
+                        logMouseInspectorEvent(
+                          "shape-editor",
+                          "mousedown",
+                          event,
+                        )
                       }
                       onMouseUp={(event) =>
                         logMouseInspectorEvent("shape-editor", "mouseup", event)
@@ -783,15 +835,23 @@ export const App = () => {
                         logMouseInspectorEvent("shape-editor", "click", event)
                       }
                       onDoubleClick={(event) =>
-                        logMouseInspectorEvent("shape-editor", "dblclick", event)
+                        logMouseInspectorEvent(
+                          "shape-editor",
+                          "dblclick",
+                          event,
+                        )
                       }
-                      onFocus={(event) => logFocusInspectorEvent("shape-editor", "focus", event)}
+                      onFocus={(event) =>
+                        logFocusInspectorEvent("shape-editor", "focus", event)
+                      }
                       onBlur={(event) => {
                         logFocusInspectorEvent("shape-editor", "blur", event);
                         setShapeState("selected");
                       }}
                       onKeyDown={() => {}}
-                      onInput={(event) => logInputInspectorEvent("shape-editor", "input", event)}
+                      onInput={(event) =>
+                        logInputInspectorEvent("shape-editor", "input", event)
+                      }
                     />
                   ) : (
                     <button
@@ -802,7 +862,11 @@ export const App = () => {
                           : ""
                       }`}
                       onMouseDown={(event) =>
-                        logMouseInspectorEvent("shape-target", "mousedown", event)
+                        logMouseInspectorEvent(
+                          "shape-target",
+                          "mousedown",
+                          event,
+                        )
                       }
                       onMouseUp={(event) =>
                         logMouseInspectorEvent("shape-target", "mouseup", event)
@@ -810,17 +874,25 @@ export const App = () => {
                       onClick={(event) => {
                         logMouseInspectorEvent("shape-target", "click", event);
                         setShapeState(
-                          shapeInspectorState === "selected" ? "editing" : "selected",
+                          shapeInspectorState === "selected"
+                            ? "editing"
+                            : "selected",
                         );
                       }}
                       onDoubleClick={(event) => {
-                        logMouseInspectorEvent("shape-target", "dblclick", event);
+                        logMouseInspectorEvent(
+                          "shape-target",
+                          "dblclick",
+                          event,
+                        );
                         setShapeState("editing");
                       }}
                       onFocus={(event) =>
                         logFocusInspectorEvent("shape-target", "focus", event)
                       }
-                      onBlur={(event) => logFocusInspectorEvent("shape-target", "blur", event)}
+                      onBlur={(event) =>
+                        logFocusInspectorEvent("shape-target", "blur", event)
+                      }
                     >
                       {shapeInspectorState === "selected"
                         ? "Selected shape"
@@ -843,8 +915,8 @@ export const App = () => {
             <div className="eyebrow">Trace</div>
             <h2>Event log</h2>
             <p className="panel-copy">
-              New events stay pinned to the bottom so you can watch fist latching
-              and frame delay while testing live gestures.
+              New events stay pinned to the bottom so you can watch fist
+              latching and frame delay while testing live gestures.
             </p>
             <div className="hero-actions">
               <button
@@ -925,7 +997,9 @@ export const App = () => {
           onDiscardLastCapture={() =>
             window.airloom.discardLastCapture().then(setStatus)
           }
-          onExportCaptures={() => window.airloom.exportCaptures().then(setStatus)}
+          onExportCaptures={() =>
+            window.airloom.exportCaptures().then(setStatus)
+          }
           primaryPinchActive={status.runtime.mapper.primaryPinchActive}
           primaryPinchHeldMs={status.runtime.mapper.primaryPinchHeldMs}
           primaryPinchOutcome={status.runtime.mapper.primaryPinchOutcome}

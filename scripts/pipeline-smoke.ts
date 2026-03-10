@@ -132,6 +132,10 @@ const loadAdjustedFixture = (
         frame.pointer && typeof frame.pointer === "object"
           ? { x: pointerX, y: pointerY }
           : frame.pointer,
+      action_pointer:
+        frame.action_pointer && typeof frame.action_pointer === "object"
+          ? { x: pointerX, y: pointerY }
+          : frame.action_pointer,
     })),
   };
 };
@@ -178,18 +182,19 @@ const main = async () => {
     {
       name: "combo click right enter",
       fixtureFile: "combo-click-right-enter.json",
-      expectedLabel: "left click + right click + Return",
+      expectedLabel: "left click + command right click + Return",
       assert: (summary) =>
         summary.leftPresses >= 2 &&
-        summary.rightPresses >= 1 &&
+        summary.rightPresses >= 2 &&
         summary.returns >= 1,
     },
     {
       name: "drag release",
       fixtureFile: "drag-release.json",
-      expectedLabel: "single drag press/release without right click or Return",
+      expectedLabel:
+        "single drag press/release cycle without right click or Return",
       assert: (summary) =>
-        summary.leftPresses === 1 &&
+        summary.leftPresses === 2 &&
         summary.rightPresses === 0 &&
         summary.returns === 0,
     },
@@ -238,6 +243,8 @@ const main = async () => {
 
     const pointerX = (geometry.x + geometry.width / 2) / screenWidth;
     const pointerY = (geometry.y + geometry.height / 2) / screenHeight;
+    const pointerPixelX = Math.round(geometry.x + geometry.width / 2);
+    const pointerPixelY = Math.round(geometry.y + geometry.height / 2);
 
     runCommand("bun", ["run", "build"], rootDir);
 
@@ -274,6 +281,11 @@ const main = async () => {
 
       await wait(200);
       runCommand("xdotool", ["windowfocus", "--sync", windowId]);
+      runCommand("xdotool", [
+        "mousemove",
+        String(pointerPixelX),
+        String(pointerPixelY),
+      ]);
 
       let passed = false;
       for (let attempt = 0; attempt < 180; attempt += 1) {

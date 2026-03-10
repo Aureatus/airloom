@@ -858,5 +858,4 @@ describe("createActionMapper", () => {
       workspaceDirection: "idle",
     });
   });
-
 });

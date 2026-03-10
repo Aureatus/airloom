@@ -15,6 +15,13 @@ import {
 import { BrowserWindow, app, ipcMain, screen } from "electron";
 import { createEventDispatcher } from "./event-dispatcher";
 import { type RuntimeState, createGestureRuntime } from "./gesture-runtime";
+import {
+  APP_NAMESPACE,
+  PRODUCT_NAME,
+  ensureAirloomUserDataPath,
+  primeAirloomUserDataPath,
+  readAirloomEnv,
+} from "./identity";
 import { normalizedToScreenPosition, resolveInputAdapter } from "./input";
 import { getLinuxX11DependencyWarning } from "./input/linux-x11";
 import { createPreviewStreamDecoder } from "./preview-stream";
@@ -104,10 +111,13 @@ const runtime = createGestureRuntime(
 const rootDir = resolve(import.meta.dirname, "../../../../");
 const visionServiceDir = join(rootDir, "apps/vision-service");
 const rendererIndexPath = join(import.meta.dirname, "../renderer/index.html");
-const rendererDevUrl = process.env.AIRLOOM_RENDERER_URL;
-const startupDelayMs = Number(process.env.AIRLOOM_STARTUP_DELAY_MS ?? "0");
-const headlessMode = process.env.AIRLOOM_HEADLESS === "1";
-const exitOnServiceExit = process.env.AIRLOOM_EXIT_ON_SERVICE_EXIT === "1";
+const rendererDevUrl = readAirloomEnv("AIRLOOM_RENDERER_URL");
+const startupDelayMs = Number(
+  readAirloomEnv("AIRLOOM_STARTUP_DELAY_MS") ?? "0",
+);
+const headlessMode = readAirloomEnv("AIRLOOM_HEADLESS") === "1";
+const exitOnServiceExit =
+  readAirloomEnv("AIRLOOM_EXIT_ON_SERVICE_EXIT") === "1";
 const ignoredVisionLogPatterns = [
   "WARNING: All log messages before absl::InitializeLog() is called are written to STDERR",
   "inference_feedback_manager.cc:114",
@@ -152,7 +162,10 @@ const loadRenderer = async (
     throw new Error(`Renderer build missing at ${target.value}`);
   }
 
-  await window.loadFile(target.value, overlay ? { query: { overlay } } : undefined);
+  await window.loadFile(
+    target.value,
+    overlay ? { query: { overlay } } : undefined,
+  );
 };
 
 const getDebugRecordingDir = () => {
@@ -160,7 +173,10 @@ const getDebugRecordingDir = () => {
 };
 
 const recordDebugEvent = (event: AirloomInputEvent) => {
-  if (!debugRecordingState.recording || debugRecordingState.sessionPath === null) {
+  if (
+    !debugRecordingState.recording ||
+    debugRecordingState.sessionPath === null
+  ) {
     return;
   }
 
@@ -176,7 +192,10 @@ const recordDebugEvent = (event: AirloomInputEvent) => {
 };
 
 const recordDebugPreviewFrame = (frame: Uint8Array) => {
-  if (!debugRecordingState.recording || debugRecordingState.sessionPath === null) {
+  if (
+    !debugRecordingState.recording ||
+    debugRecordingState.sessionPath === null
+  ) {
     return;
   }
 
@@ -186,7 +205,10 @@ const recordDebugPreviewFrame = (frame: Uint8Array) => {
     frames: nextFrames,
   };
   const previewDir = join(debugRecordingState.sessionPath, "preview");
-  const filePath = join(previewDir, `${String(nextFrames).padStart(5, "0")}.jpg`);
+  const filePath = join(
+    previewDir,
+    `${String(nextFrames).padStart(5, "0")}.jpg`,
+  );
   void writeFile(filePath, frame);
 };
 
@@ -238,7 +260,7 @@ const sendServiceCommand = (payload: object) => {
 const broadcastStatus = () => {
   const status = getServiceStatus();
   for (const window of BrowserWindow.getAllWindows()) {
-    window.webContents.send("airloom:status", status);
+    window.webContents.send(`${APP_NAMESPACE}:status`, status);
   }
 };
 
@@ -254,7 +276,9 @@ const resolveOverlayBounds = (
   const anchorBottom = position.startsWith("bottom");
   return {
     x: Math.round(
-      anchorRight ? workArea.x + workArea.width - width - inset : workArea.x + inset,
+      anchorRight
+        ? workArea.x + workArea.width - width - inset
+        : workArea.x + inset,
     ),
     y: Math.round(
       anchorBottom
@@ -272,7 +296,8 @@ const positionOverlayWindows = () => {
   const cameraHudWidth = 420;
   const cameraHudHeight = 560;
   const stackGap = 12;
-  const sharedCorner = currentSettings.commandHudPosition === currentSettings.cameraHudPosition;
+  const sharedCorner =
+    currentSettings.commandHudPosition === currentSettings.cameraHudPosition;
 
   if (commandHudWindow !== null) {
     commandHudWindow.setBounds(
@@ -351,7 +376,7 @@ const attachProcessReaders = (child: ChildProcess) => {
     const decodePreviewFrame = createPreviewStreamDecoder((frame) => {
       recordDebugPreviewFrame(frame);
       for (const window of BrowserWindow.getAllWindows()) {
-        window.webContents.send("airloom:preview-frame", frame);
+        window.webContents.send(`${APP_NAMESPACE}:preview-frame`, frame);
       }
     });
 
@@ -381,7 +406,7 @@ const startVisionService = () => {
     return getServiceStatus();
   }
 
-  const fixture = process.env.AIRLOOM_FIXTURE;
+  const fixture = readAirloomEnv("AIRLOOM_FIXTURE");
   const args = ["run", "python", "-m", "app.main", "--stdio"];
   if (fixture) {
     args.push("--fixture", fixture);
@@ -392,16 +417,20 @@ const startVisionService = () => {
     env: {
       ...process.env,
       AIRLOOM_DEBUG_PREVIEW: "1",
-      AIRLOOM_DEBUG_PREVIEW_FPS: "12",
       AIRLOOM_CAPTURE_DIR: join(app.getPath("userData"), "captures"),
-      AIRLOOM_CAPTURE_EXPORT_DIR: join(rootDir, "apps/vision-service/data/pose-captures"),
+      AIRLOOM_CAPTURE_EXPORT_DIR: join(
+        rootDir,
+        "apps/vision-service/data/pose-captures",
+      ),
       AIRLOOM_POSE_CLASSIFIER_MODE:
-        process.env.AIRLOOM_POSE_CLASSIFIER_MODE ?? "learned",
+        readAirloomEnv("AIRLOOM_POSE_CLASSIFIER_MODE") ?? "learned",
       AIRLOOM_POSE_MODEL_PATH:
-        process.env.AIRLOOM_POSE_MODEL_PATH ??
+        readAirloomEnv("AIRLOOM_POSE_MODEL_PATH") ??
         join(visionServiceDir, "models/pose_classifier_v1.json"),
       AIRLOOM_SMOOTHING_ALPHA: String(currentSettings.smoothing),
-      AIRLOOM_POINTER_REGION_MARGIN: String(currentSettings.pointerRegionMargin),
+      AIRLOOM_POINTER_REGION_MARGIN: String(
+        currentSettings.pointerRegionMargin,
+      ),
       AIRLOOM_MIRROR_X: "1",
       GLOG_minloglevel: process.env.GLOG_minloglevel ?? "2",
       TF_CPP_MIN_LOG_LEVEL: process.env.TF_CPP_MIN_LOG_LEVEL ?? "2",
@@ -439,6 +468,7 @@ const createMainWindow = async () => {
     width: 1180,
     height: 820,
     backgroundColor: "#081015",
+    title: PRODUCT_NAME,
     webPreferences: {
       preload: join(import.meta.dirname, "../preload/preload.cjs"),
     },
@@ -472,7 +502,9 @@ const createCommandHudWindow = async () => {
 
   commandHudWindow.setIgnoreMouseEvents(true, { forward: true });
   commandHudWindow.setAlwaysOnTop(true, "screen-saver");
-  commandHudWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  commandHudWindow.setVisibleOnAllWorkspaces(true, {
+    visibleOnFullScreen: true,
+  });
   positionOverlayWindows();
   commandHudWindow.once("ready-to-show", () => {
     commandHudWindow?.showInactive();
@@ -505,7 +537,9 @@ const createCameraHudWindow = async () => {
 
   cameraHudWindow.setIgnoreMouseEvents(true, { forward: true });
   cameraHudWindow.setAlwaysOnTop(true, "screen-saver");
-  cameraHudWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  cameraHudWindow.setVisibleOnAllWorkspaces(true, {
+    visibleOnFullScreen: true,
+  });
   positionOverlayWindows();
   cameraHudWindow.once("ready-to-show", () => {
     cameraHudWindow?.showInactive();
@@ -524,63 +558,78 @@ const focusOrCreateMainWindow = async () => {
   mainWindow?.focus();
 };
 
-const singleInstanceLock = app.requestSingleInstanceLock();
-if (!singleInstanceLock) {
-  app.quit();
+primeAirloomUserDataPath();
+
+if (!headlessMode) {
+  const singleInstanceLock = app.requestSingleInstanceLock();
+  if (!singleInstanceLock) {
+    app.quit();
+  }
+
+  app.on("second-instance", () => {
+    void focusOrCreateMainWindow();
+  });
 }
 
-app.on("second-instance", () => {
-  void focusOrCreateMainWindow();
-});
+const registerIpcHandler = (
+  channel: string,
+  handler: (
+    event: Electron.IpcMainInvokeEvent,
+    ...args: unknown[]
+  ) => unknown | Promise<unknown>,
+) => {
+  ipcMain.handle(`${APP_NAMESPACE}:${channel}`, handler);
+};
 
 app.whenReady().then(async () => {
+  await ensureAirloomUserDataPath();
   currentSettings = await loadSettings();
 
-  ipcMain.handle("airloom:get-status", () => getServiceStatus());
-  ipcMain.handle("airloom:get-settings", () => currentSettings);
-  ipcMain.handle(
-    "airloom:update-settings",
-    async (_event, payload: unknown) => {
-      currentSettings = await saveSettings(parseAirloomSettings(payload));
-      positionOverlayWindows();
-      if (serviceProcess !== null) {
-        await restartVisionService();
-      }
+  registerIpcHandler("get-status", () => getServiceStatus());
+  registerIpcHandler("get-settings", () => currentSettings);
+  registerIpcHandler("update-settings", async (_event, payload: unknown) => {
+    currentSettings = await saveSettings(parseAirloomSettings(payload));
+    positionOverlayWindows();
+    if (serviceProcess !== null) {
+      await restartVisionService();
+    }
+    broadcastStatus();
+    return currentSettings;
+  });
+  registerIpcHandler("start-service", () => startVisionService());
+  registerIpcHandler("stop-service", () => stopVisionService());
+  registerIpcHandler(
+    "set-input-suppressed",
+    async (_event, suppressed: boolean) => {
+      await runtime.setInputSuppressed(suppressed);
       broadcastStatus();
-      return currentSettings;
+      return getServiceStatus();
     },
   );
-  ipcMain.handle("airloom:start-service", () => startVisionService());
-  ipcMain.handle("airloom:stop-service", () => stopVisionService());
-  ipcMain.handle("airloom:set-input-suppressed", async (_event, suppressed: boolean) => {
-    await runtime.setInputSuppressed(suppressed);
-    broadcastStatus();
-    return getServiceStatus();
-  });
-  ipcMain.handle("airloom:set-capture-label", (_event, label: string) => {
+  registerIpcHandler("set-capture-label", (_event, label: string) => {
     sendServiceCommand({ type: "capture.set-label", label });
     return getServiceStatus();
   });
-  ipcMain.handle("airloom:start-capture", () => {
+  registerIpcHandler("start-capture", () => {
     sendServiceCommand({ type: "capture.start" });
     return getServiceStatus();
   });
-  ipcMain.handle("airloom:stop-capture", () => {
+  registerIpcHandler("stop-capture", () => {
     sendServiceCommand({ type: "capture.stop" });
     return getServiceStatus();
   });
-  ipcMain.handle("airloom:discard-last-capture", () => {
+  registerIpcHandler("discard-last-capture", () => {
     sendServiceCommand({ type: "capture.discard-last" });
     return getServiceStatus();
   });
-  ipcMain.handle("airloom:export-captures", () => {
+  registerIpcHandler("export-captures", () => {
     sendServiceCommand({ type: "capture.export" });
     return getServiceStatus();
   });
-  ipcMain.handle("airloom:start-debug-recording", () => startDebugRecording());
-  ipcMain.handle("airloom:stop-debug-recording", () => stopDebugRecording());
-  ipcMain.handle(
-    "airloom:send-event",
+  registerIpcHandler("start-debug-recording", () => startDebugRecording());
+  registerIpcHandler("stop-debug-recording", () => stopDebugRecording());
+  registerIpcHandler(
+    "send-event",
     async (_event, payload: AirloomInputEvent) => {
       lastEvent = payload;
       await runtime.handleEvent(payload);

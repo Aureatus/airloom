@@ -134,7 +134,10 @@ const keyUpSequence = (binding: string) => {
 
   const modifiers = parts.slice(0, -1);
   const mainKey = parts.at(-1) ?? parts[0];
-  return [["keyup", mainKey], ...modifiers.reverse().map((part) => ["keyup", part])];
+  return [
+    ["keyup", mainKey],
+    ...modifiers.reverse().map((part) => ["keyup", part]),
+  ];
 };
 
 export const createLinuxX11Adapter = (): InputAdapter => {

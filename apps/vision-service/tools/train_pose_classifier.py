@@ -14,12 +14,12 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from app.pose_features import (
+from app.pose_features import (  # noqa: E402
     extract_pose_features,
     flatten_pose_features,
     mirror_landmarks_horizontally,
 )
-from app.protocol import Landmark
+from app.protocol import Landmark  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
@@ -42,23 +42,42 @@ def iter_capture_documents(root: Path) -> list[dict[str, object]]:
     return [json.loads(path.read_text()) for path in sorted(root.glob("**/*.json"))]
 
 
-def _feature_rows_from_frame(frame: dict[str, object]) -> list[dict[str, float]]:
-    landmarks = frame.get("landmarks")
-    if not isinstance(landmarks, list) or not landmarks:
-        features = frame.get("features")
-        return [features] if isinstance(features, dict) else []
+def _coerce_feature_dict(value: object) -> dict[str, float] | None:
+    if not isinstance(value, dict):
+        return None
 
-    typed_landmarks = cast(
-        list[Landmark],
-        [
-            {"x": float(point["x"]), "y": float(point["y"])}
-            for point in landmarks
-            if isinstance(point, dict) and "x" in point and "y" in point
-        ],
-    )
+    normalized: dict[str, float] = {}
+    for key, item in value.items():
+        if not isinstance(key, str):
+            return None
+        if not isinstance(item, int | float):
+            return None
+        normalized[key] = float(item)
+    return normalized
+
+
+def _coerce_landmarks(value: object) -> list[Landmark]:
+    if not isinstance(value, list):
+        return []
+
+    landmarks: list[Landmark] = []
+    for point in value:
+        if not isinstance(point, dict):
+            continue
+        typed_point = cast(dict[str, object], point)
+        raw_x = typed_point.get("x")
+        raw_y = typed_point.get("y")
+        if not isinstance(raw_x, int | float) or not isinstance(raw_y, int | float):
+            continue
+        landmarks.append({"x": float(raw_x), "y": float(raw_y)})
+    return landmarks
+
+
+def _feature_rows_from_frame(frame: dict[str, object]) -> list[dict[str, float]]:
+    typed_landmarks = _coerce_landmarks(frame.get("landmarks"))
     if not typed_landmarks:
-        features = frame.get("features")
-        return [features] if isinstance(features, dict) else []
+        features = _coerce_feature_dict(frame.get("features"))
+        return [features] if features is not None else []
 
     feature_rows: list[dict[str, float]] = []
     for candidate_landmarks in (
@@ -90,9 +109,12 @@ def load_training_rows(
         for index, frame in enumerate(frames):
             if index % max(1, stride) != 0:
                 continue
-            if not isinstance(frame, dict) or not frame.get("tracking", False):
+            if not isinstance(frame, dict):
                 continue
-            feature_rows = _feature_rows_from_frame(frame)
+            typed_frame = cast(dict[str, object], frame)
+            if not typed_frame.get("tracking", False):
+                continue
+            feature_rows = _feature_rows_from_frame(typed_frame)
             if not feature_rows:
                 continue
             if feature_names is None:

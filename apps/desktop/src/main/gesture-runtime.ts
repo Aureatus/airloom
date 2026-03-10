@@ -142,7 +142,9 @@ export const createGestureRuntime = (
   };
 
   const rememberAction = (event: AirloomActionEvent) => {
-    state.recentActions = [...state.recentActions, describeAction(event)].slice(-2);
+    state.recentActions = [...state.recentActions, describeAction(event)].slice(
+      -2,
+    );
   };
 
   const executeAction = async (event: AirloomActionEvent) => {

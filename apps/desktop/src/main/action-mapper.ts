@@ -63,7 +63,11 @@ export const createActionMapper = (
     lastScrollTickAt = null;
   };
 
-  const deriveScrollBand = (deltaY: number, absY: number, fastThreshold: number): ScrollBand => {
+  const deriveScrollBand = (
+    deltaY: number,
+    absY: number,
+    fastThreshold: number,
+  ): ScrollBand => {
     if (absY < fastThreshold) {
       return deltaY < 0 ? -1 : 1;
     }
@@ -92,7 +96,9 @@ export const createActionMapper = (
     const slowStepsPerSecond = settings.commandModeScrollGain / 8;
     const fastStepsPerSecond = settings.commandModeScrollGain / 4;
     const stepsPerSecond =
-      Math.abs(commandScrollBand) === 2 ? fastStepsPerSecond : slowStepsPerSecond;
+      Math.abs(commandScrollBand) === 2
+        ? fastStepsPerSecond
+        : slowStepsPerSecond;
     const direction = commandScrollBand < 0 ? -1 : 1;
     commandScrollRemainder += direction * (elapsedMs / 1000) * stepsPerSecond;
     const wholeSteps =
@@ -104,7 +110,11 @@ export const createActionMapper = (
   };
 
   const maybeStartDrag = (thresholdMs: number): AirloomActionEvent[] => {
-    if (commandModeActive || primaryPinchStartedAt === null || primaryPinchDragging) {
+    if (
+      commandModeActive ||
+      primaryPinchStartedAt === null ||
+      primaryPinchDragging
+    ) {
       return [];
     }
 
@@ -148,7 +158,9 @@ export const createActionMapper = (
       primaryPinchActive: true,
       primaryPinchHeldMs: heldMs,
       primaryPinchOutcome:
-        commandModeActive || primaryPinchDragging || heldMs >= getSettings().dragHoldThresholdMs
+        commandModeActive ||
+        primaryPinchDragging ||
+        heldMs >= getSettings().dragHoldThresholdMs
           ? "drag"
           : "click",
       commandModeActive,
@@ -254,7 +266,11 @@ export const createActionMapper = (
       clearScrollBand();
     }
     if (
-      absY <= Math.max(settings.commandModeRightClickDeadzone, settings.commandModeScrollDeadzone * 0.7)
+      absY <=
+      Math.max(
+        settings.commandModeRightClickDeadzone,
+        settings.commandModeScrollDeadzone * 0.7,
+      )
     ) {
       clearScrollBand();
       commandModeSubmode = "right-click";
@@ -272,7 +288,10 @@ export const createActionMapper = (
     clearScrollBand();
 
     const direction = event.deltaX < 0 ? -1 : 1;
-    if (workspaceStepsEmitted !== 0 && Math.sign(workspaceStepsEmitted) !== direction) {
+    if (
+      workspaceStepsEmitted !== 0 &&
+      Math.sign(workspaceStepsEmitted) !== direction
+    ) {
       return [];
     }
 
@@ -318,7 +337,9 @@ export const createActionMapper = (
       }
 
       case "scroll.observed": {
-        return event.amount === 0 ? [] : [{ type: "scroll", amount: event.amount }];
+        return event.amount === 0
+          ? []
+          : [{ type: "scroll", amount: event.amount }];
       }
 
       case "command.observed": {
@@ -336,7 +357,8 @@ export const createActionMapper = (
         }
 
         if (event.gesture === "secondary-pinch" && event.phase === "end") {
-          const shouldRightClick = commandModeActive && commandModeSubmode === "right-click";
+          const shouldRightClick =
+            commandModeActive && commandModeSubmode === "right-click";
           resetCommandMode();
           return shouldRightClick ? [{ type: "click", button: "right" }] : [];
         }
@@ -422,7 +444,10 @@ export const createActionMapper = (
         if (commandModeActive && commandModeSubmode === "scroll") {
           actions.push(...emitScrollTicks(now()));
         }
-        return [...actions, ...maybeStartDrag(getSettings().dragHoldThresholdMs)];
+        return [
+          ...actions,
+          ...maybeStartDrag(getSettings().dragHoldThresholdMs),
+        ];
       }
     }
   };

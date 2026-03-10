@@ -42,7 +42,7 @@ export const createEventDispatcher = (
   };
 
   const hasPending = () => {
-      return (
+    return (
       gestureQueue.length > 0 ||
       latestPointer !== null ||
       latestCommand !== null ||

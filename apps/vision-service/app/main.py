@@ -21,11 +21,30 @@ from app.replay import iter_replay, load_fixture
 
 DEBUG_PREVIEW_MAX_WIDTH = 320
 DEBUG_PREVIEW_JPEG_QUALITY = 70
-DEBUG_PREVIEW_ENABLED = os.environ.get("AIRLOOM_DEBUG_PREVIEW", "0") == "1"
+DEBUG_PREVIEW_ENABLED = (
+    os.environ.get("AIRLOOM_DEBUG_PREVIEW") or os.environ.get("AIRLOOM_DEBUG_PREVIEW", "0")
+) == "1"
 DEBUG_PREVIEW_FD = 3
-DEFAULT_CAPTURE_DIR = Path(os.environ.get("AIRLOOM_CAPTURE_DIR", Path.cwd() / ".airloom-captures"))
+
+
+def env_value(name: str, legacy_name: str, default: str | Path) -> str:
+    resolved = os.environ.get(name) or os.environ.get(legacy_name)
+    if resolved is None:
+        return str(default)
+    return resolved
+
+
+DEFAULT_CAPTURE_DIR = Path(
+    env_value(
+        "AIRLOOM_CAPTURE_DIR", "AIRLOOM_CAPTURE_DIR", Path.cwd() / ".airloom-captures"
+    )
+)
 DEFAULT_CAPTURE_EXPORT_DIR = Path(
-    os.environ.get("AIRLOOM_CAPTURE_EXPORT_DIR", Path.cwd() / "data" / "pose-captures")
+    env_value(
+        "AIRLOOM_CAPTURE_EXPORT_DIR",
+        "AIRLOOM_CAPTURE_EXPORT_DIR",
+        Path.cwd() / "data" / "pose-captures",
+    )
 )
 
 
@@ -58,7 +77,11 @@ def emit_camera_unavailable(message: str, emit_event: Callable[[object], None]) 
                 "pose": "unknown",
                 "poseConfidence": 0.0,
                 "poseScores": empty_pose_scores(),
-                "classifierMode": os.environ.get("AIRLOOM_POSE_CLASSIFIER_MODE", "learned"),
+                "classifierMode": env_value(
+                    "AIRLOOM_POSE_CLASSIFIER_MODE",
+                    "AIRLOOM_POSE_CLASSIFIER_MODE",
+                    "learned",
+                ),
                 "modelVersion": None,
                 "closedFist": False,
                 "closedFistFrames": 0,
@@ -248,7 +271,7 @@ def run_live(
         root_dir=DEFAULT_CAPTURE_DIR,
         export_dir=DEFAULT_CAPTURE_EXPORT_DIR,
         emit_event=emit_event,
-        mirror_x=os.environ.get("AIRLOOM_MIRROR_X", "1") != "0",
+        mirror_x=env_value("AIRLOOM_MIRROR_X", "AIRLOOM_MIRROR_X", "1") != "0",
     )
     preview_pipe = open_preview_pipe() if preview_enabled and preview_emitter is None else None
     emit_preview = preview_emitter or (
