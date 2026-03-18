@@ -5,13 +5,19 @@ const createSettings = () => ({
   smoothing: 0.72,
   pointerRegionMargin: 0.12,
   clickPinchThreshold: 0.78,
-  dragHoldThresholdMs: 220,
+  dragStartDeadzone: 0.015,
+  bladeHandScrollEnabled: true,
+  bladeHandScrollDeadzone: 0.01,
+  bladeHandScrollGain: 72,
+  bladeHandScrollActivationFrames: 2,
+  bladeHandScrollReleaseFrames: 2,
   rightClickGesture: "thumb-middle-pinch",
   workspacePreviousKey: "Ctrl+Alt+Left",
   workspaceNextKey: "Ctrl+Alt+Right",
   commandHudPosition: "top-right",
   cameraHudPosition: "top-left",
   commandModeRightClickDeadzone: 0.04,
+  commandModeMiddleClickTapMs: 180,
   commandModeScrollDeadzone: 0.05,
   commandModeScrollFastThreshold: 0.14,
   commandModeScrollGain: 32,
@@ -62,13 +68,49 @@ describe("createActionMapper", () => {
     });
   });
 
-  test("starts a drag after the hold threshold and releases on pinch end", () => {
-    let time = 100;
+  test("starts a drag only after clutch movement while pinched", () => {
     const mapper = createActionMapper(
       () => createSettings(),
       (x, y) => ({ x: Math.round(x * 100), y: Math.round(y * 100) }),
-      () => time,
     );
+
+    mapper.mapEvent({
+      type: "status",
+      tracking: true,
+      pinchStrength: 0,
+      gesture: "closed-fist",
+      debug: {
+        confidence: 0.9,
+        brightness: 0.4,
+        frameDelayMs: 10,
+        pose: "closed-fist",
+        poseConfidence: 0.9,
+        poseScores: {
+          neutral: 0.05,
+          "open-palm": 0.04,
+          "closed-fist": 0.9,
+          "primary-pinch": 0.01,
+          "secondary-pinch": 0.01,
+        },
+        classifierMode: "learned",
+        modelVersion: null,
+        closedFist: true,
+        closedFistFrames: 2,
+        closedFistReleaseFrames: 0,
+        closedFistLatched: true,
+        openPalmHold: false,
+        secondaryPinchStrength: 0.1,
+      },
+    });
+
+    expect(
+      mapper.mapEvent({
+        type: "pointer.observed",
+        x: 0.6,
+        y: 0.4,
+        confidence: 0.91,
+      }),
+    ).toEqual([{ type: "pointer.move", x: 60, y: 40 }]);
 
     expect(
       mapper.mapEvent({
@@ -78,38 +120,35 @@ describe("createActionMapper", () => {
       }),
     ).toEqual([]);
 
-    time += 320;
+    expect(
+      mapper.mapEvent({
+        type: "pointer.observed",
+        x: 0.6,
+        y: 0.4,
+        confidence: 0.91,
+      }),
+    ).toEqual([{ type: "pointer.move", x: 60, y: 40 }]);
 
     expect(
       mapper.mapEvent({
-        type: "status",
-        tracking: true,
-        pinchStrength: 0,
-        gesture: "closed-fist",
-        debug: {
-          confidence: 0.9,
-          brightness: 0.4,
-          frameDelayMs: 10,
-          pose: "closed-fist",
-          poseConfidence: 0.9,
-          poseScores: {
-            neutral: 0.05,
-            "open-palm": 0.04,
-            "closed-fist": 0.9,
-            "primary-pinch": 0.01,
-            "secondary-pinch": 0.01,
-          },
-          classifierMode: "learned",
-          modelVersion: null,
-          closedFist: true,
-          closedFistFrames: 2,
-          closedFistReleaseFrames: 0,
-          closedFistLatched: true,
-          openPalmHold: false,
-          secondaryPinchStrength: 0.1,
-        },
+        type: "pointer.observed",
+        x: 0.608,
+        y: 0.408,
+        confidence: 0.91,
       }),
-    ).toEqual([{ type: "pointer.down", button: "left" }]);
+    ).toEqual([{ type: "pointer.move", x: 61, y: 41 }]);
+
+    expect(
+      mapper.mapEvent({
+        type: "pointer.observed",
+        x: 0.64,
+        y: 0.44,
+        confidence: 0.91,
+      }),
+    ).toEqual([
+      { type: "pointer.down", button: "left" },
+      { type: "pointer.move", x: 64, y: 44 },
+    ]);
 
     expect(
       mapper.mapEvent({
@@ -120,7 +159,7 @@ describe("createActionMapper", () => {
     ).toEqual([{ type: "pointer.up", button: "left" }]);
   });
 
-  test("reports drag preview once pinch hold crosses threshold", () => {
+  test("keeps click preview until clutch movement starts a drag", () => {
     let time = 100;
     const mapper = createActionMapper(
       () => createSettings(),
@@ -147,9 +186,63 @@ describe("createActionMapper", () => {
       workspaceDirection: "idle",
     });
 
+    mapper.mapEvent({
+      type: "status",
+      tracking: true,
+      pinchStrength: 0,
+      gesture: "closed-fist",
+      debug: {
+        confidence: 0.9,
+        brightness: 0.4,
+        frameDelayMs: 10,
+        pose: "closed-fist",
+        poseConfidence: 0.9,
+        poseScores: {
+          neutral: 0.05,
+          "open-palm": 0.04,
+          "closed-fist": 0.9,
+          "primary-pinch": 0.01,
+          "secondary-pinch": 0.01,
+        },
+        classifierMode: "learned",
+        modelVersion: null,
+        closedFist: true,
+        closedFistFrames: 2,
+        closedFistReleaseFrames: 0,
+        closedFistLatched: true,
+        openPalmHold: false,
+        secondaryPinchStrength: 0.1,
+      },
+    });
+    mapper.mapEvent({
+      type: "pointer.observed",
+      x: 0.62,
+      y: 0.42,
+      confidence: 0.91,
+    });
+
     time += 200;
     expect(mapper.getDebugState()).toEqual({
-      pointerControlEnabled: false,
+      pointerControlEnabled: true,
+      primaryPinchActive: true,
+      primaryPinchHeldMs: 320,
+      primaryPinchOutcome: "click",
+      commandModeActive: false,
+      commandModeSubmode: "idle",
+      commandDeltaX: 0,
+      commandDeltaY: 0,
+      workspaceDirection: "idle",
+    });
+
+    mapper.mapEvent({
+      type: "pointer.observed",
+      x: 0.66,
+      y: 0.46,
+      confidence: 0.91,
+    });
+
+    expect(mapper.getDebugState()).toEqual({
+      pointerControlEnabled: true,
       primaryPinchActive: true,
       primaryPinchHeldMs: 320,
       primaryPinchOutcome: "drag",
@@ -161,7 +254,7 @@ describe("createActionMapper", () => {
     });
   });
 
-  test("maps centered secondary pinch release to right click", () => {
+  test("ignores secondary pinch lifecycle when command mode is parked", () => {
     const mapper = createActionMapper(
       () => createSettings(),
       (x, y) => ({ x: Math.round(x * 100), y: Math.round(y * 100) }),
@@ -175,6 +268,29 @@ describe("createActionMapper", () => {
       }),
     ).toEqual([]);
 
+    expect(mapper.getDebugState().commandModeActive).toBe(false);
+
+    expect(
+      mapper.mapEvent({
+        type: "gesture.intent",
+        gesture: "secondary-pinch",
+        phase: "end",
+      }),
+    ).toEqual([]);
+  });
+
+  test("ignores command observations while command mode is parked", () => {
+    const mapper = createActionMapper(
+      () => createSettings(),
+      (x, y) => ({ x: Math.round(x * 100), y: Math.round(y * 100) }),
+    );
+
+    mapper.mapEvent({
+      type: "gesture.intent",
+      gesture: "secondary-pinch",
+      phase: "start",
+    });
+
     expect(
       mapper.mapEvent({
         type: "command.observed",
@@ -182,22 +298,12 @@ describe("createActionMapper", () => {
         deltaY: -0.01,
       }),
     ).toEqual([]);
-
-    expect(
-      mapper.mapEvent({
-        type: "gesture.intent",
-        gesture: "secondary-pinch",
-        phase: "end",
-      }),
-    ).toEqual([{ type: "click", button: "right" }]);
   });
 
-  test("keeps scrolling while held in the vertical command zone", () => {
-    let time = 0;
+  test("ignores vertical command motion so release no longer right clicks", () => {
     const mapper = createActionMapper(
       () => createSettings(),
       (x, y) => ({ x: Math.round(x * 100), y: Math.round(y * 100) }),
-      () => time,
     );
 
     mapper.mapEvent({
@@ -216,97 +322,19 @@ describe("createActionMapper", () => {
 
     expect(
       mapper.mapEvent({
-        type: "command.observed",
-        deltaX: 0,
-        deltaY: 0.08,
-      }),
-    ).toEqual([]);
-
-    time = 300;
-
-    expect(
-      mapper.mapEvent({
-        type: "status",
-        tracking: true,
-        pinchStrength: 0,
-        gesture: "command-mode",
-        debug: {
-          confidence: 0.9,
-          brightness: 0.4,
-          frameDelayMs: 16,
-          pose: "secondary-pinch",
-          poseConfidence: 0.9,
-          poseScores: {
-            neutral: 0.01,
-            "open-palm": 0.01,
-            "closed-fist": 0.01,
-            "primary-pinch": 0.01,
-            "secondary-pinch": 0.95,
-            "peace-sign": 0.01,
-          },
-          classifierMode: "learned",
-          modelVersion: null,
-          closedFist: false,
-          closedFistFrames: 0,
-          closedFistReleaseFrames: 0,
-          closedFistLatched: false,
-          openPalmHold: false,
-          secondaryPinchStrength: 0.9,
-          secondaryPinchActive: true,
-        },
-      }),
-    ).toEqual([{ type: "scroll", amount: 1 }]);
-
-    time = 550;
-
-    expect(
-      mapper.mapEvent({
-        type: "status",
-        tracking: true,
-        pinchStrength: 0,
-        gesture: "command-mode",
-        debug: {
-          confidence: 0.9,
-          brightness: 0.4,
-          frameDelayMs: 16,
-          pose: "secondary-pinch",
-          poseConfidence: 0.9,
-          poseScores: {
-            neutral: 0.01,
-            "open-palm": 0.01,
-            "closed-fist": 0.01,
-            "primary-pinch": 0.01,
-            "secondary-pinch": 0.95,
-            "peace-sign": 0.01,
-          },
-          classifierMode: "learned",
-          modelVersion: null,
-          closedFist: false,
-          closedFistFrames: 0,
-          closedFistReleaseFrames: 0,
-          closedFistLatched: false,
-          openPalmHold: false,
-          secondaryPinchStrength: 0.9,
-          secondaryPinchActive: true,
-        },
-      }),
-    ).toEqual([{ type: "scroll", amount: 1 }]);
-
-    expect(
-      mapper.mapEvent({
         type: "gesture.intent",
         gesture: "secondary-pinch",
         phase: "end",
       }),
     ).toEqual([]);
+
+    expect(mapper.getDebugState().commandModeSubmode).toBe("idle");
   });
 
-  test("uses a faster vertical band farther from center", () => {
-    let time = 0;
+  test("does not scroll for large vertical command motion", () => {
     const mapper = createActionMapper(
       () => createSettings(),
       (x, y) => ({ x: Math.round(x * 100), y: Math.round(y * 100) }),
-      () => time,
     );
 
     mapper.mapEvent({
@@ -315,59 +343,21 @@ describe("createActionMapper", () => {
       phase: "start",
     });
 
-    mapper.mapEvent({
-      type: "command.observed",
-      deltaX: 0,
-      deltaY: 0.18,
-    });
-    mapper.mapEvent({
-      type: "command.observed",
-      deltaX: 0,
-      deltaY: 0.18,
-    });
-
-    time = 260;
-
     expect(
       mapper.mapEvent({
-        type: "status",
-        tracking: true,
-        pinchStrength: 0,
-        gesture: "command-mode",
-        debug: {
-          confidence: 0.9,
-          brightness: 0.4,
-          frameDelayMs: 16,
-          pose: "secondary-pinch",
-          poseConfidence: 0.9,
-          poseScores: {
-            neutral: 0.01,
-            "open-palm": 0.01,
-            "closed-fist": 0.01,
-            "primary-pinch": 0.01,
-            "secondary-pinch": 0.95,
-            "peace-sign": 0.01,
-          },
-          classifierMode: "learned",
-          modelVersion: null,
-          closedFist: false,
-          closedFistFrames: 0,
-          closedFistReleaseFrames: 0,
-          closedFistLatched: false,
-          openPalmHold: false,
-          secondaryPinchStrength: 0.9,
-          secondaryPinchActive: true,
-        },
+        type: "command.observed",
+        deltaX: 0,
+        deltaY: 0.18,
       }),
-    ).toEqual([{ type: "scroll", amount: 2 }]);
+    ).toEqual([]);
+
+    expect(mapper.getDebugState().commandModeSubmode).toBe("idle");
   });
 
-  test("uses normalized command deltas for limited camera travel", () => {
-    let time = 0;
+  test("ignores normalized vertical command deltas for scrolling", () => {
     const mapper = createActionMapper(
       () => createSettings(),
       (x, y) => ({ x: Math.round(x * 100), y: Math.round(y * 100) }),
-      () => time,
     );
 
     mapper.mapEvent({
@@ -376,56 +366,19 @@ describe("createActionMapper", () => {
       phase: "start",
     });
 
-    mapper.mapEvent({
-      type: "command.observed",
-      deltaX: 0,
-      deltaY: 0.02,
-      normalizedDeltaY: 0.16,
-    });
-    mapper.mapEvent({
-      type: "command.observed",
-      deltaX: 0,
-      deltaY: 0.02,
-      normalizedDeltaY: 0.16,
-    });
-
-    time = 260;
-
     expect(
       mapper.mapEvent({
-        type: "status",
-        tracking: true,
-        pinchStrength: 0,
-        gesture: "command-mode",
-        debug: {
-          confidence: 0.9,
-          brightness: 0.4,
-          frameDelayMs: 16,
-          pose: "secondary-pinch",
-          poseConfidence: 0.9,
-          poseScores: {
-            neutral: 0.01,
-            "open-palm": 0.01,
-            "closed-fist": 0.01,
-            "primary-pinch": 0.01,
-            "secondary-pinch": 0.95,
-            "peace-sign": 0.01,
-          },
-          classifierMode: "learned",
-          modelVersion: null,
-          closedFist: false,
-          closedFistFrames: 0,
-          closedFistReleaseFrames: 0,
-          closedFistLatched: false,
-          openPalmHold: false,
-          secondaryPinchStrength: 0.9,
-          secondaryPinchActive: true,
-        },
+        type: "command.observed",
+        deltaX: 0,
+        deltaY: 0.02,
+        normalizedDeltaY: 0.16,
       }),
-    ).toEqual([{ type: "scroll", amount: 2 }]);
+    ).toEqual([]);
+
+    expect(mapper.getDebugState().commandModeSubmode).toBe("idle");
   });
 
-  test("maps horizontal command motion to workspace step taps", () => {
+  test("does not map horizontal command motion to workspace taps while parked", () => {
     const mapper = createActionMapper(
       () => createSettings(),
       (x, y) => ({ x: Math.round(x * 100), y: Math.round(y * 100) }),
@@ -443,7 +396,7 @@ describe("createActionMapper", () => {
         deltaX: 0.09,
         deltaY: 0.01,
       }),
-    ).toEqual([{ type: "key.tap", key: "Ctrl+Alt+Right" }]);
+    ).toEqual([]);
 
     expect(
       mapper.mapEvent({
@@ -451,7 +404,7 @@ describe("createActionMapper", () => {
         deltaX: 0.22,
         deltaY: 0.01,
       }),
-    ).toEqual([{ type: "key.tap", key: "Ctrl+Alt+Right" }]);
+    ).toEqual([]);
 
     mapper.mapEvent({
       type: "gesture.intent",
@@ -471,7 +424,7 @@ describe("createActionMapper", () => {
         deltaX: -0.09,
         deltaY: 0.01,
       }),
-    ).toEqual([{ type: "key.tap", key: "Ctrl+Alt+Left" }]);
+    ).toEqual([]);
   });
 
   test("cancels secondary pinch without right click on cancel phase", () => {
@@ -556,11 +509,9 @@ describe("createActionMapper", () => {
   });
 
   test("emits pointer down before move when drag starts during clutch motion", () => {
-    let time = 100;
     const mapper = createActionMapper(
       () => createSettings(),
       (x, y) => ({ x: Math.round(x * 100), y: Math.round(y * 100) }),
-      () => time,
     );
 
     mapper.mapEvent({
@@ -597,7 +548,12 @@ describe("createActionMapper", () => {
       phase: "start",
     });
 
-    time += 260;
+    mapper.mapEvent({
+      type: "pointer.observed",
+      x: 0.6,
+      y: 0.4,
+      confidence: 0.91,
+    });
 
     expect(
       mapper.mapEvent({

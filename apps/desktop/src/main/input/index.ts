@@ -43,10 +43,12 @@ export const resolveInputAdapter = (): InputAdapter => {
 
 export const normalizedToScreenPosition = (x: number, y: number) => {
   const primaryDisplay = screen.getPrimaryDisplay();
-  const bounds = primaryDisplay.workArea;
+  const bounds = primaryDisplay.bounds;
+  const clampedX = Math.min(1, Math.max(0, x));
+  const clampedY = Math.min(1, Math.max(0, y));
 
   return {
-    x: bounds.x + Math.round(bounds.width * x),
-    y: bounds.y + Math.round(bounds.height * y),
+    x: bounds.x + Math.round((bounds.width - 1) * clampedX),
+    y: bounds.y + Math.round((bounds.height - 1) * clampedY),
   };
 };

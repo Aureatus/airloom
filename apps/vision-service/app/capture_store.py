@@ -13,6 +13,7 @@ from app.protocol import CaptureCounts, PoseClassifierMode, empty_capture_counts
 CaptureLabel = Literal[
     "neutral",
     "open-palm",
+    "blade-hand",
     "closed-fist",
     "primary-pinch",
     "secondary-pinch",
@@ -36,6 +37,8 @@ def _increment_count(counts: CaptureCounts, label: CaptureLabel) -> None:
         counts["neutral"] += 1
     elif label == "open-palm":
         counts["open-palm"] += 1
+    elif label == "blade-hand":
+        counts["blade-hand"] += 1
     elif label == "closed-fist":
         counts["closed-fist"] += 1
     elif label == "primary-pinch":
@@ -51,6 +54,8 @@ def _decrement_count(counts: CaptureCounts, label: CaptureLabel) -> None:
         counts["neutral"] = max(0, counts["neutral"] - 1)
     elif label == "open-palm":
         counts["open-palm"] = max(0, counts["open-palm"] - 1)
+    elif label == "blade-hand":
+        counts["blade-hand"] = max(0, counts["blade-hand"] - 1)
     elif label == "closed-fist":
         counts["closed-fist"] = max(0, counts["closed-fist"] - 1)
     elif label == "primary-pinch":

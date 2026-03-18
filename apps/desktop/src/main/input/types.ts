@@ -1,4 +1,4 @@
-export type PointerButton = "left" | "right";
+export type PointerButton = "left" | "middle" | "right";
 
 export type PointerPosition = {
   x: number;

@@ -4,6 +4,7 @@ import { LivePreview } from "../components/live-preview";
 const captureLabels = [
   "neutral",
   "open-palm",
+  "blade-hand",
   "closed-fist",
   "primary-pinch",
   "secondary-pinch",
@@ -16,6 +17,7 @@ const labelHotkeys: Record<(typeof captureLabels)[number], string> = {
   neutral: "a",
   "open-palm": "s",
   "closed-fist": "d",
+  "blade-hand": "j",
   "primary-pinch": "f",
   "secondary-pinch": "g",
   "peace-sign": "h",
@@ -84,6 +86,7 @@ type CalibrationProps = {
     poseScores: {
       neutral: number;
       "open-palm": number;
+      "blade-hand": number;
       "closed-fist": number;
       "primary-pinch": number;
       "secondary-pinch": number;
@@ -99,6 +102,7 @@ type CalibrationProps = {
     actionPoseScores?: {
       neutral: number;
       "open-palm": number;
+      "blade-hand": number;
       "closed-fist": number;
       "primary-pinch": number;
       "secondary-pinch": number;
@@ -111,6 +115,10 @@ type CalibrationProps = {
     openPalmHold: boolean;
     secondaryPinchStrength: number;
     secondaryPinchActive?: boolean;
+    bladeHandActive?: boolean;
+    bladeHandScore?: number;
+    bladeScrollDeltaY?: number;
+    bladeScrollAccumulated?: number;
     pointerHand?: string;
     actionHand?: string;
     fallbackReason?: string;
@@ -185,7 +193,8 @@ export const CalibrationPage = ({
   const [speechDraft, setSpeechDraft] = useState(
     "Focus here, then hold your speech gesture and dictate a short sentence.",
   );
-  const progress = Math.min(primaryPinchHeldMs / 450, 1);
+  const progress =
+    primaryPinchOutcome === "drag" ? 1 : primaryPinchActive ? 0.45 : 0;
   const sandboxAttempts = sandboxHits + sandboxMisses;
   const sandboxAccuracy =
     sandboxAttempts === 0
@@ -821,8 +830,9 @@ export const CalibrationPage = ({
             </p>
             <p className="panel-copy">
               Keyboard: `A` neutral, `S` open palm, `D` closed fist, `F` primary
-              pinch, `G` secondary pinch, `1-4` duration, `Space`/`Enter` start,
-              `Esc` stop or cancel, `Backspace` discard, `E` export.
+              pinch, `G` secondary pinch, `H` peace sign, `J` blade hand, `1-4`
+              duration, `Space`/`Enter` start, `Esc` stop or cancel, `Backspace`
+              discard, `E` export.
             </p>
           </div>
 
@@ -888,8 +898,9 @@ export const CalibrationPage = ({
             <div className="eyebrow">Push to talk</div>
             <h3>Hold timing and spoken test</h3>
             <p className="panel-copy">
-              Watch the hold threshold fill, then test push-to-talk end to end
-              without leaving calibration.
+              Watch primary pinch stay in click mode until clutch motion turns
+              it into a drag, then test push-to-talk end to end without leaving
+              calibration.
             </p>
             <div className="hold-preview">
               <div className="hold-preview-copy">
@@ -906,8 +917,10 @@ export const CalibrationPage = ({
               </div>
             </div>
             <p className="panel-copy">
-              Primary pinch now acts as a left click on release, while secondary
-              pinch stays reserved for right click.
+              Primary pinch clicks on release by default. Drag only begins once
+              you move the clutch while pinch stays held, secondary pinch stays
+              reserved for right click and workspace, and blade hand handles
+              direct scroll.
             </p>
 
             <div className="speech-sandbox-panel">

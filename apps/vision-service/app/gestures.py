@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from typing import cast
 
@@ -14,7 +15,6 @@ from app.protocol import (
 
 PRIMARY_PINCH_ON_FRAMES = 1
 PRIMARY_PINCH_OFF_FRAMES = 2
-PRIMARY_PINCH_REARM_FRAMES = 3
 SECONDARY_PINCH_ON_FRAMES = 2
 SECONDARY_PINCH_OFF_FRAMES = 2
 PRIMARY_PINCH_SUSTAIN_STRENGTH = 0.72
@@ -25,6 +25,11 @@ PEACE_SIGN_ON_FRAMES = 2
 PEACE_SIGN_OFF_FRAMES = 2
 PEACE_SIGN_SUSTAIN_SCORE = 0.58
 CLOSED_FIST_SUSTAIN_SCORE = 0.5
+BLADE_HAND_SUSTAIN_SCORE = 0.46
+
+
+def _env_value(name: str, legacy_name: str, default: str) -> str:
+    return os.environ.get(name) or os.environ.get(legacy_name, default)
 
 
 def _normalize_command_delta(delta: float, anchor: float) -> float:
@@ -45,18 +50,57 @@ def _frame_pose_scores(frame: FrameState) -> PoseScores:
 
 @dataclass(slots=True)
 class GestureMachine:
+    blade_hand_enabled: bool = (
+        _env_value(
+            "INCANTATION_BLADE_HAND_SCROLL_ENABLED",
+            "AIRLOOM_BLADE_HAND_SCROLL_ENABLED",
+            "1",
+        )
+        != "0"
+    )
+    blade_hand_scroll_deadzone: float = float(
+        _env_value(
+            "INCANTATION_BLADE_HAND_SCROLL_DEADZONE",
+            "AIRLOOM_BLADE_HAND_SCROLL_DEADZONE",
+            "0.01",
+        )
+    )
+    blade_hand_scroll_gain: float = float(
+        _env_value(
+            "INCANTATION_BLADE_HAND_SCROLL_GAIN",
+            "AIRLOOM_BLADE_HAND_SCROLL_GAIN",
+            "72",
+        )
+    )
+    blade_hand_activation_frames: int = int(
+        _env_value(
+            "INCANTATION_BLADE_HAND_SCROLL_ACTIVATION_FRAMES",
+            "AIRLOOM_BLADE_HAND_SCROLL_ACTIVATION_FRAMES",
+            "2",
+        )
+    )
+    blade_hand_release_frames: int = int(
+        _env_value(
+            "INCANTATION_BLADE_HAND_SCROLL_RELEASE_FRAMES",
+            "AIRLOOM_BLADE_HAND_SCROLL_RELEASE_FRAMES",
+            "2",
+        )
+    )
     pinch_active: bool = False
-    drag_active: bool = False
     secondary_pinch_active: bool = False
+    blade_hand_active: bool = False
     open_palm_counter: int = 0
     primary_pinch_counter: int = 0
     primary_pinch_release_counter: int = 0
-    primary_pinch_cooldown_frames: int = 0
     peace_sign_active: bool = False
     peace_sign_counter: int = 0
     peace_sign_release_counter: int = 0
     secondary_pinch_counter: int = 0
     secondary_pinch_release_counter: int = 0
+    blade_hand_counter: int = 0
+    blade_hand_release_counter: int = 0
+    blade_hand_last_y: float | None = None
+    blade_scroll_accumulator: float = 0.0
     secondary_pinch_anchor_x: float | None = None
     secondary_pinch_anchor_y: float | None = None
     closed_fist_counter: int = 0
@@ -74,9 +118,19 @@ class GestureMachine:
         self.secondary_pinch_anchor_x = None
         self.secondary_pinch_anchor_y = None
 
+    def _cancel_blade_hand(self, events: list[GestureEvent]) -> None:
+        if not self.blade_hand_active:
+            return
+
+        events.append({"type": "gesture.intent", "gesture": "blade-hand", "phase": "cancel"})
+        self.blade_hand_active = False
+        self.blade_hand_counter = 0
+        self.blade_hand_release_counter = 0
+        self.blade_hand_last_y = None
+        self.blade_scroll_accumulator = 0.0
+
     def update(self, frame: FrameState) -> list[GestureEvent]:
         events: list[GestureEvent] = []
-        primary_pinch_rearmed = False
         tracking = frame["tracking"]
         pose = frame.get("pose", "unknown")
         pose_confidence = frame.get("pose_confidence", 0.0)
@@ -94,6 +148,7 @@ class GestureMachine:
         action_closed_fist_score = action_pose_scores["closed-fist"]
         primary_pinch_score = action_pose_scores["primary-pinch"]
         secondary_pinch_score = action_pose_scores["secondary-pinch"]
+        blade_hand_score = action_pose_scores["blade-hand"]
         peace_sign_score = action_pose_scores["peace-sign"]
         closed_fist = pose == "closed-fist" or (
             (self.closed_fist_counter > 0 or self.closed_fist_latched)
@@ -121,8 +176,6 @@ class GestureMachine:
             and pinch_strength >= PRIMARY_PINCH_SUSTAIN_STRENGTH
             and primary_pinch_score >= PRIMARY_PINCH_SUSTAIN_SCORE
         )
-        if not self.pinch_active and self.primary_pinch_cooldown_frames > 0:
-            primary_pinch = False
         secondary_pinch = action_pose == "secondary-pinch" or (
             self.secondary_pinch_active
             and action_pose != "closed-fist"
@@ -130,15 +183,33 @@ class GestureMachine:
             and secondary_pinch_strength >= SECONDARY_PINCH_SUSTAIN_STRENGTH
             and secondary_pinch_score >= SECONDARY_PINCH_SUSTAIN_SCORE
         )
+        blade_hand = (
+            self.blade_hand_enabled
+            and action_hand_separate
+            and (
+                action_pose == "blade-hand"
+                or (
+                    self.blade_hand_active
+                    and action_pose
+                    not in {"closed-fist", "primary-pinch", "secondary-pinch", "peace-sign"}
+                    and action_closed_fist_score < 0.55
+                    and blade_hand_score >= BLADE_HAND_SUSTAIN_SCORE
+                )
+            )
+        )
         if same_hand_pointer_mode:
             primary_pinch = False
             secondary_pinch = False
+            blade_hand = False
             peace_sign = False
             open_palm_hold = False
         if peace_sign:
             primary_pinch = False
             secondary_pinch = False
+            blade_hand = False
             open_palm_hold = False
+        if primary_pinch or secondary_pinch:
+            blade_hand = False
 
         status_event: StatusEvent = {
             "type": "status",
@@ -165,6 +236,10 @@ class GestureMachine:
             "openPalmHold": open_palm_hold,
             "secondaryPinchStrength": secondary_pinch_strength,
             "secondaryPinchActive": self.secondary_pinch_active,
+            "bladeHandActive": self.blade_hand_active,
+            "bladeHandScore": blade_hand_score,
+            "bladeScrollDeltaY": 0.0,
+            "bladeScrollAccumulated": self.blade_scroll_accumulator,
         }
         if "camera_width" in frame:
             status_debug["cameraWidth"] = frame["camera_width"]
@@ -193,12 +268,11 @@ class GestureMachine:
             if self.peace_sign_active:
                 events.append({"type": "gesture.intent", "gesture": "peace-sign", "phase": "end"})
             self._cancel_secondary_pinch(events)
+            self._cancel_blade_hand(events)
             self.pinch_active = False
-            self.drag_active = False
             self.open_palm_counter = 0
             self.primary_pinch_counter = 0
             self.primary_pinch_release_counter = 0
-            self.primary_pinch_cooldown_frames = 0
             self.peace_sign_active = False
             self.peace_sign_counter = 0
             self.peace_sign_release_counter = 0
@@ -209,6 +283,7 @@ class GestureMachine:
             status_debug["closedFistReleaseFrames"] = 0
             status_debug["closedFistLatched"] = False
             status_debug["secondaryPinchActive"] = False
+            status_debug["bladeHandActive"] = False
             status_event["gesture"] = "searching"
             events.append(status_event)
             return events
@@ -239,13 +314,15 @@ class GestureMachine:
         if self.secondary_pinch_active:
             open_palm_hold = False
             status_debug["openPalmHold"] = False
+        if self.blade_hand_active:
+            open_palm_hold = False
+            status_debug["openPalmHold"] = False
 
         if primary_pinch:
             self.primary_pinch_counter += 1
             self.primary_pinch_release_counter = 0
             if self.primary_pinch_counter >= PRIMARY_PINCH_ON_FRAMES and not self.pinch_active:
                 self.pinch_active = True
-                self.drag_active = True
                 status_event["gesture"] = "pinch-start"
                 events.append(
                     {"type": "gesture.intent", "gesture": "primary-pinch", "phase": "start"}
@@ -257,13 +334,9 @@ class GestureMachine:
                 if self.primary_pinch_release_counter >= PRIMARY_PINCH_OFF_FRAMES:
                     self.pinch_active = False
                     status_event["gesture"] = "pinch-release"
-                    if self.drag_active:
-                        self.drag_active = False
-                        self.primary_pinch_cooldown_frames = PRIMARY_PINCH_REARM_FRAMES
-                        primary_pinch_rearmed = True
-                        events.append(
-                            {"type": "gesture.intent", "gesture": "primary-pinch", "phase": "end"}
-                        )
+                    events.append(
+                        {"type": "gesture.intent", "gesture": "primary-pinch", "phase": "end"}
+                    )
             else:
                 self.primary_pinch_release_counter = 0
 
@@ -277,9 +350,16 @@ class GestureMachine:
                 self.secondary_pinch_active = True
                 self.secondary_pinch_anchor_x = None
                 self.secondary_pinch_anchor_y = None
-                status_event["gesture"] = "command-mode"
+                status_event["gesture"] = "secondary-pinch"
                 events.append(
                     {"type": "gesture.intent", "gesture": "secondary-pinch", "phase": "start"}
+                )
+                events.append(
+                    {
+                        "type": "gesture.intent",
+                        "gesture": "thumb-middle-pinch",
+                        "phase": "instant",
+                    }
                 )
         else:
             self.secondary_pinch_counter = 0
@@ -287,10 +367,10 @@ class GestureMachine:
                 self.secondary_pinch_release_counter += 1
                 if self.secondary_pinch_release_counter >= SECONDARY_PINCH_OFF_FRAMES:
                     if action_pointer is None or not action_hand_separate:
-                        status_event["gesture"] = "command-mode-cancel"
+                        status_event["gesture"] = "secondary-pinch-cancel"
                         self._cancel_secondary_pinch(events)
                     else:
-                        status_event["gesture"] = "command-mode-release"
+                        status_event["gesture"] = "secondary-pinch-release"
                         events.append(
                             {
                                 "type": "gesture.intent",
@@ -306,17 +386,44 @@ class GestureMachine:
             else:
                 self.secondary_pinch_release_counter = 0
 
+        if blade_hand and action_pointer is not None:
+            self.blade_hand_counter += 1
+            self.blade_hand_release_counter = 0
+            if (
+                self.blade_hand_counter >= self.blade_hand_activation_frames
+                and not self.blade_hand_active
+            ):
+                self.blade_hand_active = True
+                self.blade_hand_last_y = action_pointer["y"]
+                self.blade_scroll_accumulator = 0.0
+                status_event["gesture"] = "blade-hand"
+                events.append({"type": "gesture.intent", "gesture": "blade-hand", "phase": "start"})
+        else:
+            self.blade_hand_counter = 0
+            if self.blade_hand_active:
+                self.blade_hand_release_counter += 1
+                if self.blade_hand_release_counter >= self.blade_hand_release_frames:
+                    self.blade_hand_active = False
+                    self.blade_hand_release_counter = 0
+                    self.blade_hand_last_y = None
+                    self.blade_scroll_accumulator = 0.0
+                    status_event["gesture"] = "blade-hand-release"
+                    events.append(
+                        {"type": "gesture.intent", "gesture": "blade-hand", "phase": "end"}
+                    )
+            else:
+                self.blade_hand_release_counter = 0
+
         if closed_fist:
             if not action_hand_separate:
                 self._cancel_secondary_pinch(events)
+                self._cancel_blade_hand(events)
                 self.pinch_active = False
-                self.drag_active = False
                 self.peace_sign_active = False
                 self.peace_sign_counter = 0
                 self.peace_sign_release_counter = 0
                 self.primary_pinch_counter = 0
                 self.primary_pinch_release_counter = 0
-                self.primary_pinch_cooldown_frames = 0
             self.closed_fist_counter += 1
             self.closed_fist_release_counter = 0
             self.closed_fist_latched = True
@@ -331,32 +438,39 @@ class GestureMachine:
         status_debug["closedFistReleaseFrames"] = self.closed_fist_release_counter
         status_debug["closedFistLatched"] = self.closed_fist_latched
         status_debug["secondaryPinchActive"] = self.secondary_pinch_active
+        status_debug["bladeHandActive"] = self.blade_hand_active
 
-        if self.drag_active:
-            status_event["gesture"] = "dragging"
+        if self.pinch_active:
+            status_event["gesture"] = "primary-pinch"
+
+        if self.blade_hand_active:
+            status_event["gesture"] = "blade-hand"
+
+        if self.blade_hand_active and (action_pointer is None or not action_hand_separate):
+            self._cancel_blade_hand(events)
+            status_debug["bladeHandActive"] = False
 
         if self.secondary_pinch_active:
-            status_event["gesture"] = "command-mode"
-            if action_pointer is not None:
-                if self.secondary_pinch_anchor_x is None or self.secondary_pinch_anchor_y is None:
-                    self.secondary_pinch_anchor_x = action_pointer["x"]
-                    self.secondary_pinch_anchor_y = action_pointer["y"]
-                else:
-                    delta_x = action_pointer["x"] - self.secondary_pinch_anchor_x
-                    delta_y = action_pointer["y"] - self.secondary_pinch_anchor_y
-                    events.append(
-                        {
-                            "type": "command.observed",
-                            "deltaX": delta_x,
-                            "deltaY": delta_y,
-                            "normalizedDeltaX": _normalize_command_delta(
-                                delta_x, self.secondary_pinch_anchor_x
-                            ),
-                            "normalizedDeltaY": _normalize_command_delta(
-                                delta_y, self.secondary_pinch_anchor_y
-                            ),
-                        }
-                    )
+            status_event["gesture"] = "secondary-pinch"
+
+        if self.blade_hand_active and action_pointer is not None:
+            current_y = action_pointer["y"]
+            if self.blade_hand_last_y is None:
+                self.blade_hand_last_y = current_y
+            delta_y = current_y - self.blade_hand_last_y
+            self.blade_hand_last_y = current_y
+            status_debug["bladeScrollDeltaY"] = delta_y
+            if abs(delta_y) >= self.blade_hand_scroll_deadzone:
+                self.blade_scroll_accumulator += delta_y * self.blade_hand_scroll_gain
+                whole_steps = (
+                    int(self.blade_scroll_accumulator // 1)
+                    if self.blade_scroll_accumulator > 0
+                    else int(-(-self.blade_scroll_accumulator // 1))
+                )
+                if whole_steps != 0:
+                    events.append({"type": "scroll.observed", "amount": whole_steps})
+                    self.blade_scroll_accumulator -= whole_steps
+            status_debug["bladeScrollAccumulated"] = self.blade_scroll_accumulator
 
         if open_palm_hold:
             self.open_palm_counter += 1
@@ -384,12 +498,5 @@ class GestureMachine:
                     "confidence": frame["confidence"],
                 }
             )
-
-        if (
-            self.primary_pinch_cooldown_frames > 0
-            and not self.pinch_active
-            and not primary_pinch_rearmed
-        ):
-            self.primary_pinch_cooldown_frames -= 1
 
         return events

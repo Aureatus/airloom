@@ -60,7 +60,13 @@ const runXdotoolCapture = async (args: string[]) => {
 };
 
 const buttonCode = (button: PointerButton) => {
-  return button === "left" ? "1" : "3";
+  if (button === "left") {
+    return "1";
+  }
+  if (button === "middle") {
+    return "2";
+  }
+  return "3";
 };
 
 const normalizeKeyToken = (token: string) => {

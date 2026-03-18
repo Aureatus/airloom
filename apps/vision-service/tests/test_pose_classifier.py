@@ -40,6 +40,24 @@ def closed_fist_landmarks() -> list[Landmark]:
     return points
 
 
+def blade_hand_landmarks() -> list[Landmark]:
+    points = open_palm_landmarks()
+    points[4] = landmark(0.45, 0.64)
+    points[5] = landmark(0.46, 0.63)
+    points[6] = landmark(0.47, 0.42)
+    points[8] = landmark(0.48, 0.14)
+    points[9] = landmark(0.5, 0.61)
+    points[10] = landmark(0.5, 0.4)
+    points[12] = landmark(0.5, 0.11)
+    points[13] = landmark(0.54, 0.63)
+    points[14] = landmark(0.53, 0.42)
+    points[16] = landmark(0.52, 0.13)
+    points[17] = landmark(0.57, 0.66)
+    points[18] = landmark(0.55, 0.46)
+    points[20] = landmark(0.54, 0.19)
+    return points
+
+
 def primary_pinch_landmarks() -> list[Landmark]:
     points = open_palm_landmarks()
     points[4] = landmark(0.29, 0.2)
@@ -70,6 +88,12 @@ def test_classifier_marks_open_palm_cleanly() -> None:
     observation = classify_pose(extract_pose_features(open_palm_landmarks()))
 
     assert observation["pose"] == "open-palm"
+
+
+def test_classifier_marks_blade_hand_cleanly() -> None:
+    observation = classify_pose(extract_pose_features(blade_hand_landmarks()))
+
+    assert observation["pose"] == "blade-hand"
 
 
 def test_classifier_marks_closed_fist_even_when_thumb_is_near_index() -> None:
@@ -105,6 +129,16 @@ def test_hybrid_classifier_uses_mediapipe_open_palm_label() -> None:
     )
 
     assert observation["pose"] == "open-palm"
+
+
+def test_hybrid_classifier_can_take_blade_hand_from_learned_scores() -> None:
+    observation = classify_hybrid_pose(
+        extract_pose_features(open_palm_landmarks()),
+        static_gesture_scores={"Open_Palm": 0.76, "Closed_Fist": 0.08},
+        learned_scores=pose_scores_for_pose("blade-hand", 0.87),
+    )
+
+    assert observation["pose"] == "blade-hand"
 
 
 def test_hybrid_classifier_uses_neutral_when_no_pose_is_strong() -> None:

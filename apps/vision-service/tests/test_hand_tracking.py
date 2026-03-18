@@ -5,6 +5,7 @@ from app.hand_tracking import (
     _pointer_anchor,
     _remap_pointer_axis,
     _select_hand_roles,
+    _vertical_pointer_margin,
 )
 from app.protocol import FrameState, Landmark, pose_scores_for_pose
 
@@ -70,6 +71,21 @@ def test_pointer_anchor_uses_palm_center_for_closed_fist() -> None:
     assert abs(anchor["y"] - 0.28) < 1e-9
 
 
+def test_pointer_anchor_uses_palm_center_for_blade_hand() -> None:
+    landmarks = [{"x": 0.0, "y": 0.0} for _ in range(21)]
+    landmarks[0] = {"x": 0.20, "y": 0.30}
+    landmarks[5] = {"x": 0.30, "y": 0.20}
+    landmarks[9] = {"x": 0.40, "y": 0.25}
+    landmarks[13] = {"x": 0.50, "y": 0.30}
+    landmarks[17] = {"x": 0.60, "y": 0.35}
+    landmarks[8] = {"x": 0.90, "y": 0.05}
+
+    anchor = _pointer_anchor(cast(list[Landmark], landmarks), "blade-hand")
+
+    assert anchor["x"] == 0.4
+    assert abs(anchor["y"] - 0.28) < 1e-9
+
+
 def test_select_hand_roles_prefers_user_right_hand_for_pointer() -> None:
     pointer_index, action_index = _select_hand_roles(
         [{"x": 0.75, "y": 0.5}, {"x": 0.25, "y": 0.5}],
@@ -95,3 +111,8 @@ def test_pointer_region_margin_remaps_inner_area_to_full_range() -> None:
     assert _remap_pointer_axis(0.12, 0.12) == 0.0
     assert _remap_pointer_axis(0.88, 0.12) == 1.0
     assert _remap_pointer_axis(0.5, 0.12) == 0.5
+
+
+def test_vertical_pointer_margin_is_capped_for_reach() -> None:
+    assert _vertical_pointer_margin(0.12) == 0.06
+    assert _vertical_pointer_margin(0.04) == 0.04

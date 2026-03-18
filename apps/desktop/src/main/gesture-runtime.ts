@@ -30,6 +30,7 @@ export type RuntimeState = {
     poseScores: {
       neutral: number;
       "open-palm": number;
+      "blade-hand": number;
       "closed-fist": number;
       "primary-pinch": number;
       "secondary-pinch": number;
@@ -45,6 +46,7 @@ export type RuntimeState = {
     actionPoseScores?: {
       neutral: number;
       "open-palm": number;
+      "blade-hand": number;
       "closed-fist": number;
       "primary-pinch": number;
       "secondary-pinch": number;
@@ -57,6 +59,10 @@ export type RuntimeState = {
     openPalmHold: boolean;
     secondaryPinchStrength: number;
     secondaryPinchActive?: boolean;
+    bladeHandActive?: boolean;
+    bladeHandScore?: number;
+    bladeScrollDeltaY?: number;
+    bladeScrollAccumulated?: number;
     pointerHand?: string;
     actionHand?: string;
     fallbackReason?: string;
@@ -97,6 +103,7 @@ export const createGestureRuntime = (
       poseScores: {
         neutral: 0,
         "open-palm": 0,
+        "blade-hand": 0,
         "closed-fist": 0,
         "primary-pinch": 0,
         "secondary-pinch": 0,
@@ -110,6 +117,10 @@ export const createGestureRuntime = (
       closedFistLatched: false,
       openPalmHold: false,
       secondaryPinchStrength: 0,
+      bladeHandActive: false,
+      bladeHandScore: 0,
+      bladeScrollDeltaY: 0,
+      bladeScrollAccumulated: 0,
     },
     mapper: actionMapper.getDebugState(),
     lastError: null,

@@ -9,8 +9,6 @@ type CommandHudProps = {
   settings: Pick<
     AirloomSettings,
     | "commandModeRightClickDeadzone"
-    | "commandModeScrollDeadzone"
-    | "commandModeScrollFastThreshold"
     | "commandModeWorkspaceThreshold"
     | "commandModeWorkspaceStep"
   >;
@@ -37,8 +35,7 @@ export const CommandHud = ({
     0.16,
   );
   const maxVertical = Math.max(
-    settings.commandModeScrollDeadzone * 2.5,
-    settings.commandModeRightClickDeadzone * 2,
+    settings.commandModeRightClickDeadzone * 2.5,
     0.16,
   );
   const dotX = clamp(deltaX / maxHorizontal, -1, 1) * 56;
@@ -47,17 +44,8 @@ export const CommandHud = ({
   let hudClass = "inactive";
   let currentLabel = "Hold secondary pinch to enter command mode";
   let releaseLabel = "Release -> no action";
-  const absY = Math.abs(deltaY);
-  const scrollTier =
-    absY >= settings.commandModeScrollFastThreshold ? "fast" : "slow";
 
-  if (active && submode === "scroll") {
-    hudClass = "scroll";
-    currentLabel = `${scrollTier === "fast" ? "Fast" : "Slow"} ${
-      deltaY < 0 ? "scroll upward" : "scroll downward"
-    }`;
-    releaseLabel = "Release -> no click";
-  } else if (active && submode === "workspace") {
+  if (active && submode === "workspace") {
     hudClass = "workspace";
     currentLabel =
       workspaceDirection === "previous"
@@ -66,10 +54,14 @@ export const CommandHud = ({
           ? "Step to next workspace"
           : "Workspace stepping";
     releaseLabel = "Release -> no click";
-  } else if (active) {
+  } else if (active && submode === "right-click") {
     hudClass = "right-click";
     currentLabel = "Right click ready";
     releaseLabel = "Release -> right click";
+  } else if (active) {
+    hudClass = "inactive";
+    currentLabel = "Move horizontally for workspace step";
+    releaseLabel = "Return to center to arm right click";
   }
 
   return (
@@ -93,12 +85,12 @@ export const CommandHud = ({
           <div className="command-hud-rune command-hud-rune-ne">✶</div>
           <div className="command-hud-rune command-hud-rune-sw">✶</div>
           <div className="command-hud-rune command-hud-rune-se">✦</div>
-          <div className="command-hud-label command-hud-label-top">Scroll</div>
+          <div className="command-hud-label command-hud-label-top">No-op</div>
           <div className="command-hud-label command-hud-label-right">
             Workspace
           </div>
           <div className="command-hud-label command-hud-label-bottom">
-            Scroll
+            No-op
           </div>
           <div className="command-hud-label command-hud-label-left">
             Workspace

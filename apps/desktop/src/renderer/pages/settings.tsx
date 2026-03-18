@@ -101,6 +101,10 @@ export const SettingsPage = ({ settings, onSave }: SettingsPageProps) => {
           <strong>Primary pinch</strong>
         </div>
         <div className="mapping-row">
+          <span>Direct scroll</span>
+          <strong>Blade hand</strong>
+        </div>
+        <div className="mapping-row">
           <span>Command mode</span>
           <strong>Secondary pinch hold</strong>
         </div>
@@ -116,7 +120,7 @@ export const SettingsPage = ({ settings, onSave }: SettingsPageProps) => {
         <SettingsSection
           eyebrow="Tracking"
           title="Pointer clutch"
-          copy="Shape how your primary hand glides, steadies, and commits to a deliberate drag."
+          copy="Shape how your primary hand glides and steadies while the action hand handles click and clutch-driven drag."
         >
           <div className="settings-grid settings-grid-wide">
             <label className="settings-field">
@@ -168,17 +172,17 @@ export const SettingsPage = ({ settings, onSave }: SettingsPageProps) => {
               />
             </label>
             <label className="settings-field">
-              <span>Drag hold (ms)</span>
+              <span>Drag start deadzone</span>
               <input
                 type="number"
                 min="0"
-                max="2000"
-                step="10"
-                value={draft.dragHoldThresholdMs}
+                max="0.1"
+                step="0.001"
+                value={draft.dragStartDeadzone}
                 onChange={(event) =>
                   setDraft((current) => ({
                     ...current,
-                    dragHoldThresholdMs: Number(event.target.value),
+                    dragStartDeadzone: Number(event.target.value),
                   }))
                 }
               />
@@ -189,7 +193,7 @@ export const SettingsPage = ({ settings, onSave }: SettingsPageProps) => {
         <SettingsSection
           eyebrow="Command Mode"
           title="Secondary pinch behavior"
-          copy="Tune how command mode decides between right click, scroll, and workspace stepping."
+          copy="Command mode is parked for now. Secondary pinch currently fires a direct right click because laptop webcam release tracking is too shaky, and the floating command HUD is hidden until we revisit it."
         >
           <div className="settings-grid settings-grid-wide">
             <label className="settings-field">
@@ -235,49 +239,17 @@ export const SettingsPage = ({ settings, onSave }: SettingsPageProps) => {
               />
             </label>
             <label className="settings-field">
-              <span>Scroll deadzone</span>
+              <span>Middle-click tap (ms)</span>
               <input
                 type="number"
                 min="0"
-                max="0.3"
-                step="0.01"
-                value={draft.commandModeScrollDeadzone}
+                max="1000"
+                step="10"
+                value={draft.commandModeMiddleClickTapMs}
                 onChange={(event) =>
                   setDraft((current) => ({
                     ...current,
-                    commandModeScrollDeadzone: Number(event.target.value),
-                  }))
-                }
-              />
-            </label>
-            <label className="settings-field">
-              <span>Fast scroll threshold</span>
-              <input
-                type="number"
-                min="0.05"
-                max="0.4"
-                step="0.01"
-                value={draft.commandModeScrollFastThreshold}
-                onChange={(event) =>
-                  setDraft((current) => ({
-                    ...current,
-                    commandModeScrollFastThreshold: Number(event.target.value),
-                  }))
-                }
-              />
-            </label>
-            <label className="settings-field">
-              <span>Scroll gain</span>
-              <input
-                type="number"
-                min="1"
-                max="200"
-                step="1"
-                value={draft.commandModeScrollGain}
-                onChange={(event) =>
-                  setDraft((current) => ({
-                    ...current,
-                    commandModeScrollGain: Number(event.target.value),
+                    commandModeMiddleClickTapMs: Number(event.target.value),
                   }))
                 }
               />
@@ -310,6 +282,92 @@ export const SettingsPage = ({ settings, onSave }: SettingsPageProps) => {
                   setDraft((current) => ({
                     ...current,
                     commandModeWorkspaceStep: Number(event.target.value),
+                  }))
+                }
+              />
+            </label>
+          </div>
+        </SettingsSection>
+
+        <SettingsSection
+          eyebrow="Scroll"
+          title="Blade hand behavior"
+          copy="Use a fingers-together flat hand for direct vertical scrolling without going through command mode."
+        >
+          <div className="settings-grid settings-grid-wide">
+            <label className="settings-field">
+              <span>Enable blade-hand scroll</span>
+              <input
+                type="checkbox"
+                checked={draft.bladeHandScrollEnabled}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    bladeHandScrollEnabled: event.target.checked,
+                  }))
+                }
+              />
+            </label>
+            <label className="settings-field">
+              <span>Scroll deadzone</span>
+              <input
+                type="number"
+                min="0"
+                max="0.1"
+                step="0.001"
+                value={draft.bladeHandScrollDeadzone}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    bladeHandScrollDeadzone: Number(event.target.value),
+                  }))
+                }
+              />
+            </label>
+            <label className="settings-field">
+              <span>Scroll gain</span>
+              <input
+                type="number"
+                min="1"
+                max="200"
+                step="1"
+                value={draft.bladeHandScrollGain}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    bladeHandScrollGain: Number(event.target.value),
+                  }))
+                }
+              />
+            </label>
+            <label className="settings-field">
+              <span>Activation frames</span>
+              <input
+                type="number"
+                min="1"
+                max="12"
+                step="1"
+                value={draft.bladeHandScrollActivationFrames}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    bladeHandScrollActivationFrames: Number(event.target.value),
+                  }))
+                }
+              />
+            </label>
+            <label className="settings-field">
+              <span>Release frames</span>
+              <input
+                type="number"
+                min="1"
+                max="12"
+                step="1"
+                value={draft.bladeHandScrollReleaseFrames}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    bladeHandScrollReleaseFrames: Number(event.target.value),
                   }))
                 }
               />
@@ -481,9 +539,9 @@ export const SettingsPage = ({ settings, onSave }: SettingsPageProps) => {
           are valid in every key field.
         </p>
         <p className="panel-copy">
-          Secondary pinch now acts like command mode: release in the center for
-          a right click, move vertically to scroll, and move horizontally to
-          step between workspaces.
+          Secondary pinch now fires right click directly on activation. The
+          command-mode tuning fields stay here so we can revisit them once the
+          webcam tracking is steadier.
         </p>
       </div>
     </section>

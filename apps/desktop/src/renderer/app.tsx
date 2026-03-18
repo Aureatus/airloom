@@ -35,6 +35,7 @@ type RuntimeState = {
     poseScores: {
       neutral: number;
       "open-palm": number;
+      "blade-hand": number;
       "closed-fist": number;
       "primary-pinch": number;
       "secondary-pinch": number;
@@ -50,6 +51,7 @@ type RuntimeState = {
     actionPoseScores?: {
       neutral: number;
       "open-palm": number;
+      "blade-hand": number;
       "closed-fist": number;
       "primary-pinch": number;
       "secondary-pinch": number;
@@ -62,6 +64,10 @@ type RuntimeState = {
     openPalmHold: boolean;
     secondaryPinchStrength: number;
     secondaryPinchActive?: boolean;
+    bladeHandActive?: boolean;
+    bladeHandScore?: number;
+    bladeScrollDeltaY?: number;
+    bladeScrollAccumulated?: number;
     pointerHand?: string;
     actionHand?: string;
     fallbackReason?: string;
@@ -99,6 +105,7 @@ type CaptureState = {
   counts: {
     neutral: number;
     "open-palm": number;
+    "blade-hand": number;
     "closed-fist": number;
     "primary-pinch": number;
     "secondary-pinch": number;
@@ -167,6 +174,7 @@ const initialStatus: ServiceStatus = {
       poseScores: {
         neutral: 0,
         "open-palm": 0,
+        "blade-hand": 0,
         "closed-fist": 0,
         "primary-pinch": 0,
         "secondary-pinch": 0,
@@ -180,6 +188,10 @@ const initialStatus: ServiceStatus = {
       closedFistLatched: false,
       openPalmHold: false,
       secondaryPinchStrength: 0,
+      bladeHandActive: false,
+      bladeHandScore: 0,
+      bladeScrollDeltaY: 0,
+      bladeScrollAccumulated: 0,
     },
     mapper: {
       pointerControlEnabled: false,
@@ -203,6 +215,7 @@ const initialStatus: ServiceStatus = {
     counts: {
       neutral: 0,
       "open-palm": 0,
+      "blade-hand": 0,
       "closed-fist": 0,
       "primary-pinch": 0,
       "secondary-pinch": 0,
@@ -223,15 +236,21 @@ const initialStatus: ServiceStatus = {
 
 const defaultSettings: AirloomSettings = {
   smoothing: 0.5,
-  pointerRegionMargin: 0.12,
+  pointerRegionMargin: 0.08,
   clickPinchThreshold: 0.78,
-  dragHoldThresholdMs: 220,
+  dragStartDeadzone: 0.015,
+  bladeHandScrollEnabled: true,
+  bladeHandScrollDeadzone: 0.01,
+  bladeHandScrollGain: 72,
+  bladeHandScrollActivationFrames: 2,
+  bladeHandScrollReleaseFrames: 2,
   rightClickGesture: "thumb-middle-pinch",
   workspacePreviousKey: "",
   workspaceNextKey: "",
   commandHudPosition: "top-right",
   cameraHudPosition: "top-left",
   commandModeRightClickDeadzone: 0.04,
+  commandModeMiddleClickTapMs: 180,
   commandModeScrollDeadzone: 0.05,
   commandModeScrollFastThreshold: 0.14,
   commandModeScrollGain: 32,
@@ -504,6 +523,7 @@ export const App = () => {
         processedFps={status.runtime.debug.processedFps}
         previewFps={status.runtime.debug.previewFps}
         frameDelayMs={status.runtime.debug.frameDelayMs}
+        overlayOnly
       />
     );
   }

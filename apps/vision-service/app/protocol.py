@@ -12,6 +12,7 @@ PoseName = Literal[
     "unknown",
     "neutral",
     "open-palm",
+    "blade-hand",
     "closed-fist",
     "primary-pinch",
     "secondary-pinch",
@@ -26,6 +27,7 @@ PoseScores = TypedDict(
     {
         "neutral": float,
         "open-palm": float,
+        "blade-hand": float,
         "closed-fist": float,
         "primary-pinch": float,
         "secondary-pinch": float,
@@ -38,6 +40,7 @@ def empty_pose_scores() -> PoseScores:
     return {
         "neutral": 0.0,
         "open-palm": 0.0,
+        "blade-hand": 0.0,
         "closed-fist": 0.0,
         "primary-pinch": 0.0,
         "secondary-pinch": 0.0,
@@ -57,6 +60,7 @@ CaptureCounts = TypedDict(
     {
         "neutral": int,
         "open-palm": int,
+        "blade-hand": int,
         "closed-fist": int,
         "primary-pinch": int,
         "secondary-pinch": int,
@@ -69,6 +73,7 @@ def empty_capture_counts() -> CaptureCounts:
     return {
         "neutral": 0,
         "open-palm": 0,
+        "blade-hand": 0,
         "closed-fist": 0,
         "primary-pinch": 0,
         "secondary-pinch": 0,
@@ -163,6 +168,10 @@ class StatusDebug(TypedDict):
     openPalmHold: bool
     secondaryPinchStrength: float
     secondaryPinchActive: NotRequired[bool]
+    bladeHandActive: NotRequired[bool]
+    bladeHandScore: NotRequired[float]
+    bladeScrollDeltaY: NotRequired[float]
+    bladeScrollAccumulated: NotRequired[float]
     pointerHand: NotRequired[str]
     actionHand: NotRequired[str]
     fallbackReason: NotRequired[str]

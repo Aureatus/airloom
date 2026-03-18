@@ -8,7 +8,6 @@ type GetSettings = () => AirloomSettings;
 type NormalizePosition = (x: number, y: number) => { x: number; y: number };
 type Now = () => number;
 type CommandModeSubmode = "idle" | "right-click" | "scroll" | "workspace";
-type ScrollBand = -2 | -1 | 0 | 1 | 2;
 
 export type ActionMapperDebugState = {
   pointerControlEnabled: boolean;
@@ -30,16 +29,13 @@ export const createActionMapper = (
   let primaryPinchStartedAt: number | null = null;
   let primaryPinchDragging = false;
   let pointerControlEnabled = false;
+  let dragAnchorObservation: { x: number; y: number } | null = null;
+  let lastPointerObservation: { x: number; y: number } | null = null;
   let pushToTalkActive = false;
   let commandModeActive = false;
   let commandModeSubmode: CommandModeSubmode = "idle";
   let commandDeltaX = 0;
   let commandDeltaY = 0;
-  let commandScrollRemainder = 0;
-  let commandScrollBand: ScrollBand = 0;
-  let pendingScrollBand: ScrollBand = 0;
-  let pendingScrollFrames = 0;
-  let lastScrollTickAt: number | null = null;
   let workspaceStepsEmitted = 0;
 
   const resetCommandMode = () => {
@@ -47,78 +43,34 @@ export const createActionMapper = (
     commandModeSubmode = "idle";
     commandDeltaX = 0;
     commandDeltaY = 0;
-    commandScrollRemainder = 0;
-    commandScrollBand = 0;
-    pendingScrollBand = 0;
-    pendingScrollFrames = 0;
-    lastScrollTickAt = null;
     workspaceStepsEmitted = 0;
   };
 
-  const clearScrollBand = () => {
-    commandScrollBand = 0;
-    pendingScrollBand = 0;
-    pendingScrollFrames = 0;
-    commandScrollRemainder = 0;
-    lastScrollTickAt = null;
-  };
-
-  const deriveScrollBand = (
-    deltaY: number,
-    absY: number,
-    fastThreshold: number,
-  ): ScrollBand => {
-    if (absY < fastThreshold) {
-      return deltaY < 0 ? -1 : 1;
-    }
-
-    return deltaY < 0 ? -2 : 2;
-  };
-
-  const emitScrollTicks = (timestamp: number): AirloomActionEvent[] => {
-    if (commandScrollBand === 0) {
-      lastScrollTickAt = timestamp;
-      return [];
-    }
-
-    if (lastScrollTickAt === null) {
-      lastScrollTickAt = timestamp;
-      return [];
-    }
-
-    const elapsedMs = Math.max(0, timestamp - lastScrollTickAt);
-    lastScrollTickAt = timestamp;
-    if (elapsedMs === 0) {
-      return [];
-    }
-
-    const settings = getSettings();
-    const slowStepsPerSecond = settings.commandModeScrollGain / 8;
-    const fastStepsPerSecond = settings.commandModeScrollGain / 4;
-    const stepsPerSecond =
-      Math.abs(commandScrollBand) === 2
-        ? fastStepsPerSecond
-        : slowStepsPerSecond;
-    const direction = commandScrollBand < 0 ? -1 : 1;
-    commandScrollRemainder += direction * (elapsedMs / 1000) * stepsPerSecond;
-    const wholeSteps =
-      commandScrollRemainder > 0
-        ? Math.floor(commandScrollRemainder)
-        : Math.ceil(commandScrollRemainder);
-    commandScrollRemainder -= wholeSteps;
-    return wholeSteps === 0 ? [] : [{ type: "scroll", amount: wholeSteps }];
-  };
-
-  const maybeStartDrag = (thresholdMs: number): AirloomActionEvent[] => {
+  const maybeStartDragFromPointerMovement = (
+    event: Extract<AirloomInputEvent, { type: "pointer.observed" }>,
+  ): AirloomActionEvent[] => {
     if (
       commandModeActive ||
+      !pointerControlEnabled ||
       primaryPinchStartedAt === null ||
       primaryPinchDragging
     ) {
       return [];
     }
 
-    if (Math.max(0, now() - primaryPinchStartedAt) < thresholdMs) {
+    if (dragAnchorObservation === null) {
+      dragAnchorObservation = lastPointerObservation ?? {
+        x: event.x,
+        y: event.y,
+      };
+      return [];
+    }
+
+    const movement = Math.hypot(
+      event.x - dragAnchorObservation.x,
+      event.y - dragAnchorObservation.y,
+    );
+    if (movement < getSettings().dragStartDeadzone) {
       return [];
     }
 
@@ -157,12 +109,7 @@ export const createActionMapper = (
       pointerControlEnabled,
       primaryPinchActive: true,
       primaryPinchHeldMs: heldMs,
-      primaryPinchOutcome:
-        commandModeActive ||
-        primaryPinchDragging ||
-        heldMs >= getSettings().dragHoldThresholdMs
-          ? "drag"
-          : "click",
+      primaryPinchOutcome: primaryPinchDragging ? "drag" : "click",
       commandModeActive,
       commandModeSubmode,
       commandDeltaX,
@@ -182,6 +129,7 @@ export const createActionMapper = (
 
     primaryPinchStartedAt = null;
     primaryPinchDragging = false;
+    dragAnchorObservation = null;
     pushToTalkActive = false;
     resetCommandMode();
 
@@ -212,68 +160,17 @@ export const createActionMapper = (
     ) {
       commandModeSubmode = "right-click";
       workspaceStepsEmitted = 0;
-      clearScrollBand();
       return [];
     }
 
     const verticalDominant =
-      absY >= settings.commandModeScrollDeadzone &&
+      absY >= settings.commandModeRightClickDeadzone &&
       rawAbsY >= rawMovementFloor &&
       absY >= absX + settings.commandModeRightClickDeadzone / 2;
     if (verticalDominant) {
+      commandModeSubmode = "idle";
       workspaceStepsEmitted = 0;
-      const nextBand = deriveScrollBand(
-        effectiveDeltaY,
-        absY,
-        settings.commandModeScrollFastThreshold,
-      );
-
-      if (commandScrollBand === 0) {
-        if (pendingScrollBand === nextBand) {
-          pendingScrollFrames += 1;
-        } else {
-          pendingScrollBand = nextBand;
-          pendingScrollFrames = 1;
-        }
-
-        if (pendingScrollFrames < 2) {
-          return [];
-        }
-
-        commandScrollBand = nextBand;
-        commandModeSubmode = "scroll";
-        commandScrollRemainder = 0;
-        lastScrollTickAt = now();
-        return [];
-      }
-
-      commandModeSubmode = "scroll";
-      pendingScrollBand = nextBand;
-      pendingScrollFrames = 2;
-      if (commandScrollBand !== nextBand) {
-        commandScrollBand = nextBand;
-        commandScrollRemainder = 0;
-        lastScrollTickAt = now();
-        return [];
-      }
-
-      return emitScrollTicks(now());
-    }
-
-    pendingScrollBand = 0;
-    pendingScrollFrames = 0;
-    if (commandScrollBand !== 0) {
-      clearScrollBand();
-    }
-    if (
-      absY <=
-      Math.max(
-        settings.commandModeRightClickDeadzone,
-        settings.commandModeScrollDeadzone * 0.7,
-      )
-    ) {
-      clearScrollBand();
-      commandModeSubmode = "right-click";
+      return [];
     }
 
     const horizontalDominant =
@@ -285,7 +182,6 @@ export const createActionMapper = (
     }
 
     commandModeSubmode = "workspace";
-    clearScrollBand();
 
     const direction = event.deltaX < 0 ? -1 : 1;
     if (
@@ -321,8 +217,10 @@ export const createActionMapper = (
   const mapEvent = (event: AirloomInputEvent): AirloomActionEvent[] => {
     switch (event.type) {
       case "pointer.observed": {
-        const settings = getSettings();
-        const dragActions = maybeStartDrag(settings.dragHoldThresholdMs);
+        const dragActions = maybeStartDragFromPointerMovement(event);
+        if (pointerControlEnabled) {
+          lastPointerObservation = { x: event.x, y: event.y };
+        }
         if (!pointerControlEnabled) {
           return dragActions;
         }
@@ -347,26 +245,22 @@ export const createActionMapper = (
       }
 
       case "gesture.intent": {
-        const settings = getSettings();
-
         if (event.gesture === "secondary-pinch" && event.phase === "start") {
           resetCommandMode();
-          commandModeActive = true;
-          commandModeSubmode = "right-click";
           return [];
         }
 
         if (event.gesture === "secondary-pinch" && event.phase === "end") {
-          const shouldRightClick =
-            commandModeActive && commandModeSubmode === "right-click";
           resetCommandMode();
-          return shouldRightClick ? [{ type: "click", button: "right" }] : [];
+          return [];
         }
 
         if (event.gesture === "secondary-pinch" && event.phase === "cancel") {
           resetCommandMode();
           return [];
         }
+
+        const settings = getSettings();
 
         if (commandModeActive && event.gesture === "primary-pinch") {
           return [];
@@ -375,6 +269,7 @@ export const createActionMapper = (
         if (event.gesture === "primary-pinch" && event.phase === "start") {
           primaryPinchStartedAt = now();
           primaryPinchDragging = false;
+          dragAnchorObservation = lastPointerObservation;
           return [];
         }
 
@@ -383,6 +278,7 @@ export const createActionMapper = (
           const wasDragging = primaryPinchDragging;
           primaryPinchStartedAt = null;
           primaryPinchDragging = false;
+          dragAnchorObservation = null;
           if (!hadActivePinch) {
             return [];
           }
@@ -430,6 +326,10 @@ export const createActionMapper = (
 
       case "status": {
         pointerControlEnabled = event.debug?.closedFist ?? false;
+        if (!pointerControlEnabled) {
+          dragAnchorObservation = null;
+          lastPointerObservation = null;
+        }
         const actions: AirloomActionEvent[] = [];
         if (pushToTalkActive && event.gesture !== "push-to-talk") {
           actions.push({ type: "key.up", key: getSettings().pushToTalkKey });
@@ -441,13 +341,7 @@ export const createActionMapper = (
         ) {
           resetCommandMode();
         }
-        if (commandModeActive && commandModeSubmode === "scroll") {
-          actions.push(...emitScrollTicks(now()));
-        }
-        return [
-          ...actions,
-          ...maybeStartDrag(getSettings().dragHoldThresholdMs),
-        ];
+        return actions;
       }
     }
   };

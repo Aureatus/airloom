@@ -11,6 +11,7 @@ type CameraHudProps = {
   processedFps?: number;
   previewFps?: number;
   frameDelayMs?: number;
+  overlayOnly?: boolean;
 };
 
 const formatMetric = (value: number | undefined, digits = 1) => {
@@ -54,13 +55,15 @@ export const CameraHud = ({
   processedFps,
   previewFps,
   frameDelayMs,
+  overlayOnly = false,
 }: CameraHudProps) => {
   const processedBaseline = captureFps ?? 24;
-  const previewBaseline = processedFps ?? captureFps ?? 24;
 
   return (
     <div className="camera-hud-shell">
-      <section className="camera-hud-panel">
+      <section
+        className={`camera-hud-panel ${overlayOnly ? "camera-hud-panel-overlay" : ""}`}
+      >
         <div className="camera-hud-header">
           <div className="camera-hud-header-main">
             <div className="camera-hud-title-row">
@@ -90,11 +93,13 @@ export const CameraHud = ({
               >
                 Processed {formatMetric(processedFps)} fps
               </span>
-              <span
-                className={`camera-hud-metric camera-hud-metric-${fpsTone(previewFps, previewBaseline)}`}
-              >
-                Preview {formatMetric(previewFps)} fps
-              </span>
+              {!overlayOnly ? (
+                <span
+                  className={`camera-hud-metric camera-hud-metric-${fpsTone(previewFps, processedFps ?? captureFps ?? 24)}`}
+                >
+                  Preview {formatMetric(previewFps)} fps
+                </span>
+              ) : null}
               <span
                 className={`camera-hud-metric camera-hud-metric-${delayTone(frameDelayMs)}`}
               >
@@ -108,10 +113,12 @@ export const CameraHud = ({
           cameraUnavailable={cameraUnavailable}
           compact
         />
-        <p className="camera-hud-copy">
-          Teal marks the pointer hand, amber marks the action hand, and the
-          frame edge shows the live camera bounds.
-        </p>
+        {!overlayOnly ? (
+          <p className="camera-hud-copy">
+            Teal marks the pointer hand, amber marks the action hand, and the
+            frame edge shows the live camera bounds.
+          </p>
+        ) : null}
       </section>
     </div>
   );

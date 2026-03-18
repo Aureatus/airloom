@@ -42,13 +42,19 @@ const createTestSettings = (key = "Return") => {
     smoothing: 0.72,
     pointerRegionMargin: 0.12,
     clickPinchThreshold: 0.78,
-    dragHoldThresholdMs: 220,
+    dragStartDeadzone: 0.015,
+    bladeHandScrollEnabled: true,
+    bladeHandScrollDeadzone: 0.01,
+    bladeHandScrollGain: 72,
+    bladeHandScrollActivationFrames: 2,
+    bladeHandScrollReleaseFrames: 2,
     rightClickGesture: "thumb-middle-pinch",
     workspacePreviousKey: "Ctrl+Alt+Left",
     workspaceNextKey: "Ctrl+Alt+Right",
     commandHudPosition: "top-right",
     cameraHudPosition: "top-left",
     commandModeRightClickDeadzone: 0.04,
+    commandModeMiddleClickTapMs: 180,
     commandModeScrollDeadzone: 0.05,
     commandModeScrollFastThreshold: 0.14,
     commandModeScrollGain: 32,
@@ -100,7 +106,6 @@ describe("createGestureRuntime", () => {
 
   test("holds left button during a drag pinch and releases on pinch end", async () => {
     const { adapter, calls } = createTestAdapter();
-    let time = 100;
     const runtime = createGestureRuntime(
       adapter,
       (x, y) => ({ x, y }),
@@ -136,68 +141,30 @@ describe("createGestureRuntime", () => {
       },
     });
 
-    const originalNow = Date.now;
-    Date.now = () => time;
+    await runtime.handleEvent({
+      type: "pointer.observed",
+      x: 0.4,
+      y: 0.5,
+      confidence: 0.92,
+    });
+    await runtime.handleEvent({
+      type: "gesture.intent",
+      gesture: "primary-pinch",
+      phase: "start",
+    });
+    await runtime.handleEvent({
+      type: "pointer.observed",
+      x: 0.42,
+      y: 0.54,
+      confidence: 0.92,
+    });
+    await runtime.handleEvent({
+      type: "gesture.intent",
+      gesture: "primary-pinch",
+      phase: "end",
+    });
 
-    try {
-      await runtime.handleEvent({
-        type: "gesture.intent",
-        gesture: "primary-pinch",
-        phase: "start",
-      });
-
-      time += 260;
-
-      await runtime.handleEvent({
-        type: "status",
-        tracking: true,
-        pinchStrength: 0,
-        gesture: "closed-fist",
-        debug: {
-          confidence: 0.74,
-          brightness: 0.21,
-          frameDelayMs: 18,
-          pose: "closed-fist",
-          poseConfidence: 0.88,
-          poseScores: {
-            neutral: 0.12,
-            "open-palm": 0.18,
-            "closed-fist": 0.88,
-            "primary-pinch": 0.14,
-            "secondary-pinch": 0.06,
-          },
-          classifierMode: "rules",
-          modelVersion: null,
-          closedFist: true,
-          closedFistFrames: 4,
-          closedFistReleaseFrames: 0,
-          closedFistLatched: true,
-          openPalmHold: false,
-          secondaryPinchStrength: 0.14,
-        },
-      });
-      await runtime.handleEvent({
-        type: "pointer.observed",
-        x: 0.4,
-        y: 0.5,
-        confidence: 0.92,
-      });
-      await runtime.handleEvent({
-        type: "pointer.observed",
-        x: 0.42,
-        y: 0.54,
-        confidence: 0.92,
-      });
-      await runtime.handleEvent({
-        type: "gesture.intent",
-        gesture: "primary-pinch",
-        phase: "end",
-      });
-    } finally {
-      Date.now = originalNow;
-    }
-
-    expect(calls).toEqual(["down", "move", "move", "up"]);
+    expect(calls).toEqual(["move", "down", "move", "up"]);
     expect(runtime.getState().recentActions).toEqual([
       "Move 0.42, 0.54",
       "left up",
@@ -285,7 +252,7 @@ describe("createGestureRuntime", () => {
     });
   });
 
-  test("routes command mode workspace taps to adapter", async () => {
+  test("ignores secondary pinch lifecycle while command mode is parked", async () => {
     const { adapter, calls } = createTestAdapter();
     const runtime = createGestureRuntime(
       adapter,
@@ -298,14 +265,15 @@ describe("createGestureRuntime", () => {
       gesture: "secondary-pinch",
       phase: "start",
     });
+
     await runtime.handleEvent({
-      type: "command.observed",
-      deltaX: 0.09,
-      deltaY: 0.01,
+      type: "gesture.intent",
+      gesture: "secondary-pinch",
+      phase: "end",
     });
 
-    expect(calls).toEqual(["key:Ctrl+Alt+Right"]);
-    expect(runtime.getState().mapper.commandModeSubmode).toBe("workspace");
+    expect(calls).toEqual([]);
+    expect(runtime.getState().mapper.commandModeActive).toBe(false);
   });
 
   test("suppresses pointer and gesture actions during capture mode", async () => {
@@ -480,6 +448,28 @@ describe("createGestureRuntime", () => {
     });
 
     expect(calls).toEqual(["click:right"]);
+  });
+
+  test("ignores command observations after secondary pinch while parked", async () => {
+    const { adapter, calls } = createTestAdapter();
+    const runtime = createGestureRuntime(
+      adapter,
+      (x, y) => ({ x, y }),
+      () => createTestSettings(),
+    );
+
+    await runtime.handleEvent({
+      type: "gesture.intent",
+      gesture: "secondary-pinch",
+      phase: "start",
+    });
+    await runtime.handleEvent({
+      type: "command.observed",
+      deltaX: 0.01,
+      deltaY: 0.01,
+    });
+
+    expect(calls).toEqual([]);
   });
 
   test("routes scroll observed events to the adapter", async () => {

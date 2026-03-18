@@ -13,6 +13,7 @@ from app.protocol import CaptureCounts, CaptureStateEvent, FrameState, GestureEv
 CAPTUREABLE_POSES: set[PoseName] = {
     "neutral",
     "open-palm",
+    "blade-hand",
     "closed-fist",
     "primary-pinch",
     "secondary-pinch",

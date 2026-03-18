@@ -48,6 +48,15 @@ def _pointer_anchor(landmarks: list[Landmark], pose: str) -> Landmark:
             landmarks[17],
         )
 
+    if pose == "blade-hand":
+        return _average_landmarks(
+            landmarks[0],
+            landmarks[5],
+            landmarks[9],
+            landmarks[13],
+            landmarks[17],
+        )
+
     return landmarks[8]
 
 
@@ -75,6 +84,10 @@ def _remap_pointer_axis(value: float, margin: float) -> float:
         return 0.5
 
     return _clamp_unit((value - minimum) / (maximum - minimum))
+
+
+def _vertical_pointer_margin(margin: float) -> float:
+    return min(margin, 0.06)
 
 
 def _normalize_handedness_label(label: str | None) -> str | None:
@@ -407,7 +420,9 @@ class HandTracker:
             role_reason = "handedness-fallback"
         remapped_pointer = {
             "x": _remap_pointer_axis(pointer_hand.raw_pointer["x"], self.pointer_region_margin),
-            "y": _remap_pointer_axis(pointer_hand.raw_pointer["y"], self.pointer_region_margin),
+            "y": _remap_pointer_axis(
+                pointer_hand.raw_pointer["y"], _vertical_pointer_margin(self.pointer_region_margin)
+            ),
         }
         smooth_x, smooth_y = self._smoother.update(
             remapped_pointer["x"],

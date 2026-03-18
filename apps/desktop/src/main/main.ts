@@ -102,6 +102,7 @@ let captureState: AirloomCaptureStateEvent = defaultCaptureState;
 let debugRecordingState: DebugRecordingState = defaultDebugRecordingState;
 let eventDispatcher: ReturnType<typeof createEventDispatcher> | null = null;
 let currentSettings: AirloomSettings = settingsSchema.parse({});
+const commandHudEnabled = false;
 const runtime = createGestureRuntime(
   adapter,
   normalizedToScreenPosition,
@@ -297,21 +298,50 @@ const resolveOverlayBounds = (
   };
 };
 
-const positionOverlayWindows = () => {
-  const commandHudWidth = 288;
-  const commandHudHeight = 336;
-  const cameraHudWidth = 420;
-  const cameraHudHeight = 560;
+const clampDimension = (value: number, minimum: number, maximum: number) => {
+  return Math.max(minimum, Math.min(maximum, Math.round(value)));
+};
+
+const getOverlayDimensions = () => {
+  const workArea = screen.getPrimaryDisplay().workArea;
+  const command = {
+    width: clampDimension(workArea.width * 0.16, 196, 256),
+    height: clampDimension(workArea.height * 0.26, 176, 288),
+  };
+  const camera = {
+    width: clampDimension(workArea.width * 0.22, 256, 360),
+    height: clampDimension(workArea.height * 0.42, 240, 420),
+  };
   const stackGap = 12;
   const sharedCorner =
     currentSettings.commandHudPosition === currentSettings.cameraHudPosition;
+
+  if (sharedCorner) {
+    const maxStackHeight = Math.round(workArea.height * 0.62) - stackGap;
+    const totalHeight = command.height + camera.height;
+    if (totalHeight > maxStackHeight) {
+      const scale = Math.max(0.7, maxStackHeight / totalHeight);
+      command.height = clampDimension(
+        command.height * scale,
+        160,
+        command.height,
+      );
+      camera.height = clampDimension(camera.height * scale, 220, camera.height);
+    }
+  }
+
+  return { command, camera, stackGap, sharedCorner };
+};
+
+const positionOverlayWindows = () => {
+  const { command, camera, stackGap, sharedCorner } = getOverlayDimensions();
 
   if (commandHudWindow !== null) {
     commandHudWindow.setBounds(
       resolveOverlayBounds(
         currentSettings.commandHudPosition,
-        commandHudWidth,
-        commandHudHeight,
+        command.width,
+        command.height,
       ),
     );
   }
@@ -320,9 +350,9 @@ const positionOverlayWindows = () => {
     cameraHudWindow.setBounds(
       resolveOverlayBounds(
         currentSettings.cameraHudPosition,
-        cameraHudWidth,
-        cameraHudHeight,
-        sharedCorner ? commandHudHeight + stackGap : 0,
+        camera.width,
+        camera.height,
+        sharedCorner ? command.height + stackGap : 0,
       ),
     );
   }
@@ -459,6 +489,35 @@ const startVisionService = () => {
       AIRLOOM_POINTER_REGION_MARGIN: String(
         currentSettings.pointerRegionMargin,
       ),
+      INCANTATION_BLADE_HAND_SCROLL_ENABLED:
+        currentSettings.bladeHandScrollEnabled ? "1" : "0",
+      AIRLOOM_BLADE_HAND_SCROLL_ENABLED: currentSettings.bladeHandScrollEnabled
+        ? "1"
+        : "0",
+      INCANTATION_BLADE_HAND_SCROLL_DEADZONE: String(
+        currentSettings.bladeHandScrollDeadzone,
+      ),
+      AIRLOOM_BLADE_HAND_SCROLL_DEADZONE: String(
+        currentSettings.bladeHandScrollDeadzone,
+      ),
+      INCANTATION_BLADE_HAND_SCROLL_GAIN: String(
+        currentSettings.bladeHandScrollGain,
+      ),
+      AIRLOOM_BLADE_HAND_SCROLL_GAIN: String(
+        currentSettings.bladeHandScrollGain,
+      ),
+      INCANTATION_BLADE_HAND_SCROLL_ACTIVATION_FRAMES: String(
+        currentSettings.bladeHandScrollActivationFrames,
+      ),
+      AIRLOOM_BLADE_HAND_SCROLL_ACTIVATION_FRAMES: String(
+        currentSettings.bladeHandScrollActivationFrames,
+      ),
+      INCANTATION_BLADE_HAND_SCROLL_RELEASE_FRAMES: String(
+        currentSettings.bladeHandScrollReleaseFrames,
+      ),
+      AIRLOOM_BLADE_HAND_SCROLL_RELEASE_FRAMES: String(
+        currentSettings.bladeHandScrollReleaseFrames,
+      ),
       INCANTATION_MIRROR_X: "1",
       AIRLOOM_MIRROR_X: "1",
       GLOG_minloglevel: process.env.GLOG_minloglevel ?? "2",
@@ -510,9 +569,10 @@ const createMainWindow = async () => {
 };
 
 const createCommandHudWindow = async () => {
+  const { command } = getOverlayDimensions();
   commandHudWindow = new BrowserWindow({
-    width: 288,
-    height: 336,
+    width: command.width,
+    height: command.height,
     frame: false,
     transparent: true,
     backgroundColor: "#00000000",
@@ -545,9 +605,10 @@ const createCommandHudWindow = async () => {
 };
 
 const createCameraHudWindow = async () => {
+  const { camera } = getOverlayDimensions();
   cameraHudWindow = new BrowserWindow({
-    width: 420,
-    height: 560,
+    width: camera.width,
+    height: camera.height,
     frame: false,
     transparent: true,
     backgroundColor: "#00000000",
@@ -669,7 +730,9 @@ app.whenReady().then(async () => {
 
   if (!headlessMode) {
     await createMainWindow();
-    await createCommandHudWindow();
+    if (commandHudEnabled) {
+      await createCommandHudWindow();
+    }
     await createCameraHudWindow();
     screen.on("display-metrics-changed", positionOverlayWindows);
     screen.on("display-added", positionOverlayWindows);
@@ -689,7 +752,7 @@ app.whenReady().then(async () => {
       if (mainWindow === null) {
         await createMainWindow();
       }
-      if (commandHudWindow === null) {
+      if (commandHudEnabled && commandHudWindow === null) {
         await createCommandHudWindow();
       }
       if (cameraHudWindow === null) {

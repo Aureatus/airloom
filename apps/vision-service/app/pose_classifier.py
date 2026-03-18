@@ -11,6 +11,7 @@ from app.protocol import PoseClassifierMode, PoseName, PoseObservation, PoseScor
 POSE_UNKNOWN: PoseName = "unknown"
 POSE_NEUTRAL: PoseName = "neutral"
 POSE_OPEN_PALM: PoseName = "open-palm"
+POSE_BLADE_HAND: PoseName = "blade-hand"
 POSE_CLOSED_FIST: PoseName = "closed-fist"
 POSE_PRIMARY_PINCH: PoseName = "primary-pinch"
 POSE_SECONDARY_PINCH: PoseName = "secondary-pinch"
@@ -57,7 +58,30 @@ def _open_palm_score(features: PoseFeatures) -> float:
     pinch_penalty = 0.5 * _clamp_unit(
         (max(features.primary_pinch_strength, features.secondary_pinch_strength) - 0.55) / 0.25
     )
-    return _clamp_unit(0.6 * extension_score + 0.4 * spread - pinch_penalty)
+    compactness_penalty = 0.28 * _clamp_unit((0.3 - features.finger_spread) / 0.18)
+    return _clamp_unit(0.6 * extension_score + 0.4 * spread - pinch_penalty - compactness_penalty)
+
+
+def _blade_hand_score(features: PoseFeatures) -> float:
+    if not features.open_palm_direction:
+        return 0.0
+
+    extension_score = features.extended_fingers / 4
+    compactness = _clamp_unit((0.34 - features.finger_spread) / 0.2)
+    openness = _clamp_unit((features.average_tip_distance - 1.05) / 0.5)
+    pinch_penalty = 0.65 * _clamp_unit(
+        (max(features.primary_pinch_strength, features.secondary_pinch_strength) - 0.35) / 0.2
+    )
+    curl_penalty = 0.4 * _clamp_unit(features.curled_fingers / 2)
+    spread_penalty = 0.35 * _clamp_unit((features.finger_spread - 0.34) / 0.14)
+    return _clamp_unit(
+        0.42 * extension_score
+        + 0.26 * compactness
+        + 0.2 * openness
+        - pinch_penalty
+        - curl_penalty
+        - spread_penalty
+    )
 
 
 def _extended_fraction(*values: bool) -> float:
@@ -141,6 +165,7 @@ def score_pose_candidates(features: PoseFeatures) -> PoseScores:
         {
             "closed-fist": _closed_fist_score(features),
             "open-palm": _open_palm_score(features),
+            "blade-hand": _blade_hand_score(features),
             "primary-pinch": _primary_pinch_score(features),
             "secondary-pinch": _secondary_pinch_score(features),
             "peace-sign": _peace_sign_score(features),
@@ -155,6 +180,7 @@ def classify_pose(features: PoseFeatures) -> PoseObservation:
         [
             (POSE_CLOSED_FIST, scores["closed-fist"]),
             (POSE_OPEN_PALM, scores["open-palm"]),
+            (POSE_BLADE_HAND, scores["blade-hand"]),
             (POSE_PRIMARY_PINCH, scores["primary-pinch"]),
             (POSE_SECONDARY_PINCH, scores["secondary-pinch"]),
             (POSE_PEACE_SIGN, scores["peace-sign"]),
@@ -176,6 +202,7 @@ def classify_pose(features: PoseFeatures) -> PoseObservation:
         second_score = max(
             scores["closed-fist"],
             scores["open-palm"],
+            scores["blade-hand"],
             scores["secondary-pinch"],
             scores["peace-sign"],
             scores["neutral"],
@@ -192,6 +219,7 @@ def classify_pose(features: PoseFeatures) -> PoseObservation:
         second_score = max(
             scores["closed-fist"],
             scores["open-palm"],
+            scores["blade-hand"],
             scores["primary-pinch"],
             scores["peace-sign"],
             scores["neutral"],
@@ -208,10 +236,36 @@ def classify_pose(features: PoseFeatures) -> PoseObservation:
         second_score = max(
             scores["open-palm"],
             scores["closed-fist"],
+            scores["blade-hand"],
             scores["primary-pinch"],
             scores["secondary-pinch"],
             scores["neutral"],
         )
+
+    if (
+        scores["blade-hand"] >= 0.66
+        and scores["blade-hand"] >= scores["open-palm"] + 0.04
+        and scores["blade-hand"] >= scores["neutral"] + 0.08
+        and max(scores["primary-pinch"], scores["secondary-pinch"]) < 0.52
+    ):
+        best_pose = POSE_BLADE_HAND
+        best_score = scores["blade-hand"]
+        second_score = max(
+            scores["open-palm"],
+            scores["closed-fist"],
+            scores["primary-pinch"],
+            scores["secondary-pinch"],
+            scores["peace-sign"],
+            scores["neutral"],
+        )
+
+    if (
+        scores["blade-hand"] >= 0.72
+        and scores["blade-hand"] >= scores["open-palm"] - 0.06
+        and scores["peace-sign"] < 0.55
+        and max(scores["primary-pinch"], scores["secondary-pinch"]) < 0.52
+    ):
+        return {"pose": POSE_BLADE_HAND, "confidence": scores["blade-hand"], "scores": scores}
 
     if best_score < POSE_MIN_SCORE or best_score - second_score < POSE_MIN_MARGIN:
         return {"pose": POSE_UNKNOWN, "confidence": _clamp_unit(best_score), "scores": scores}
@@ -241,6 +295,11 @@ def classify_hybrid_pose(
         if learned_scores is not None
         else _secondary_pinch_score(features)
     )
+    blade_score = (
+        _clamp_unit(learned_scores["blade-hand"])
+        if learned_scores is not None
+        else _blade_hand_score(features)
+    )
     peace_score = max(_peace_sign_score(features), _static_score(static_gesture_scores, "Victory"))
     open_score = _static_score(static_gesture_scores, "Open_Palm")
     closed_score = _static_score(static_gesture_scores, "Closed_Fist")
@@ -252,7 +311,7 @@ def classify_hybrid_pose(
     neutral_score = _clamp_unit(
         max(
             0.35,
-            1.0 - max(primary_score, secondary_score, open_score, closed_score),
+            1.0 - max(primary_score, secondary_score, blade_score, open_score, closed_score),
         )
     )
     scores = cast(
@@ -260,6 +319,7 @@ def classify_hybrid_pose(
         {
             "closed-fist": closed_score,
             "open-palm": open_score,
+            "blade-hand": blade_score,
             "primary-pinch": primary_score,
             "secondary-pinch": secondary_score,
             "peace-sign": peace_score,
@@ -282,8 +342,15 @@ def classify_hybrid_pose(
         return {"pose": POSE_SECONDARY_PINCH, "confidence": secondary_score, "scores": scores}
 
     if (
+        blade_score >= STATIC_POSE_MIN_SCORE
+        and blade_score >= max(primary_score, secondary_score, open_score, closed_score) + 0.03
+    ):
+        return {"pose": POSE_BLADE_HAND, "confidence": blade_score, "scores": scores}
+
+    if (
         peace_score >= STATIC_POSE_MIN_SCORE
-        and peace_score >= max(primary_score, secondary_score, open_score, closed_score) + 0.03
+        and peace_score
+        >= max(primary_score, secondary_score, blade_score, open_score, closed_score) + 0.03
     ):
         return {"pose": POSE_PEACE_SIGN, "confidence": peace_score, "scores": scores}
 

@@ -37,6 +37,7 @@ export const debugFrameEventSchema = z.object({
 export const captureCountsSchema = z.object({
   neutral: z.number().int().nonnegative(),
   "open-palm": z.number().int().nonnegative(),
+  "blade-hand": z.number().int().nonnegative(),
   "closed-fist": z.number().int().nonnegative(),
   "primary-pinch": z.number().int().nonnegative(),
   "secondary-pinch": z.number().int().nonnegative(),
@@ -69,6 +70,7 @@ export const statusDebugSchema = z.object({
   poseScores: z.object({
     neutral: z.number().min(0).max(1),
     "open-palm": z.number().min(0).max(1),
+    "blade-hand": z.number().min(0).max(1),
     "closed-fist": z.number().min(0).max(1),
     "primary-pinch": z.number().min(0).max(1),
     "secondary-pinch": z.number().min(0).max(1),
@@ -85,6 +87,7 @@ export const statusDebugSchema = z.object({
     .object({
       neutral: z.number().min(0).max(1),
       "open-palm": z.number().min(0).max(1),
+      "blade-hand": z.number().min(0).max(1),
       "closed-fist": z.number().min(0).max(1),
       "primary-pinch": z.number().min(0).max(1),
       "secondary-pinch": z.number().min(0).max(1),
@@ -98,6 +101,10 @@ export const statusDebugSchema = z.object({
   openPalmHold: z.boolean(),
   secondaryPinchStrength: z.number().min(0).max(1),
   secondaryPinchActive: z.boolean().optional(),
+  bladeHandActive: z.boolean().optional(),
+  bladeHandScore: z.number().min(0).max(1).optional(),
+  bladeScrollDeltaY: z.number().optional(),
+  bladeScrollAccumulated: z.number().optional(),
   pointerHand: z.string().min(1).optional(),
   actionHand: z.string().min(1).optional(),
   fallbackReason: z.string().min(1).optional(),
@@ -129,17 +136,17 @@ export const pointerMoveActionSchema = z.object({
 
 export const pointerDownActionSchema = z.object({
   type: z.literal("pointer.down"),
-  button: z.enum(["left", "right"]),
+  button: z.enum(["left", "middle", "right"]),
 });
 
 export const pointerUpActionSchema = z.object({
   type: z.literal("pointer.up"),
-  button: z.enum(["left", "right"]),
+  button: z.enum(["left", "middle", "right"]),
 });
 
 export const clickActionSchema = z.object({
   type: z.literal("click"),
-  button: z.enum(["left", "right"]),
+  button: z.enum(["left", "middle", "right"]),
 });
 
 export const keyTapActionSchema = z.object({
