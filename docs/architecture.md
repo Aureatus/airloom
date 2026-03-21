@@ -13,9 +13,17 @@ Current flow:
 - action mapper -> `pointer.move`, `pointer.down`, `pointer.up`, `click`, `key.tap`
 - input adapter -> real OS mouse and keyboard injection
 
+Live backends now include:
+
+- `webcam`: local MediaPipe hand landmarks
+- `leap`: Ultraleap Gemini hand state on Linux/X11
+- `quest-bridge`: a browser-served Quest client that streams landmarks to the laptop, then re-enters the same Python `FrameState` pipeline
+
 The desktop action mapper is stateful: it uses a hold threshold to decide whether a `primary-pinch` release should become a click or a drag release.
 
 The calibration UI also surfaces the mapper's live debug state so you can see pinch hold duration and the current click-vs-drag preview while tuning thresholds.
+
+Quest Bridge is intentionally a Stage-1 local loop: Quest acts as a wearable sensor client, the laptop still runs the Python gesture machine and Electron/X11 action mapper, and remote-host complexity stays out of the interaction-design loop.
 
 For smoke coverage, the project now has two X11 layers:
 

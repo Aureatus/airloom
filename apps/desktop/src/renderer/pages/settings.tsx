@@ -118,6 +118,127 @@ export const SettingsPage = ({ settings, onSave }: SettingsPageProps) => {
 
       <div className="settings-stack">
         <SettingsSection
+          eyebrow="Backend"
+          title="Tracking source"
+          copy="Choose the live hand-tracking backend. Webcam stays the stable default; Leap and Quest Bridge are both experimental Linux/X11 paths."
+        >
+          <div className="settings-grid settings-grid-wide">
+            <label className="settings-field">
+              <span>Tracking backend</span>
+              <select
+                value={draft.trackingBackend}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    trackingBackend: event.target
+                      .value as AirloomSettings["trackingBackend"],
+                  }))
+                }
+              >
+                <option value="webcam">Webcam</option>
+                <option value="leap">Leap Motion Controller</option>
+                <option value="quest-bridge">Meta Quest Bridge</option>
+              </select>
+            </label>
+            <label className="settings-field">
+              <span>Leap orientation</span>
+              <select
+                value={draft.leapOrientation}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    leapOrientation: event.target
+                      .value as AirloomSettings["leapOrientation"],
+                  }))
+                }
+                disabled={draft.trackingBackend !== "leap"}
+              >
+                <option value="normal">Normal</option>
+                <option value="inverted">Inverted</option>
+              </select>
+            </label>
+            <label className="settings-field">
+              <span>Quest bridge port</span>
+              <input
+                type="number"
+                min="1024"
+                max="65535"
+                value={draft.questBridgePort}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    questBridgePort: Number(event.target.value),
+                  }))
+                }
+                disabled={draft.trackingBackend !== "quest-bridge"}
+              />
+            </label>
+            <label className="settings-field">
+              <span>Quest pointer hand</span>
+              <select
+                value={draft.questPointerHand}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    questPointerHand: event.target
+                      .value as AirloomSettings["questPointerHand"],
+                  }))
+                }
+                disabled={draft.trackingBackend !== "quest-bridge"}
+              >
+                <option value="auto">Auto</option>
+                <option value="left">Left</option>
+                <option value="right">Right</option>
+              </select>
+            </label>
+            <label className="settings-field">
+              <span>Quest action hand</span>
+              <select
+                value={draft.questActionHand}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    questActionHand: event.target
+                      .value as AirloomSettings["questActionHand"],
+                  }))
+                }
+                disabled={draft.trackingBackend !== "quest-bridge"}
+              >
+                <option value="auto">Auto</option>
+                <option value="left">Left</option>
+                <option value="right">Right</option>
+              </select>
+            </label>
+            <label className="settings-field checkbox-field">
+              <span>Require Quest clutch</span>
+              <input
+                type="checkbox"
+                checked={draft.questRequirePointerClutch}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    questRequirePointerClutch: event.target.checked,
+                  }))
+                }
+                disabled={draft.trackingBackend !== "quest-bridge"}
+              />
+            </label>
+          </div>
+          <p className="panel-copy">
+            Incantation applies this automatically through the Ultraleap service
+            when the Leap backend starts, so you should not need to run `leapctl
+            config orientation` by hand.
+          </p>
+          {draft.trackingBackend === "quest-bridge" ? (
+            <p className="panel-copy">
+              Start the service, then open the local Quest Bridge page on your headset.
+              The headset streams hand landmarks into the existing desktop mapper, so
+              your Linux X11 path and push-to-talk flow stay unchanged.
+            </p>
+          ) : null}
+        </SettingsSection>
+
+        <SettingsSection
           eyebrow="Tracking"
           title="Pointer clutch"
           copy="Shape how your primary hand glides and steadies while the action hand handles click and clutch-driven drag."
@@ -541,7 +662,7 @@ export const SettingsPage = ({ settings, onSave }: SettingsPageProps) => {
         <p className="panel-copy">
           Secondary pinch now fires right click directly on activation. The
           command-mode tuning fields stay here so we can revisit them once the
-          webcam tracking is steadier.
+          active tracking backend is steadier.
         </p>
       </div>
     </section>

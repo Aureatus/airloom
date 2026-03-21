@@ -358,6 +358,24 @@ const positionOverlayWindows = () => {
   }
 };
 
+const updateOverlayVisibility = () => {
+  if (commandHudWindow !== null) {
+    if (serviceProcess !== null && commandHudEnabled) {
+      commandHudWindow.showInactive();
+    } else {
+      commandHudWindow.hide();
+    }
+  }
+
+  if (cameraHudWindow !== null) {
+    if (serviceProcess !== null) {
+      cameraHudWindow.showInactive();
+    } else {
+      cameraHudWindow.hide();
+    }
+  }
+};
+
 const attachProcessReaders = (child: ChildProcess) => {
   let pending = "";
   eventDispatcher = createEventDispatcher(
@@ -430,6 +448,7 @@ const attachProcessReaders = (child: ChildProcess) => {
       ...debugRecordingState,
       recording: false,
     };
+    updateOverlayVisibility();
     broadcastStatus();
 
     if (headlessMode && exitOnServiceExit) {
@@ -444,7 +463,15 @@ const startVisionService = () => {
   }
 
   const fixture = readEnv("INCANTATION_FIXTURE", "AIRLOOM_FIXTURE");
-  const args = ["run", "python", "-m", "app.main", "--stdio"];
+  const args = [
+    "run",
+    "python",
+    "-m",
+    "app.main",
+    "--stdio",
+    "--backend",
+    currentSettings.trackingBackend,
+  ];
   if (fixture) {
     args.push("--fixture", fixture);
   }
@@ -455,6 +482,20 @@ const startVisionService = () => {
       ...process.env,
       INCANTATION_DEBUG_PREVIEW: "1",
       AIRLOOM_DEBUG_PREVIEW: "1",
+      INCANTATION_TRACKING_BACKEND: currentSettings.trackingBackend,
+      AIRLOOM_TRACKING_BACKEND: currentSettings.trackingBackend,
+      INCANTATION_LEAP_ORIENTATION: currentSettings.leapOrientation,
+      AIRLOOM_LEAP_ORIENTATION: currentSettings.leapOrientation,
+      INCANTATION_QUEST_BRIDGE_PORT: String(currentSettings.questBridgePort),
+      AIRLOOM_QUEST_BRIDGE_PORT: String(currentSettings.questBridgePort),
+      INCANTATION_QUEST_POINTER_HAND: currentSettings.questPointerHand,
+      AIRLOOM_QUEST_POINTER_HAND: currentSettings.questPointerHand,
+      INCANTATION_QUEST_ACTION_HAND: currentSettings.questActionHand,
+      AIRLOOM_QUEST_ACTION_HAND: currentSettings.questActionHand,
+      INCANTATION_QUEST_REQUIRE_POINTER_CLUTCH:
+        currentSettings.questRequirePointerClutch ? "1" : "0",
+      AIRLOOM_QUEST_REQUIRE_POINTER_CLUTCH:
+        currentSettings.questRequirePointerClutch ? "1" : "0",
       INCANTATION_CAPTURE_DIR: join(app.getPath("userData"), "captures"),
       AIRLOOM_CAPTURE_DIR: join(app.getPath("userData"), "captures"),
       INCANTATION_CAPTURE_EXPORT_DIR: join(
@@ -518,8 +559,9 @@ const startVisionService = () => {
       AIRLOOM_BLADE_HAND_SCROLL_RELEASE_FRAMES: String(
         currentSettings.bladeHandScrollReleaseFrames,
       ),
-      INCANTATION_MIRROR_X: "1",
-      AIRLOOM_MIRROR_X: "1",
+      INCANTATION_MIRROR_X:
+        currentSettings.trackingBackend === "leap" ? "0" : "1",
+      AIRLOOM_MIRROR_X: currentSettings.trackingBackend === "leap" ? "0" : "1",
       GLOG_minloglevel: process.env.GLOG_minloglevel ?? "2",
       TF_CPP_MIN_LOG_LEVEL: process.env.TF_CPP_MIN_LOG_LEVEL ?? "2",
     },
@@ -527,6 +569,7 @@ const startVisionService = () => {
   });
 
   attachProcessReaders(serviceProcess);
+  updateOverlayVisibility();
   broadcastStatus();
   return getServiceStatus();
 };
@@ -543,6 +586,7 @@ const stopVisionService = async () => {
     recording: false,
   };
 
+  updateOverlayVisibility();
   broadcastStatus();
   return getServiceStatus();
 };
@@ -596,7 +640,7 @@ const createCommandHudWindow = async () => {
   });
   positionOverlayWindows();
   commandHudWindow.once("ready-to-show", () => {
-    commandHudWindow?.showInactive();
+    updateOverlayVisibility();
   });
   await loadRenderer(commandHudWindow, "command-hud");
   commandHudWindow.on("closed", () => {
@@ -632,7 +676,7 @@ const createCameraHudWindow = async () => {
   });
   positionOverlayWindows();
   cameraHudWindow.once("ready-to-show", () => {
-    cameraHudWindow?.showInactive();
+    updateOverlayVisibility();
   });
   await loadRenderer(cameraHudWindow, "camera-hud");
   cameraHudWindow.on("closed", () => {

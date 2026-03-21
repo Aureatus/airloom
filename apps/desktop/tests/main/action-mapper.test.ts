@@ -2,6 +2,12 @@ import { describe, expect, test } from "bun:test";
 import { createActionMapper } from "../../src/main/action-mapper";
 
 const createSettings = () => ({
+  trackingBackend: "webcam" as const,
+  leapOrientation: "normal" as const,
+  questBridgePort: 38419,
+  questPointerHand: "right" as const,
+  questActionHand: "left" as const,
+  questRequirePointerClutch: true,
   smoothing: 0.72,
   pointerRegionMargin: 0.12,
   clickPinchThreshold: 0.78,
