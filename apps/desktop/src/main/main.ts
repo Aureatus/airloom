@@ -25,6 +25,11 @@ import {
 import { normalizedToScreenPosition, resolveInputAdapter } from "./input";
 import { getLinuxX11DependencyWarning } from "./input/linux-x11";
 import { createPreviewStreamDecoder } from "./preview-stream";
+import {
+  type QuestBridgeInfo,
+  getQuestBridgeInfo,
+  prepareQuestBridgeTls,
+} from "./quest-bridge";
 import { loadSettings, saveSettings } from "./settings-store";
 
 type ServiceStatus = {
@@ -34,6 +39,8 @@ type ServiceStatus = {
   runtime: RuntimeState;
   capture: AirloomCaptureStateEvent;
   debugRecording: DebugRecordingState;
+  questBridge: QuestBridgeInfo;
+  questSmoke: QuestSmokeState;
   warnings: string[];
 };
 
@@ -42,6 +49,14 @@ type DebugRecordingState = {
   sessionPath: string | null;
   frames: number;
   events: number;
+};
+
+type QuestSmokeState = {
+  running: boolean;
+  success: boolean | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  output: string;
 };
 
 type OverlayMode = "command-hud" | "camera-hud";
@@ -72,6 +87,14 @@ const defaultDebugRecordingState: DebugRecordingState = {
   events: 0,
 };
 
+const defaultQuestSmokeState: QuestSmokeState = {
+  running: false,
+  success: null,
+  startedAt: null,
+  completedAt: null,
+  output: "No Quest smoke test run yet.",
+};
+
 const getPlatformWarnings = () => {
   const warnings: string[] = [];
   const x11Warning = getLinuxX11DependencyWarning();
@@ -92,6 +115,10 @@ const getPlatformWarnings = () => {
   return warnings;
 };
 
+const getQuestBridgeStatus = () => {
+  return getQuestBridgeInfo(currentSettings, app.getPath("userData"));
+};
+
 let mainWindow: BrowserWindow | null = null;
 let commandHudWindow: BrowserWindow | null = null;
 let cameraHudWindow: BrowserWindow | null = null;
@@ -100,6 +127,8 @@ let serviceProcess: ChildProcess | null = null;
 let lastEvent: AirloomInputEvent | null = null;
 let captureState: AirloomCaptureStateEvent = defaultCaptureState;
 let debugRecordingState: DebugRecordingState = defaultDebugRecordingState;
+let questSmokeState: QuestSmokeState = defaultQuestSmokeState;
+let questSmokeProcess: ChildProcess | null = null;
 let eventDispatcher: ReturnType<typeof createEventDispatcher> | null = null;
 let currentSettings: AirloomSettings = settingsSchema.parse({});
 const commandHudEnabled = false;
@@ -133,6 +162,7 @@ const ignoredVisionLogPatterns = [
 ];
 
 const getServiceStatus = (): ServiceStatus => {
+  const questBridge = getQuestBridgeStatus();
   return {
     running: serviceProcess !== null,
     adapter: adapter.platform,
@@ -140,7 +170,9 @@ const getServiceStatus = (): ServiceStatus => {
     runtime: runtime.getState(),
     capture: captureState,
     debugRecording: debugRecordingState,
-    warnings: getPlatformWarnings(),
+    questBridge,
+    questSmoke: questSmokeState,
+    warnings: [...getPlatformWarnings(), ...questBridge.warnings],
   };
 };
 
@@ -272,6 +304,130 @@ const broadcastStatus = () => {
   }
 };
 
+const resetQuestSmokeState = () => {
+  questSmokeState = defaultQuestSmokeState;
+};
+
+const runQuestSmokeTest = () => {
+  if (questSmokeProcess !== null) {
+    return Promise.resolve(getServiceStatus());
+  }
+
+  const finish = (
+    success: boolean,
+    output: string,
+    resolveStatus: (status: ServiceStatus) => void,
+  ) => {
+    questSmokeState = {
+      running: false,
+      success,
+      startedAt: questSmokeState.startedAt,
+      completedAt: new Date().toISOString(),
+      output,
+    };
+    questSmokeProcess = null;
+    broadcastStatus();
+    resolveStatus(getServiceStatus());
+  };
+
+  return new Promise<ServiceStatus>((resolveStatus) => {
+    if (currentSettings.trackingBackend !== "quest-bridge") {
+      questSmokeState = {
+        running: false,
+        success: false,
+        startedAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+        output:
+          "Quest smoke test skipped because the active backend is not Quest Bridge.",
+      };
+      broadcastStatus();
+      resolveStatus(getServiceStatus());
+      return;
+    }
+
+    if (serviceProcess === null) {
+      questSmokeState = {
+        running: false,
+        success: false,
+        startedAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+        output:
+          "Quest smoke test could not run because the service is stopped.",
+      };
+      broadcastStatus();
+      resolveStatus(getServiceStatus());
+      return;
+    }
+
+    const questBridge = getQuestBridgeStatus();
+    const args = [
+      "run",
+      "--directory",
+      "apps/vision-service",
+      "python",
+      "tools/quest_bridge_smoke_test.py",
+      "--url",
+      questBridge.desktopSelfTestUrl,
+    ];
+    questSmokeState = {
+      running: true,
+      success: null,
+      startedAt: new Date().toISOString(),
+      completedAt: null,
+      output: `Running quest smoke test against ${questBridge.desktopSelfTestUrl}`,
+    };
+    broadcastStatus();
+
+    const child = spawn("uv", args, {
+      cwd: rootDir,
+      env: process.env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    questSmokeProcess = child;
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout?.on("data", (chunk) => {
+      stdout += chunk.toString();
+    });
+
+    child.stderr?.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+
+    child.on("error", (error) => {
+      finish(
+        false,
+        `Quest smoke test failed to launch.\n\n${error.message}`,
+        resolveStatus,
+      );
+    });
+
+    child.on("exit", (code, signal) => {
+      const output = [stdout.trim(), stderr.trim()]
+        .filter(Boolean)
+        .join("\n\n");
+      const succeeded = code === 0;
+      if (signal) {
+        finish(
+          false,
+          `Quest smoke test was interrupted by signal ${signal}.\n\n${output}`.trim(),
+          resolveStatus,
+        );
+        return;
+      }
+      finish(
+        succeeded,
+        succeeded
+          ? `Quest smoke test passed.\n\n${output}`.trim()
+          : `Quest smoke test failed with exit code ${code}.\n\n${output}`.trim(),
+        resolveStatus,
+      );
+    });
+  });
+};
+
 const resolveOverlayBounds = (
   position: AirloomSettings["commandHudPosition"],
   width: number,
@@ -358,6 +514,24 @@ const positionOverlayWindows = () => {
   }
 };
 
+const updateOverlayVisibility = () => {
+  if (commandHudWindow !== null) {
+    if (serviceProcess !== null && commandHudEnabled) {
+      commandHudWindow.showInactive();
+    } else {
+      commandHudWindow.hide();
+    }
+  }
+
+  if (cameraHudWindow !== null) {
+    if (serviceProcess !== null) {
+      cameraHudWindow.showInactive();
+    } else {
+      cameraHudWindow.hide();
+    }
+  }
+};
+
 const attachProcessReaders = (child: ChildProcess) => {
   let pending = "";
   eventDispatcher = createEventDispatcher(
@@ -430,6 +604,7 @@ const attachProcessReaders = (child: ChildProcess) => {
       ...debugRecordingState,
       recording: false,
     };
+    updateOverlayVisibility();
     broadcastStatus();
 
     if (headlessMode && exitOnServiceExit) {
@@ -443,8 +618,22 @@ const startVisionService = () => {
     return getServiceStatus();
   }
 
+  resetQuestSmokeState();
+  const questTlsMaterial = prepareQuestBridgeTls(
+    currentSettings,
+    app.getPath("userData"),
+  );
+  const questBridgeStatus = getQuestBridgeStatus();
   const fixture = readEnv("INCANTATION_FIXTURE", "AIRLOOM_FIXTURE");
-  const args = ["run", "python", "-m", "app.main", "--stdio"];
+  const args = [
+    "run",
+    "python",
+    "-m",
+    "app.main",
+    "--stdio",
+    "--backend",
+    currentSettings.trackingBackend,
+  ];
   if (fixture) {
     args.push("--fixture", fixture);
   }
@@ -455,6 +644,40 @@ const startVisionService = () => {
       ...process.env,
       INCANTATION_DEBUG_PREVIEW: "1",
       AIRLOOM_DEBUG_PREVIEW: "1",
+      INCANTATION_TRACKING_BACKEND: currentSettings.trackingBackend,
+      AIRLOOM_TRACKING_BACKEND: currentSettings.trackingBackend,
+      INCANTATION_LEAP_ORIENTATION: currentSettings.leapOrientation,
+      AIRLOOM_LEAP_ORIENTATION: currentSettings.leapOrientation,
+      INCANTATION_QUEST_BRIDGE_PORT: String(currentSettings.questBridgePort),
+      AIRLOOM_QUEST_BRIDGE_PORT: String(currentSettings.questBridgePort),
+      INCANTATION_QUEST_POINTER_HAND: currentSettings.questPointerHand,
+      AIRLOOM_QUEST_POINTER_HAND: currentSettings.questPointerHand,
+      INCANTATION_QUEST_ACTION_HAND: currentSettings.questActionHand,
+      AIRLOOM_QUEST_ACTION_HAND: currentSettings.questActionHand,
+      INCANTATION_QUEST_REQUIRE_POINTER_CLUTCH:
+        currentSettings.questRequirePointerClutch ? "1" : "0",
+      AIRLOOM_QUEST_REQUIRE_POINTER_CLUTCH:
+        currentSettings.questRequirePointerClutch ? "1" : "0",
+      INCANTATION_QUEST_RECOMMENDED_URL:
+        questBridgeStatus.recommendedUrl ??
+        questBridgeStatus.desktopSelfTestUrl,
+      AIRLOOM_QUEST_RECOMMENDED_URL:
+        questBridgeStatus.recommendedUrl ??
+        questBridgeStatus.desktopSelfTestUrl,
+      INCANTATION_QUEST_CANDIDATE_URLS: JSON.stringify(
+        questBridgeStatus.candidateUrls,
+      ),
+      AIRLOOM_QUEST_CANDIDATE_URLS: JSON.stringify(
+        questBridgeStatus.candidateUrls,
+      ),
+      INCANTATION_QUEST_TLS_CERT:
+        questTlsMaterial?.certPath ?? process.env.INCANTATION_QUEST_TLS_CERT,
+      AIRLOOM_QUEST_TLS_CERT:
+        questTlsMaterial?.certPath ?? process.env.AIRLOOM_QUEST_TLS_CERT,
+      INCANTATION_QUEST_TLS_KEY:
+        questTlsMaterial?.keyPath ?? process.env.INCANTATION_QUEST_TLS_KEY,
+      AIRLOOM_QUEST_TLS_KEY:
+        questTlsMaterial?.keyPath ?? process.env.AIRLOOM_QUEST_TLS_KEY,
       INCANTATION_CAPTURE_DIR: join(app.getPath("userData"), "captures"),
       AIRLOOM_CAPTURE_DIR: join(app.getPath("userData"), "captures"),
       INCANTATION_CAPTURE_EXPORT_DIR: join(
@@ -518,8 +741,9 @@ const startVisionService = () => {
       AIRLOOM_BLADE_HAND_SCROLL_RELEASE_FRAMES: String(
         currentSettings.bladeHandScrollReleaseFrames,
       ),
-      INCANTATION_MIRROR_X: "1",
-      AIRLOOM_MIRROR_X: "1",
+      INCANTATION_MIRROR_X:
+        currentSettings.trackingBackend === "leap" ? "0" : "1",
+      AIRLOOM_MIRROR_X: currentSettings.trackingBackend === "leap" ? "0" : "1",
       GLOG_minloglevel: process.env.GLOG_minloglevel ?? "2",
       TF_CPP_MIN_LOG_LEVEL: process.env.TF_CPP_MIN_LOG_LEVEL ?? "2",
     },
@@ -527,12 +751,24 @@ const startVisionService = () => {
   });
 
   attachProcessReaders(serviceProcess);
+  updateOverlayVisibility();
   broadcastStatus();
   return getServiceStatus();
 };
 
 const stopVisionService = async () => {
   await runtime.releaseHeldActions();
+  if (questSmokeProcess !== null) {
+    questSmokeProcess.kill();
+    questSmokeProcess = null;
+    questSmokeState = {
+      running: false,
+      success: false,
+      startedAt: questSmokeState.startedAt,
+      completedAt: new Date().toISOString(),
+      output: "Quest smoke test was cancelled because the service stopped.",
+    };
+  }
   if (serviceProcess !== null) {
     serviceProcess.kill();
     serviceProcess = null;
@@ -543,6 +779,7 @@ const stopVisionService = async () => {
     recording: false,
   };
 
+  updateOverlayVisibility();
   broadcastStatus();
   return getServiceStatus();
 };
@@ -596,7 +833,7 @@ const createCommandHudWindow = async () => {
   });
   positionOverlayWindows();
   commandHudWindow.once("ready-to-show", () => {
-    commandHudWindow?.showInactive();
+    updateOverlayVisibility();
   });
   await loadRenderer(commandHudWindow, "command-hud");
   commandHudWindow.on("closed", () => {
@@ -632,7 +869,7 @@ const createCameraHudWindow = async () => {
   });
   positionOverlayWindows();
   cameraHudWindow.once("ready-to-show", () => {
-    cameraHudWindow?.showInactive();
+    updateOverlayVisibility();
   });
   await loadRenderer(cameraHudWindow, "camera-hud");
   cameraHudWindow.on("closed", () => {
@@ -718,6 +955,7 @@ app.whenReady().then(async () => {
   });
   registerIpcHandler("start-debug-recording", () => startDebugRecording());
   registerIpcHandler("stop-debug-recording", () => stopDebugRecording());
+  registerIpcHandler("run-quest-smoke-test", () => runQuestSmokeTest());
   registerIpcHandler(
     "send-event",
     async (_event, payload: AirloomInputEvent) => {

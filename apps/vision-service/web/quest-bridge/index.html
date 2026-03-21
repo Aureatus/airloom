@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Incantation Quest Bridge</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+        background: #07131a;
+        color: #edf7f7;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background:
+          radial-gradient(circle at top, rgba(84, 159, 168, 0.35), transparent 40%),
+          linear-gradient(180deg, #07131a 0%, #03070b 100%);
+      }
+
+      main {
+        width: min(92vw, 36rem);
+        padding: 1.5rem;
+        border: 1px solid rgba(168, 213, 217, 0.28);
+        border-radius: 1.25rem;
+        background: rgba(5, 14, 19, 0.86);
+        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+      }
+
+      h1 {
+        margin: 0 0 0.35rem;
+        font-size: 1.6rem;
+      }
+
+      p {
+        margin: 0.4rem 0 0;
+        line-height: 1.5;
+        color: rgba(237, 247, 247, 0.78);
+      }
+
+      button {
+        margin-top: 1rem;
+        padding: 0.85rem 1.1rem;
+        border: 0;
+        border-radius: 999px;
+        background: #97efe8;
+        color: #041015;
+        font: inherit;
+        font-weight: 700;
+      }
+
+      dl {
+        margin: 1rem 0 0;
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 0.5rem 1rem;
+      }
+
+      dt {
+        color: rgba(237, 247, 247, 0.58);
+      }
+
+      dd {
+        margin: 0;
+      }
+
+      .good {
+        color: #97efe8;
+      }
+
+      .warn {
+        color: #ffd58f;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Incantation Quest Bridge</h1>
+      <p>
+        Start an immersive session, then keep your laptop on the same network.
+        This page streams Quest hand landmarks into the existing Incantation desktop pipeline.
+      </p>
+      <button id="start-session" type="button">Start hand bridge</button>
+      <dl>
+        <dt>Session</dt>
+        <dd id="session-state" class="warn">Idle</dd>
+        <dt>Bridge</dt>
+        <dd id="bridge-state" class="warn">Waiting</dd>
+        <dt>Hands</dt>
+        <dd id="hands-state">0</dd>
+        <dt>Last frame</dt>
+        <dd id="frame-state">Never</dd>
+      </dl>
+    </main>
+    <script type="module" src="/client.js"></script>
+  </body>
+</html>

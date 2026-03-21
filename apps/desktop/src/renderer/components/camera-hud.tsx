@@ -1,10 +1,14 @@
+import type { TrackingBackend } from "@incantation/shared/settings-schema";
 import { LivePreview } from "./live-preview";
 
 type CameraHudProps = {
   serviceRunning: boolean;
+  trackingBackend: TrackingBackend;
+  previewAvailable: boolean;
   cameraUnavailable: boolean;
   gesture: string;
   tracking: boolean;
+  deviceName?: string;
   cameraWidth?: number;
   cameraHeight?: number;
   captureFps?: number;
@@ -46,9 +50,12 @@ const delayTone = (value: number | undefined) => {
 
 export const CameraHud = ({
   serviceRunning,
+  trackingBackend,
+  previewAvailable,
   cameraUnavailable,
   gesture,
   tracking,
+  deviceName,
   cameraWidth,
   cameraHeight,
   captureFps,
@@ -58,6 +65,18 @@ export const CameraHud = ({
   overlayOnly = false,
 }: CameraHudProps) => {
   const processedBaseline = captureFps ?? 24;
+  const backendLabel =
+    trackingBackend === "leap"
+      ? "Leap"
+      : trackingBackend === "quest-bridge"
+        ? "Quest"
+        : "Camera";
+  const previewLabel =
+    trackingBackend === "leap"
+      ? "Leap"
+      : trackingBackend === "quest-bridge"
+        ? "Quest Bridge"
+        : "Webcam";
 
   return (
     <div className="camera-hud-shell">
@@ -68,26 +87,35 @@ export const CameraHud = ({
           <div className="camera-hud-header-main">
             <div className="camera-hud-title-row">
               <div>
-                <div className="eyebrow">Camera HUD</div>
+                <div className="eyebrow">{backendLabel} HUD</div>
                 <strong>{tracking ? gesture : "searching"}</strong>
               </div>
               <div className="camera-hud-chip">
                 {serviceRunning
-                  ? cameraUnavailable
-                    ? "camera issue"
-                    : "live"
+                  ? !previewAvailable
+                    ? "status only"
+                    : cameraUnavailable
+                      ? "camera issue"
+                      : "live"
                   : "offline"}
               </div>
             </div>
             <div className="camera-hud-metrics">
               <span className="camera-hud-metric camera-hud-metric-neutral">
-                Camera {cameraWidth ?? 0}x{cameraHeight ?? 0}
+                {previewAvailable
+                  ? `Camera ${cameraWidth ?? 0}x${cameraHeight ?? 0}`
+                  : (deviceName ??
+                      (trackingBackend === "quest-bridge"
+                        ? "Meta Quest Browser"
+                        : "Leap Motion Controller"))}
               </span>
-              <span
-                className={`camera-hud-metric camera-hud-metric-${fpsTone(captureFps)}`}
-              >
-                Capture {formatMetric(captureFps)} fps
-              </span>
+              {previewAvailable ? (
+                <span
+                  className={`camera-hud-metric camera-hud-metric-${fpsTone(captureFps)}`}
+                >
+                  Capture {formatMetric(captureFps)} fps
+                </span>
+              ) : null}
               <span
                 className={`camera-hud-metric camera-hud-metric-${fpsTone(processedFps, processedBaseline)}`}
               >
@@ -110,13 +138,18 @@ export const CameraHud = ({
         </div>
         <LivePreview
           serviceRunning={serviceRunning}
+          previewAvailable={previewAvailable}
+          backendLabel={previewLabel}
           cameraUnavailable={cameraUnavailable}
           compact
         />
         {!overlayOnly ? (
           <p className="camera-hud-copy">
-            Teal marks the pointer hand, amber marks the action hand, and the
-            frame edge shows the live camera bounds.
+            {previewAvailable
+              ? "Teal marks the pointer hand, amber marks the action hand, and the frame edge shows the live camera bounds."
+              : trackingBackend === "quest-bridge"
+                ? "Quest Bridge currently feeds semantic hand state without a preview image, so use this HUD as a compact pairing surface."
+                : "Leap currently feeds semantic hand state without a preview image, so use this HUD as a compact status surface."}
           </p>
         ) : null}
       </section>

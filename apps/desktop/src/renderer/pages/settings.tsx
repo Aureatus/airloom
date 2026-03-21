@@ -1,8 +1,24 @@
 import type { AirloomSettings } from "@incantation/shared/settings-schema";
 import { type ReactNode, useEffect, useState } from "react";
 
+type QuestBridgeStatus = {
+  enabled: boolean;
+  port: number;
+  recommendedUrl: string | null;
+  recommendedAddress: string | null;
+  candidateUrls: string[];
+  desktopSelfTestUrl: string;
+  desktopSelfTestAddress: string;
+  smokeTestCommand: string;
+  httpsReady: boolean;
+  certificateMode: "manual" | "auto" | "none";
+  warnings: string[];
+};
+
 type SettingsPageProps = {
   settings: AirloomSettings;
+  serviceRunning: boolean;
+  questBridge: QuestBridgeStatus;
   onSave: (settings: AirloomSettings) => Promise<void>;
 };
 
@@ -31,12 +47,29 @@ const SettingsSection = ({
   );
 };
 
-export const SettingsPage = ({ settings, onSave }: SettingsPageProps) => {
+export const SettingsPage = ({
+  settings,
+  serviceRunning,
+  questBridge,
+  onSave,
+}: SettingsPageProps) => {
   const [draft, setDraft] = useState(settings);
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
 
   useEffect(() => {
     setDraft(settings);
   }, [settings]);
+
+  const copyValue = async (value: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopyFeedback(`${label} copied`);
+      window.setTimeout(() => setCopyFeedback(null), 1600);
+    } catch {
+      setCopyFeedback(`Could not copy ${label.toLowerCase()}`);
+      window.setTimeout(() => setCopyFeedback(null), 1600);
+    }
+  };
 
   const updateMapping = (gesture: string, key: string) => {
     setDraft((current) => ({
@@ -117,6 +150,224 @@ export const SettingsPage = ({ settings, onSave }: SettingsPageProps) => {
       </div>
 
       <div className="settings-stack">
+        <SettingsSection
+          eyebrow="Backend"
+          title="Tracking source"
+          copy="Choose the live hand-tracking backend. Webcam stays the stable default; Leap and Quest Bridge are both experimental Linux/X11 paths."
+        >
+          <div className="settings-grid settings-grid-wide">
+            <label className="settings-field">
+              <span>Tracking backend</span>
+              <select
+                value={draft.trackingBackend}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    trackingBackend: event.target
+                      .value as AirloomSettings["trackingBackend"],
+                  }))
+                }
+              >
+                <option value="webcam">Webcam</option>
+                <option value="leap">Leap Motion Controller</option>
+                <option value="quest-bridge">Meta Quest Bridge</option>
+              </select>
+            </label>
+            <label className="settings-field">
+              <span>Leap orientation</span>
+              <select
+                value={draft.leapOrientation}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    leapOrientation: event.target
+                      .value as AirloomSettings["leapOrientation"],
+                  }))
+                }
+                disabled={draft.trackingBackend !== "leap"}
+              >
+                <option value="normal">Normal</option>
+                <option value="inverted">Inverted</option>
+              </select>
+            </label>
+            <label className="settings-field">
+              <span>Quest bridge port</span>
+              <input
+                type="number"
+                min="1024"
+                max="65535"
+                value={draft.questBridgePort}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    questBridgePort: Number(event.target.value),
+                  }))
+                }
+                disabled={draft.trackingBackend !== "quest-bridge"}
+              />
+            </label>
+            <label className="settings-field">
+              <span>Quest pointer hand</span>
+              <select
+                value={draft.questPointerHand}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    questPointerHand: event.target
+                      .value as AirloomSettings["questPointerHand"],
+                  }))
+                }
+                disabled={draft.trackingBackend !== "quest-bridge"}
+              >
+                <option value="auto">Auto</option>
+                <option value="left">Left</option>
+                <option value="right">Right</option>
+              </select>
+            </label>
+            <label className="settings-field">
+              <span>Quest action hand</span>
+              <select
+                value={draft.questActionHand}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    questActionHand: event.target
+                      .value as AirloomSettings["questActionHand"],
+                  }))
+                }
+                disabled={draft.trackingBackend !== "quest-bridge"}
+              >
+                <option value="auto">Auto</option>
+                <option value="left">Left</option>
+                <option value="right">Right</option>
+              </select>
+            </label>
+            <label className="settings-field checkbox-field">
+              <span>Require Quest clutch</span>
+              <input
+                type="checkbox"
+                checked={draft.questRequirePointerClutch}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    questRequirePointerClutch: event.target.checked,
+                  }))
+                }
+                disabled={draft.trackingBackend !== "quest-bridge"}
+              />
+            </label>
+          </div>
+          <p className="panel-copy">
+            Incantation applies this automatically through the Ultraleap service
+            when the Leap backend starts, so you should not need to run `leapctl
+            config orientation` by hand.
+          </p>
+          {draft.trackingBackend === "quest-bridge" ? (
+            <div className="quest-guide">
+              <p className="panel-copy">
+                Start the service, then open the Quest page shown here. The
+                headset streams hand landmarks into the existing desktop mapper,
+                so your Linux X11 path and push-to-talk flow stay unchanged.
+                Once that is saved, jump to the `Quest Test` tab for the
+                shortest address, automatic smoke test, and live pass/fail
+                checklist.
+              </p>
+              <div className="metric-grid compact">
+                <div className="metric-card">
+                  <span>Service</span>
+                  <strong>{serviceRunning ? "running" : "stopped"}</strong>
+                </div>
+                <div className="metric-card">
+                  <span>HTTPS</span>
+                  <strong>
+                    {questBridge.httpsReady ? "ready" : "missing"}
+                  </strong>
+                </div>
+                <div className="metric-card">
+                  <span>Certificate</span>
+                  <strong>{questBridge.certificateMode}</strong>
+                </div>
+              </div>
+              <div className="hero-actions quest-guide-actions">
+                {questBridge.recommendedUrl ? (
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => {
+                      if (questBridge.recommendedUrl) {
+                        void copyValue(questBridge.recommendedUrl, "Quest URL");
+                      }
+                    }}
+                  >
+                    Copy Quest URL
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() =>
+                    void copyValue(
+                      questBridge.smokeTestCommand,
+                      "smoke command",
+                    )
+                  }
+                >
+                  Copy smoke command
+                </button>
+              </div>
+              {copyFeedback ? (
+                <p className="panel-copy">{copyFeedback}</p>
+              ) : null}
+              <div className="quest-url-list monospace">
+                <div>
+                  Short address:{" "}
+                  {questBridge.recommendedAddress ?? "No LAN IP yet"}
+                </div>
+                {questBridge.recommendedUrl ? (
+                  <div>Quest URL: {questBridge.recommendedUrl}</div>
+                ) : (
+                  <div>
+                    No LAN URL detected yet. Connect the laptop to Wi-Fi first.
+                  </div>
+                )}
+                <div>
+                  Desktop self-test: {questBridge.desktopSelfTestAddress}
+                </div>
+                <div>Smoke command: {questBridge.smokeTestCommand}</div>
+                {questBridge.candidateUrls.slice(1).map((url) => (
+                  <div key={url}>Alternate URL: {url}</div>
+                ))}
+              </div>
+              <div className="quest-checklist">
+                <div className="quest-checklist-item">
+                  <strong>1.</strong> Save settings and press `Start service`.
+                </div>
+                <div className="quest-checklist-item">
+                  <strong>2.</strong> Run `bun run test:quest` on the laptop to
+                  confirm the bridge answers locally.
+                </div>
+                <div className="quest-checklist-item">
+                  <strong>3.</strong> In Quest Browser, open the Quest URL shown
+                  above.
+                </div>
+                <div className="quest-checklist-item">
+                  <strong>4.</strong> If Quest shows a certificate warning,
+                  choose `Advanced` then continue.
+                </div>
+                <div className="quest-checklist-item">
+                  <strong>5.</strong> Open the Calibration tab and wait for
+                  `Bridge link = connected` and `Hands tracked &gt; 0`.
+                </div>
+              </div>
+              {questBridge.warnings.map((warning) => (
+                <p className="warning-text" key={warning}>
+                  {warning}
+                </p>
+              ))}
+            </div>
+          ) : null}
+        </SettingsSection>
+
         <SettingsSection
           eyebrow="Tracking"
           title="Pointer clutch"
@@ -541,7 +792,7 @@ export const SettingsPage = ({ settings, onSave }: SettingsPageProps) => {
         <p className="panel-copy">
           Secondary pinch now fires right click directly on activation. The
           command-mode tuning fields stay here so we can revisit them once the
-          webcam tracking is steadier.
+          active tracking backend is steadier.
         </p>
       </div>
     </section>

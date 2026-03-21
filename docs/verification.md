@@ -8,6 +8,7 @@ bun run dev
 bun test apps/desktop/tests/main
 uv run --directory apps/vision-service pytest
 uv run --directory apps/vision-service python -m app.main --stdio --fixture tests/fixtures/landmark_sequences/open-palm-enter.json
+bun run test:quest
 bun run test:report
 bun run report:open
 bun run test:report:open
@@ -19,6 +20,8 @@ bun run test:smoke:pipeline
 
 - Use replay fixtures for deterministic gesture validation.
 - Use Electron mock buttons to exercise click/key paths without a live webcam.
+- Quest Bridge should be verified in layers: tracker translation tests, bridge waiting/disconnect tests, then live headset pairing against the same Linux X11 runtime.
+- `bun run test:quest` is the fastest laptop-side sanity check for Quest Bridge because it confirms the running bridge can answer locally before you put the headset on; the desktop app now auto-launches the same smoke test from the `Quest Test` tab.
 - On Linux X11, install `xdotool` to enable real pointer and key injection.
 - `bun run test:smoke:x11` runs inside `xvfb-run`, launches an isolated X11 session, drives the real Linux X11 adapter against an `xev` target window, and expects left click, right click, and `Return` to land there without stealing focus from your real session.
 - `bun run test:smoke:pipeline` is a higher-order headless smoke suite: it launches Electron without a window, runs multiple realistic Python replay fixtures through the real vision-service process, and checks click, drag-release, right click, and `Return` behavior on an isolated X11 target.
@@ -28,3 +31,5 @@ bun run test:smoke:pipeline
 - `bun run test:report:open` is the convenience command when you want a fresh run and then a report window immediately.
 - `xdotool` is the best current default for X11 because it is simple and battle-tested, but it is not usually installed by default on many distros.
 - Alternatives exist, such as `ydotool` and `xte`, but they are either less universal, more awkward to ship, or a worse fit for Incantation's current X11-first architecture.
+- For Quest Bridge specifically, confirm four live conditions in order: bridge connects, `handsTracked` rises above zero, closed-fist clutch gates pointer motion, and the push-to-talk key releases immediately when the gesture ends or the bridge disconnects.
+- The desktop UI now shows a recommended short Quest address (`host:port`), alternate LAN URLs, a desktop self-test address, the exact smoke command, a QR code for the full Quest URL, and a dedicated `Quest Test` tab with live pass/fail checkpoints.

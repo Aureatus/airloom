@@ -1,4 +1,8 @@
-import type { AirloomInputEvent } from "@incantation/shared/gesture-events";
+import type {
+  AirloomCaptureStateEvent,
+  AirloomInputEvent,
+  AirloomStatusDebug,
+} from "@incantation/shared/gesture-events";
 import type { AirloomSettings } from "@incantation/shared/settings-schema";
 import {
   type FocusEvent,
@@ -12,6 +16,7 @@ import {
 import { CameraHud } from "./components/camera-hud";
 import { CommandHud } from "./components/command-hud";
 import { CalibrationPage } from "./pages/calibration";
+import { QuestTestPage } from "./pages/quest-test";
 import { SettingsPage } from "./pages/settings";
 
 type RuntimeState = {
@@ -21,57 +26,7 @@ type RuntimeState = {
   pointerControlEnabled: boolean;
   inputSuppressed: boolean;
   recentActions: string[];
-  debug: {
-    confidence: number;
-    brightness: number;
-    frameDelayMs: number;
-    cameraWidth?: number;
-    cameraHeight?: number;
-    captureFps?: number;
-    processedFps?: number;
-    previewFps?: number;
-    pose: string;
-    poseConfidence: number;
-    poseScores: {
-      neutral: number;
-      "open-palm": number;
-      "blade-hand": number;
-      "closed-fist": number;
-      "primary-pinch": number;
-      "secondary-pinch": number;
-      "peace-sign": number;
-    };
-    classifierMode: "rules" | "shadow" | "learned";
-    modelVersion: string | null;
-    learnedPose?: string;
-    learnedPoseConfidence?: number;
-    shadowDisagreement?: boolean;
-    actionPose?: string;
-    actionPoseConfidence?: number;
-    actionPoseScores?: {
-      neutral: number;
-      "open-palm": number;
-      "blade-hand": number;
-      "closed-fist": number;
-      "primary-pinch": number;
-      "secondary-pinch": number;
-      "peace-sign": number;
-    };
-    closedFist: boolean;
-    closedFistFrames: number;
-    closedFistReleaseFrames: number;
-    closedFistLatched: boolean;
-    openPalmHold: boolean;
-    secondaryPinchStrength: number;
-    secondaryPinchActive?: boolean;
-    bladeHandActive?: boolean;
-    bladeHandScore?: number;
-    bladeScrollDeltaY?: number;
-    bladeScrollAccumulated?: number;
-    pointerHand?: string;
-    actionHand?: string;
-    fallbackReason?: string;
-  };
+  debug: AirloomStatusDebug;
   mapper: {
     pointerControlEnabled: boolean;
     primaryPinchActive: boolean;
@@ -96,24 +51,26 @@ type InspectorLogEntry = {
   elapsedMs: number;
 };
 
-type CaptureState = {
-  type: "capture.state";
-  sessionId: string;
-  activeLabel: string;
-  recording: boolean;
-  takeCount: number;
-  counts: {
-    neutral: number;
-    "open-palm": number;
-    "blade-hand": number;
-    "closed-fist": number;
-    "primary-pinch": number;
-    "secondary-pinch": number;
-    "peace-sign": number;
-  };
-  lastTakeId: string | null;
-  exportPath: string | null;
-  message: string | null;
+type QuestBridgeStatus = {
+  enabled: boolean;
+  port: number;
+  recommendedUrl: string | null;
+  recommendedAddress: string | null;
+  candidateUrls: string[];
+  desktopSelfTestUrl: string;
+  desktopSelfTestAddress: string;
+  smokeTestCommand: string;
+  httpsReady: boolean;
+  certificateMode: "manual" | "auto" | "none";
+  warnings: string[];
+};
+
+type QuestSmokeState = {
+  running: boolean;
+  success: boolean | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  output: string;
 };
 
 type ServiceStatus = {
@@ -121,13 +78,15 @@ type ServiceStatus = {
   adapter: string;
   lastEvent: AirloomInputEvent | null;
   runtime: RuntimeState;
-  capture: CaptureState;
+  capture: AirloomCaptureStateEvent;
   debugRecording: {
     recording: boolean;
     sessionPath: string | null;
     frames: number;
     events: number;
   };
+  questBridge: QuestBridgeStatus;
+  questSmoke: QuestSmokeState;
   warnings: string[];
 };
 
@@ -147,6 +106,7 @@ declare global {
       exportCaptures: () => Promise<ServiceStatus>;
       startDebugRecording: () => Promise<ServiceStatus>;
       stopDebugRecording: () => Promise<ServiceStatus>;
+      runQuestSmokeTest: () => Promise<ServiceStatus>;
       sendEvent: (payload: AirloomInputEvent) => Promise<ServiceStatus>;
       onStatus: (listener: (value: ServiceStatus) => void) => () => void;
       onPreviewFrame: (listener: (value: Uint8Array) => void) => () => void;
@@ -166,6 +126,8 @@ const initialStatus: ServiceStatus = {
     inputSuppressed: false,
     recentActions: [],
     debug: {
+      trackingBackend: "webcam",
+      previewAvailable: true,
       confidence: 0,
       brightness: 0,
       frameDelayMs: 0,
@@ -231,10 +193,36 @@ const initialStatus: ServiceStatus = {
     frames: 0,
     events: 0,
   },
+  questBridge: {
+    enabled: false,
+    port: 8443,
+    recommendedUrl: null,
+    recommendedAddress: null,
+    candidateUrls: [],
+    desktopSelfTestUrl: "https://127.0.0.1:8443/",
+    desktopSelfTestAddress: "127.0.0.1:8443",
+    smokeTestCommand: "bun run test:quest -- --url https://127.0.0.1:8443/",
+    httpsReady: false,
+    certificateMode: "none",
+    warnings: [],
+  },
+  questSmoke: {
+    running: false,
+    success: null,
+    startedAt: null,
+    completedAt: null,
+    output: "No Quest smoke test run yet.",
+  },
   warnings: [],
 };
 
 const defaultSettings: AirloomSettings = {
+  trackingBackend: "webcam",
+  leapOrientation: "normal",
+  questBridgePort: 8443,
+  questPointerHand: "right",
+  questActionHand: "left",
+  questRequirePointerClutch: true,
   smoothing: 0.5,
   pointerRegionMargin: 0.08,
   clickPinchThreshold: 0.78,
@@ -315,12 +303,13 @@ export const App = () => {
   const [shapeInspectorState, setShapeInspectorState] = useState<
     "idle" | "selected" | "editing"
   >("idle");
-  const [activeTab, setActiveTab] = useState<"calibration" | "settings">(
-    "calibration",
-  );
+  const [activeTab, setActiveTab] = useState<
+    "calibration" | "quest" | "settings"
+  >("calibration");
   const lastEventKeyRef = useRef<string | null>(null);
   const eventLogRef = useRef<HTMLPreElement | null>(null);
   const clickInspectorStartRef = useRef(performance.now());
+  const questSmokeAutoRunRef = useRef<string | null>(null);
 
   useEffect(() => {
     window.incantation.getStatus().then(setStatus).catch(console.error);
@@ -485,9 +474,46 @@ export const App = () => {
     return new URLSearchParams(window.location.search).get("overlay");
   }, []);
 
+  const trackingBackend =
+    status.runtime.debug.trackingBackend ?? settings.trackingBackend;
+  const backendLabel =
+    trackingBackend === "leap"
+      ? "Leap"
+      : trackingBackend === "quest-bridge"
+        ? "Quest Bridge"
+        : "Webcam";
+  const previewAvailable =
+    status.runtime.debug.previewAvailable ?? trackingBackend === "webcam";
   const cameraUnavailable =
-    status.runtime.gesture === "camera-unavailable" ||
-    status.runtime.debug.fallbackReason === "camera-unavailable";
+    trackingBackend === "webcam" &&
+    (status.runtime.gesture === "camera-unavailable" ||
+      status.runtime.debug.fallbackReason === "camera-unavailable");
+
+  useEffect(() => {
+    if (!status.running || trackingBackend !== "quest-bridge") {
+      questSmokeAutoRunRef.current = null;
+      return;
+    }
+
+    const token = `${trackingBackend}:${status.questBridge.port}`;
+    if (
+      status.questSmoke.startedAt === null &&
+      !status.questSmoke.running &&
+      questSmokeAutoRunRef.current !== token
+    ) {
+      questSmokeAutoRunRef.current = token;
+      window.incantation
+        .runQuestSmokeTest()
+        .then(setStatus)
+        .catch(console.error);
+    }
+  }, [
+    status.questBridge.port,
+    status.questSmoke.running,
+    status.questSmoke.startedAt,
+    status.running,
+    trackingBackend,
+  ]);
 
   useEffect(() => {
     document.body.classList.toggle("overlay-mode", overlayMode !== null);
@@ -514,9 +540,12 @@ export const App = () => {
     return (
       <CameraHud
         serviceRunning={status.running}
+        trackingBackend={trackingBackend}
+        previewAvailable={previewAvailable}
         cameraUnavailable={cameraUnavailable}
         gesture={status.runtime.gesture}
         tracking={status.runtime.tracking}
+        deviceName={status.runtime.debug.deviceName}
         cameraWidth={status.runtime.debug.cameraWidth}
         cameraHeight={status.runtime.debug.cameraHeight}
         captureFps={status.runtime.debug.captureFps}
@@ -535,8 +564,9 @@ export const App = () => {
           <div className="eyebrow">Incantation</div>
           <h1>Gesture control for the rest of your desktop.</h1>
           <p>
-            Linux-first webcam control with live overlays, replayable vision
-            logic, and a command wheel built for real desktop work.
+            Linux-first hand tracking control with live overlays, replayable
+            vision logic, and a semantic desktop runtime that can swap between
+            webcam and Leap backends.
           </p>
           <div className="hero-note-grid">
             <div className="hero-note-card">
@@ -546,6 +576,10 @@ export const App = () => {
             <div className="hero-note-card">
               <span>Mode</span>
               <strong>{status.running ? "Live" : "Offline"}</strong>
+            </div>
+            <div className="hero-note-card">
+              <span>Backend</span>
+              <strong>{backendLabel}</strong>
             </div>
           </div>
         </div>
@@ -612,8 +646,16 @@ export const App = () => {
             </h2>
             <div className="metric-grid compact">
               <div className="metric-card">
+                <span>Backend</span>
+                <strong>{backendLabel}</strong>
+              </div>
+              <div className="metric-card">
                 <span>Adapter</span>
                 <strong>{status.adapter}</strong>
+              </div>
+              <div className="metric-card">
+                <span>Device</span>
+                <strong>{status.runtime.debug.deviceName ?? "auto"}</strong>
               </div>
               <div className="metric-card">
                 <span>Tracking</span>
@@ -991,6 +1033,13 @@ export const App = () => {
         </button>
         <button
           type="button"
+          className={activeTab === "quest" ? "active-tab" : "ghost"}
+          onClick={() => setActiveTab("quest")}
+        >
+          Quest Test
+        </button>
+        <button
+          type="button"
           className={activeTab === "settings" ? "active-tab" : "ghost"}
           onClick={() => setActiveTab("settings")}
         >
@@ -1003,6 +1052,9 @@ export const App = () => {
           serviceRunning={status.running}
           tracking={status.runtime.tracking}
           gesture={status.runtime.gesture}
+          trackingBackend={trackingBackend}
+          previewAvailable={previewAvailable}
+          questBridge={status.questBridge}
           pinchStrength={status.runtime.pinchStrength}
           pointerControlEnabled={status.runtime.pointerControlEnabled}
           pushToTalkGesture={settings.pushToTalkGesture}
@@ -1031,8 +1083,27 @@ export const App = () => {
           commandDeltaY={status.runtime.mapper.commandDeltaY}
           workspaceDirection={status.runtime.mapper.workspaceDirection}
         />
+      ) : activeTab === "quest" ? (
+        <QuestTestPage
+          serviceRunning={status.running}
+          questBridge={status.questBridge}
+          questSmoke={status.questSmoke}
+          debug={status.runtime.debug}
+          gesture={status.runtime.gesture}
+          pointerControlEnabled={status.runtime.pointerControlEnabled}
+          pushToTalkGesture={settings.pushToTalkGesture}
+          pushToTalkKey={settings.pushToTalkKey}
+          onRunSmokeTest={() =>
+            window.incantation.runQuestSmokeTest().then(setStatus)
+          }
+        />
       ) : (
-        <SettingsPage settings={settings} onSave={saveSettings} />
+        <SettingsPage
+          settings={settings}
+          serviceRunning={status.running}
+          questBridge={status.questBridge}
+          onSave={saveSettings}
+        />
       )}
     </main>
   );

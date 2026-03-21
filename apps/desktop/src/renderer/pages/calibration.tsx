@@ -1,3 +1,8 @@
+import type {
+  AirloomCaptureStateEvent,
+  AirloomStatusDebug,
+} from "@incantation/shared/gesture-events";
+import type { TrackingBackend } from "@incantation/shared/settings-schema";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LivePreview } from "../components/live-preview";
 
@@ -64,82 +69,39 @@ const handSideLabel = (value?: string) => {
   return null;
 };
 
+const formatLandmark = (point?: { x: number; y: number }) => {
+  if (!point) {
+    return "-";
+  }
+
+  return `${point.x.toFixed(2)}, ${point.y.toFixed(2)}`;
+};
+
 type CalibrationProps = {
   serviceRunning: boolean;
   tracking: boolean;
   gesture: string;
+  trackingBackend: TrackingBackend;
+  previewAvailable: boolean;
+  questBridge: {
+    enabled: boolean;
+    port: number;
+    recommendedUrl: string | null;
+    recommendedAddress: string | null;
+    candidateUrls: string[];
+    desktopSelfTestUrl: string;
+    desktopSelfTestAddress: string;
+    smokeTestCommand: string;
+    httpsReady: boolean;
+    certificateMode: "manual" | "auto" | "none";
+    warnings: string[];
+  };
   pinchStrength: number;
   pointerControlEnabled: boolean;
   pushToTalkGesture: string;
   pushToTalkKey: string;
-  debug: {
-    confidence: number;
-    brightness: number;
-    frameDelayMs: number;
-    cameraWidth?: number;
-    cameraHeight?: number;
-    captureFps?: number;
-    processedFps?: number;
-    previewFps?: number;
-    pose: string;
-    poseConfidence: number;
-    poseScores: {
-      neutral: number;
-      "open-palm": number;
-      "blade-hand": number;
-      "closed-fist": number;
-      "primary-pinch": number;
-      "secondary-pinch": number;
-      "peace-sign": number;
-    };
-    classifierMode: "rules" | "shadow" | "learned";
-    modelVersion: string | null;
-    learnedPose?: string;
-    learnedPoseConfidence?: number;
-    shadowDisagreement?: boolean;
-    actionPose?: string;
-    actionPoseConfidence?: number;
-    actionPoseScores?: {
-      neutral: number;
-      "open-palm": number;
-      "blade-hand": number;
-      "closed-fist": number;
-      "primary-pinch": number;
-      "secondary-pinch": number;
-      "peace-sign": number;
-    };
-    closedFist: boolean;
-    closedFistFrames: number;
-    closedFistReleaseFrames: number;
-    closedFistLatched: boolean;
-    openPalmHold: boolean;
-    secondaryPinchStrength: number;
-    secondaryPinchActive?: boolean;
-    bladeHandActive?: boolean;
-    bladeHandScore?: number;
-    bladeScrollDeltaY?: number;
-    bladeScrollAccumulated?: number;
-    pointerHand?: string;
-    actionHand?: string;
-    fallbackReason?: string;
-  };
-  capture: {
-    sessionId: string;
-    activeLabel: string;
-    recording: boolean;
-    takeCount: number;
-    counts: {
-      neutral: number;
-      "open-palm": number;
-      "closed-fist": number;
-      "primary-pinch": number;
-      "secondary-pinch": number;
-      "peace-sign": number;
-    };
-    lastTakeId: string | null;
-    exportPath: string | null;
-    message: string | null;
-  };
+  debug: AirloomStatusDebug;
+  capture: AirloomCaptureStateEvent;
   onCaptureLabelChange: (label: string) => Promise<unknown>;
   onCaptureStart: () => Promise<unknown>;
   onCaptureStop: () => Promise<unknown>;
@@ -159,6 +121,9 @@ export const CalibrationPage = ({
   serviceRunning,
   tracking,
   gesture,
+  trackingBackend,
+  previewAvailable,
+  questBridge,
   pinchStrength,
   pointerControlEnabled,
   pushToTalkGesture,
@@ -201,8 +166,62 @@ export const CalibrationPage = ({
       ? 0
       : Math.round((sandboxHits / sandboxAttempts) * 100);
   const actionPoseScores = debug.actionPoseScores ?? debug.poseScores;
+  const captureSupported = trackingBackend === "webcam";
+  const backendLabel =
+    trackingBackend === "leap"
+      ? "Leap"
+      : trackingBackend === "quest-bridge"
+        ? "Quest Bridge"
+        : "Webcam";
   const pointerSide = handSideLabel(debug.pointerHand);
   const actionSide = handSideLabel(debug.actionHand);
+  const questValidation = [
+    {
+      label: "Service running",
+      ready: serviceRunning,
+      detail: serviceRunning
+        ? "Incantation bridge process is live."
+        : "Press Start service first.",
+    },
+    {
+      label: "HTTPS ready",
+      ready: questBridge.httpsReady,
+      detail: questBridge.httpsReady
+        ? "Quest Browser can attempt a secure hand-tracking session."
+        : "Install openssl or configure manual cert paths before testing on-headset.",
+    },
+    {
+      label: "Bridge connected",
+      ready: debug.bridgeConnected === true,
+      detail:
+        debug.bridgeConnected === true
+          ? "The headset is sending frames into the laptop bridge."
+          : "Open the Quest URL in Quest Browser and press Start hand bridge.",
+    },
+    {
+      label: "Hands tracked",
+      ready: (debug.handsTracked ?? 0) > 0,
+      detail:
+        (debug.handsTracked ?? 0) > 0
+          ? `Tracking ${debug.handsTracked} hand(s).`
+          : "Hold a hand in view until handsTracked rises above zero.",
+    },
+    {
+      label: "Clutch works",
+      ready: pointerControlEnabled,
+      detail: pointerControlEnabled
+        ? "Closed fist clutch is currently active."
+        : "Make a closed fist to confirm pointer gating.",
+    },
+    {
+      label: "PTT works",
+      ready: gesture === "push-to-talk",
+      detail:
+        gesture === "push-to-talk"
+          ? "Push-to-talk gesture is live right now."
+          : "Flash your configured PTT gesture and confirm the key hold in your target app.",
+    },
+  ];
   const pointerPanelClassName = [
     "hand-debug-panel",
     "hand-debug-panel-pointer",
@@ -221,6 +240,12 @@ export const CalibrationPage = ({
     .join(" ");
 
   const brightnessLabel = useMemo(() => {
+    if (trackingBackend === "leap") {
+      return "Sensor";
+    }
+    if (trackingBackend === "quest-bridge") {
+      return "Bridge";
+    }
     if (debug.brightness < 0.18) {
       return "Very dark";
     }
@@ -234,7 +259,7 @@ export const CalibrationPage = ({
     }
 
     return "Bright";
-  }, [debug.brightness]);
+  }, [debug.brightness, trackingBackend]);
 
   useEffect(() => {
     captureStartRef.current = onCaptureStart;
@@ -347,6 +372,7 @@ export const CalibrationPage = ({
       );
       if (
         labelEntry &&
+        captureSupported &&
         !capture.recording &&
         !captureBusy &&
         countdown === null
@@ -361,6 +387,7 @@ export const CalibrationPage = ({
       );
       if (
         durationEntry &&
+        captureSupported &&
         !capture.recording &&
         !captureBusy &&
         countdown === null
@@ -372,7 +399,7 @@ export const CalibrationPage = ({
 
       if (key === " " || key === "enter") {
         event.preventDefault();
-        if (!serviceRunning || captureBusy) {
+        if (!captureSupported || !serviceRunning || captureBusy) {
           return;
         }
         if (countdown !== null) {
@@ -390,6 +417,7 @@ export const CalibrationPage = ({
       }
 
       if (
+        captureSupported &&
         key === "backspace" &&
         !capture.recording &&
         !captureBusy &&
@@ -402,6 +430,7 @@ export const CalibrationPage = ({
       }
 
       if (
+        captureSupported &&
         key === "e" &&
         !capture.recording &&
         !captureBusy &&
@@ -420,6 +449,7 @@ export const CalibrationPage = ({
     capture.takeCount,
     captureBusy,
     countdown,
+    captureSupported,
     serviceRunning,
     startCapture,
     stopCapture,
@@ -432,6 +462,10 @@ export const CalibrationPage = ({
       <div className="calibration-layout">
         <div className="calibration-main">
           <div className="metric-grid calibration-summary-grid">
+            <div className="metric-card">
+              <span>Backend</span>
+              <strong>{backendLabel}</strong>
+            </div>
             <div className="metric-card">
               <span>Tracking</span>
               <strong>{tracking ? "Active" : "Searching"}</strong>
@@ -451,9 +485,13 @@ export const CalibrationPage = ({
               <strong>{debug.confidence.toFixed(2)}</strong>
             </div>
             <div className="metric-card">
-              <span>Scene light</span>
+              <span>
+                {trackingBackend === "webcam" ? "Scene light" : "Sensor"}
+              </span>
               <strong>
-                {brightnessLabel} ({debug.brightness.toFixed(2)})
+                {trackingBackend === "webcam"
+                  ? `${brightnessLabel} (${debug.brightness.toFixed(2)})`
+                  : (debug.deviceName ?? "Leap Motion Controller")}
               </strong>
             </div>
             <div className="metric-card">
@@ -657,15 +695,143 @@ export const CalibrationPage = ({
               </div>
             ) : null}
           </div>
+          {trackingBackend === "leap" ? (
+            <>
+              <div className="metric-grid calibration-summary-grid">
+                <div className="metric-card">
+                  <span>Pointer mode</span>
+                  <strong>{debug.leapPointerMode ?? "free"}</strong>
+                </div>
+                <div className="metric-card">
+                  <span>Control raw</span>
+                  <strong>{formatLandmark(debug.leapControlPointer)}</strong>
+                </div>
+                <div className="metric-card">
+                  <span>Preview palm</span>
+                  <strong>{formatLandmark(debug.leapPreviewPointer)}</strong>
+                </div>
+                <div className="metric-card">
+                  <span>Clutch anchor</span>
+                  <strong>
+                    {formatLandmark(debug.leapPreviewClutchAnchor)}
+                  </strong>
+                </div>
+                <div className="metric-card">
+                  <span>Clutch delta</span>
+                  <strong>
+                    {(debug.leapClutchDeltaX ?? 0).toFixed(2)},{" "}
+                    {(debug.leapClutchDeltaY ?? 0).toFixed(2)}
+                  </strong>
+                </div>
+                <div className="metric-card">
+                  <span>Range</span>
+                  <strong>
+                    x {Math.round(debug.leapPointerMinX ?? 0)}..
+                    {Math.round(debug.leapPointerMaxX ?? 0)} / z{" "}
+                    {Math.round(debug.leapPointerMinZ ?? 0)}..
+                    {Math.round(debug.leapPointerMaxZ ?? 0)}
+                  </strong>
+                </div>
+              </div>
+              <p className="panel-copy">
+                Blue ring = clutch anchor. Blue arrow = palm delta while the
+                fist clutch is active. Use these numbers to tune Leap mapping
+                before changing gesture semantics.
+              </p>
+            </>
+          ) : null}
+          {trackingBackend === "quest-bridge" ? (
+            <>
+              <div className="metric-grid calibration-summary-grid">
+                <div className="metric-card">
+                  <span>Bridge link</span>
+                  <strong>
+                    {debug.bridgeConnected ? "connected" : "waiting"}
+                  </strong>
+                </div>
+                <div className="metric-card">
+                  <span>Hands tracked</span>
+                  <strong>{debug.handsTracked ?? 0}</strong>
+                </div>
+                <div className="metric-card">
+                  <span>Bridge URL</span>
+                  <strong>
+                    {debug.bridgeUrl ??
+                      questBridge.recommendedUrl ??
+                      "start service"}
+                  </strong>
+                </div>
+                <div className="metric-card">
+                  <span>HTTPS</span>
+                  <strong>
+                    {questBridge.httpsReady ? "ready" : "missing"}
+                  </strong>
+                </div>
+              </div>
+              <p className="panel-copy">
+                Quest Bridge currently feeds status and semantic hand state
+                without a live preview image, so treat this panel as the main
+                pairing and safety surface while tuning clutch and push-to-talk
+                behavior.
+              </p>
+              <div className="quest-url-list monospace">
+                <div>
+                  Short address:{" "}
+                  {questBridge.recommendedAddress ?? "No LAN IP yet"}
+                </div>
+                <div>
+                  Quest URL:{" "}
+                  {questBridge.recommendedUrl ?? "No LAN URL detected yet"}
+                </div>
+                <div>
+                  Desktop self-test: {questBridge.desktopSelfTestAddress}
+                </div>
+                <div>Smoke command: {questBridge.smokeTestCommand}</div>
+                {questBridge.candidateUrls.slice(1).map((url) => (
+                  <div key={url}>Alternate URL: {url}</div>
+                ))}
+              </div>
+              <div className="quest-checklist">
+                {questValidation.map((item) => (
+                  <div className="quest-checklist-item" key={item.label}>
+                    <span
+                      className={`quest-status-pill ${item.ready ? "quest-status-pill-ready" : "quest-status-pill-pending"}`}
+                    >
+                      {item.ready ? "Ready" : "Wait"}
+                    </span>
+                    <div>
+                      <strong>{item.label}</strong>
+                      <p className="panel-copy">{item.detail}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : null}
           <p className="panel-copy">
             Cursor motion is frozen unless you actively hold a closed fist. Open
             palm and pinch gestures keep the cursor parked in place while they
             fire.
           </p>
-          <p className="panel-copy">
-            If scene light stays in the dim range or confidence drops while your
-            hand is clearly visible, low light is probably hurting detection.
-          </p>
+          {trackingBackend === "webcam" ? (
+            <p className="panel-copy">
+              If scene light stays in the dim range or confidence drops while
+              your hand is clearly visible, low light is probably hurting
+              detection.
+            </p>
+          ) : trackingBackend === "quest-bridge" ? (
+            <p className="panel-copy">
+              If the bridge keeps dropping, verify the headset stays on the same
+              LAN, the browser page remains open, and the last fallback reason
+              is not a handedness or no-hands issue.
+            </p>
+          ) : (
+            <p className="panel-copy">
+              Leap has no camera-light metric, so prioritize clean two-hand
+              visibility, comfortable device placement, and stable re-entry when
+              tracking drops.
+            </p>
+          )}
           <p className="panel-copy">
             If a pinch feels ignored, compare the primary score against the
             fist, palm, and neutral scores to see which pose the classifier
@@ -676,9 +842,9 @@ export const CalibrationPage = ({
             <div className="eyebrow">Capture</div>
             <h3>Capture dataset</h3>
             <p className="panel-copy">
-              Record deliberate labeled poses so the model learns your real
-              working hand shapes instead of only perfect poses under ideal
-              conditions.
+              {captureSupported
+                ? "Record deliberate labeled poses so the model learns your real working hand shapes instead of only perfect poses under ideal conditions."
+                : "Capture export is webcam-only right now because the current training pipeline stores MediaPipe-style landmarks rather than Leap skeletal frames."}
             </p>
             <div className="metric-grid compact">
               <div className="metric-card">
@@ -723,7 +889,9 @@ export const CalibrationPage = ({
                     name="capture-label"
                     value={label}
                     checked={capture.activeLabel === label}
-                    disabled={capture.recording || captureBusy}
+                    disabled={
+                      !captureSupported || capture.recording || captureBusy
+                    }
                     onChange={() => {
                       void onCaptureLabelChange(label);
                     }}
@@ -750,7 +918,10 @@ export const CalibrationPage = ({
                     value={durationMs}
                     checked={captureDurationMs === durationMs}
                     disabled={
-                      capture.recording || countdown !== null || captureBusy
+                      !captureSupported ||
+                      capture.recording ||
+                      countdown !== null ||
+                      captureBusy
                     }
                     onChange={() => setCaptureDurationMs(durationMs)}
                   />
@@ -761,7 +932,12 @@ export const CalibrationPage = ({
             <div className="hero-actions">
               <button
                 type="button"
-                disabled={!serviceRunning || capture.recording || captureBusy}
+                disabled={
+                  !captureSupported ||
+                  !serviceRunning ||
+                  capture.recording ||
+                  captureBusy
+                }
                 onClick={() => {
                   void startCapture();
                 }}
@@ -774,7 +950,9 @@ export const CalibrationPage = ({
                 type="button"
                 className="ghost"
                 disabled={
-                  (!capture.recording && countdown === null) || captureBusy
+                  !captureSupported ||
+                  (!capture.recording && countdown === null) ||
+                  captureBusy
                 }
                 onClick={() => {
                   if (countdown !== null) {
@@ -792,7 +970,10 @@ export const CalibrationPage = ({
                 type="button"
                 className="ghost"
                 disabled={
-                  capture.takeCount === 0 || capture.recording || captureBusy
+                  !captureSupported ||
+                  capture.takeCount === 0 ||
+                  capture.recording ||
+                  captureBusy
                 }
                 onClick={() => {
                   setCaptureBusy(true);
@@ -807,7 +988,10 @@ export const CalibrationPage = ({
                 type="button"
                 className="ghost"
                 disabled={
-                  capture.takeCount === 0 || capture.recording || captureBusy
+                  !captureSupported ||
+                  capture.takeCount === 0 ||
+                  capture.recording ||
+                  captureBusy
                 }
                 onClick={() => {
                   setCaptureBusy(true);
@@ -956,18 +1140,23 @@ export const CalibrationPage = ({
           </div>
         </div>
         <aside className="calibration-side">
-          <div className="eyebrow">Camera</div>
-          <h2>Live preview</h2>
+          <div className="eyebrow">{backendLabel}</div>
+          <h2>{previewAvailable ? "Live preview" : "Backend status"}</h2>
           <div className="camera-card">
             <LivePreview
               serviceRunning={serviceRunning}
-              cameraUnavailable={gesture === "camera-unavailable"}
+              previewAvailable={previewAvailable}
+              backendLabel={backendLabel}
+              cameraUnavailable={
+                trackingBackend === "webcam" && gesture === "camera-unavailable"
+              }
             />
             <p className="panel-copy camera-note">
-              This preview is sourced from the Python vision service, so it
-              reflects the actual camera frames the backend is processing. Teal
-              dots show detected landmarks, amber marks the raw index pointer,
-              and coral marks the smoothed pointer output.
+              {previewAvailable
+                ? "This preview is sourced from the Python vision service, so it reflects the actual camera frames the backend is processing. Teal dots show detected landmarks, amber marks the raw index pointer, and coral marks the smoothed pointer output."
+                : trackingBackend === "quest-bridge"
+                  ? "Quest Bridge reports status without a camera preview. Use the URL, bridge, and validation panels here to confirm the headset is really driving the laptop."
+                  : "Leap currently reports status without a camera preview. Use the pose, confidence, hand-role, and fallback panels here to tune behavior while the sensor stays live."}
             </p>
           </div>
         </aside>

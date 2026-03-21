@@ -39,6 +39,12 @@ const createTestAdapter = () => {
 
 const createTestSettings = (key = "Return") => {
   return {
+    trackingBackend: "webcam" as const,
+    leapOrientation: "normal" as const,
+    questBridgePort: 8443,
+    questPointerHand: "right" as const,
+    questActionHand: "left" as const,
+    questRequirePointerClutch: true,
     smoothing: 0.72,
     pointerRegionMargin: 0.12,
     clickPinchThreshold: 0.78,
