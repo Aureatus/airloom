@@ -83,6 +83,17 @@ type CalibrationProps = {
   gesture: string;
   trackingBackend: TrackingBackend;
   previewAvailable: boolean;
+  questBridge: {
+    enabled: boolean;
+    port: number;
+    recommendedUrl: string | null;
+    candidateUrls: string[];
+    desktopSelfTestUrl: string;
+    smokeTestCommand: string;
+    httpsReady: boolean;
+    certificateMode: "manual" | "auto" | "none";
+    warnings: string[];
+  };
   pinchStrength: number;
   pointerControlEnabled: boolean;
   pushToTalkGesture: string;
@@ -110,6 +121,7 @@ export const CalibrationPage = ({
   gesture,
   trackingBackend,
   previewAvailable,
+  questBridge,
   pinchStrength,
   pointerControlEnabled,
   pushToTalkGesture,
@@ -161,6 +173,53 @@ export const CalibrationPage = ({
         : "Webcam";
   const pointerSide = handSideLabel(debug.pointerHand);
   const actionSide = handSideLabel(debug.actionHand);
+  const questValidation = [
+    {
+      label: "Service running",
+      ready: serviceRunning,
+      detail: serviceRunning
+        ? "Incantation bridge process is live."
+        : "Press Start service first.",
+    },
+    {
+      label: "HTTPS ready",
+      ready: questBridge.httpsReady,
+      detail: questBridge.httpsReady
+        ? "Quest Browser can attempt a secure hand-tracking session."
+        : "Install openssl or configure manual cert paths before testing on-headset.",
+    },
+    {
+      label: "Bridge connected",
+      ready: debug.bridgeConnected === true,
+      detail:
+        debug.bridgeConnected === true
+          ? "The headset is sending frames into the laptop bridge."
+          : "Open the Quest URL in Quest Browser and press Start hand bridge.",
+    },
+    {
+      label: "Hands tracked",
+      ready: (debug.handsTracked ?? 0) > 0,
+      detail:
+        (debug.handsTracked ?? 0) > 0
+          ? `Tracking ${debug.handsTracked} hand(s).`
+          : "Hold a hand in view until handsTracked rises above zero.",
+    },
+    {
+      label: "Clutch works",
+      ready: pointerControlEnabled,
+      detail: pointerControlEnabled
+        ? "Closed fist clutch is currently active."
+        : "Make a closed fist to confirm pointer gating.",
+    },
+    {
+      label: "PTT works",
+      ready: gesture === "push-to-talk",
+      detail:
+        gesture === "push-to-talk"
+          ? "Push-to-talk gesture is live right now."
+          : "Flash your configured PTT gesture and confirm the key hold in your target app.",
+    },
+  ];
   const pointerPanelClassName = [
     "hand-debug-panel",
     "hand-debug-panel-pointer",
@@ -684,7 +743,9 @@ export const CalibrationPage = ({
               <div className="metric-grid calibration-summary-grid">
                 <div className="metric-card">
                   <span>Bridge link</span>
-                  <strong>{debug.bridgeConnected ? "connected" : "waiting"}</strong>
+                  <strong>
+                    {debug.bridgeConnected ? "connected" : "waiting"}
+                  </strong>
                 </div>
                 <div className="metric-card">
                   <span>Hands tracked</span>
@@ -692,14 +753,51 @@ export const CalibrationPage = ({
                 </div>
                 <div className="metric-card">
                   <span>Bridge URL</span>
-                  <strong>{debug.bridgeUrl ?? "start service"}</strong>
+                  <strong>
+                    {debug.bridgeUrl ??
+                      questBridge.recommendedUrl ??
+                      "start service"}
+                  </strong>
+                </div>
+                <div className="metric-card">
+                  <span>HTTPS</span>
+                  <strong>
+                    {questBridge.httpsReady ? "ready" : "missing"}
+                  </strong>
                 </div>
               </div>
               <p className="panel-copy">
-                Quest Bridge currently feeds status and semantic hand state without a
-                live preview image, so treat this panel as the main pairing and safety
-                surface while tuning clutch and push-to-talk behavior.
+                Quest Bridge currently feeds status and semantic hand state
+                without a live preview image, so treat this panel as the main
+                pairing and safety surface while tuning clutch and push-to-talk
+                behavior.
               </p>
+              <div className="quest-url-list monospace">
+                <div>
+                  Quest URL:{" "}
+                  {questBridge.recommendedUrl ?? "No LAN URL detected yet"}
+                </div>
+                <div>Desktop self-test: {questBridge.desktopSelfTestUrl}</div>
+                <div>Smoke command: {questBridge.smokeTestCommand}</div>
+                {questBridge.candidateUrls.slice(1).map((url) => (
+                  <div key={url}>Alternate URL: {url}</div>
+                ))}
+              </div>
+              <div className="quest-checklist">
+                {questValidation.map((item) => (
+                  <div className="quest-checklist-item" key={item.label}>
+                    <span
+                      className={`quest-status-pill ${item.ready ? "quest-status-pill-ready" : "quest-status-pill-pending"}`}
+                    >
+                      {item.ready ? "Ready" : "Wait"}
+                    </span>
+                    <div>
+                      <strong>{item.label}</strong>
+                      <p className="panel-copy">{item.detail}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </>
           ) : null}
           <p className="panel-copy">
@@ -715,9 +813,9 @@ export const CalibrationPage = ({
             </p>
           ) : trackingBackend === "quest-bridge" ? (
             <p className="panel-copy">
-              If the bridge keeps dropping, verify the headset stays on the same LAN,
-              the browser page remains open, and the last fallback reason is not a
-              handedness or no-hands issue.
+              If the bridge keeps dropping, verify the headset stays on the same
+              LAN, the browser page remains open, and the last fallback reason
+              is not a handedness or no-hands issue.
             </p>
           ) : (
             <p className="panel-copy">
@@ -1048,7 +1146,9 @@ export const CalibrationPage = ({
             <p className="panel-copy camera-note">
               {previewAvailable
                 ? "This preview is sourced from the Python vision service, so it reflects the actual camera frames the backend is processing. Teal dots show detected landmarks, amber marks the raw index pointer, and coral marks the smoothed pointer output."
-                : "Leap currently reports status without a camera preview. Use the pose, confidence, hand-role, and fallback panels here to tune behavior while the sensor stays live."}
+                : trackingBackend === "quest-bridge"
+                  ? "Quest Bridge reports status without a camera preview. Use the URL, bridge, and validation panels here to confirm the headset is really driving the laptop."
+                  : "Leap currently reports status without a camera preview. Use the pose, confidence, hand-role, and fallback panels here to tune behavior while the sensor stays live."}
             </p>
           </div>
         </aside>

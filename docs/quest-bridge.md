@@ -18,10 +18,23 @@ Quest Bridge is the Stage-1 `Meta Quest 3 -> local Linux laptop` path for Incant
 5. `apps/vision-service/app/gestures.py` emits semantic gesture events
 6. Electron maps them into X11 pointer, click, scroll, and push-to-talk actions
 
+## Fastest human test path
+
+1. In the desktop app, switch to `Quest Bridge` and save.
+2. Press `Start service`.
+3. Copy the Quest URL shown in Settings or Calibration.
+4. Run `bun run test:quest` on the laptop. This should succeed before you even touch the headset.
+5. In Quest Browser, open the shown Quest URL.
+6. If Quest warns about the certificate, continue past the warning once.
+7. In Calibration, wait for:
+   - `Bridge link = connected`
+   - `Hands tracked > 0`
+   - clutch and push-to-talk checks to flip from `Wait` to `Ready`
+
 ## Current constraints
 
-- The built-in bridge serves plain HTTP by default for easy local testing.
-- Quest Browser hand-tracking flows usually need a secure context, so set `INCANTATION_QUEST_TLS_CERT` and `INCANTATION_QUEST_TLS_KEY` if you want the built-in bridge server to present HTTPS.
+- If `openssl` is installed, Incantation auto-generates a local self-signed HTTPS certificate and serves the bridge over HTTPS automatically.
+- If you prefer your own certificate, set `INCANTATION_QUEST_TLS_CERT` and `INCANTATION_QUEST_TLS_KEY`.
 - Quest Bridge does not currently provide a live preview image; the calibration page is the main pairing/debug surface.
 - Capture/export remains webcam-only.
 

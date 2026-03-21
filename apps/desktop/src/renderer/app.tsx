@@ -50,6 +50,18 @@ type InspectorLogEntry = {
   elapsedMs: number;
 };
 
+type QuestBridgeStatus = {
+  enabled: boolean;
+  port: number;
+  recommendedUrl: string | null;
+  candidateUrls: string[];
+  desktopSelfTestUrl: string;
+  smokeTestCommand: string;
+  httpsReady: boolean;
+  certificateMode: "manual" | "auto" | "none";
+  warnings: string[];
+};
+
 type ServiceStatus = {
   running: boolean;
   adapter: string;
@@ -62,6 +74,7 @@ type ServiceStatus = {
     frames: number;
     events: number;
   };
+  questBridge: QuestBridgeStatus;
   warnings: string[];
 };
 
@@ -166,6 +179,17 @@ const initialStatus: ServiceStatus = {
     sessionPath: null,
     frames: 0,
     events: 0,
+  },
+  questBridge: {
+    enabled: false,
+    port: 38419,
+    recommendedUrl: null,
+    candidateUrls: [],
+    desktopSelfTestUrl: "https://127.0.0.1:38419/",
+    smokeTestCommand: "bun run test:quest",
+    httpsReady: false,
+    certificateMode: "none",
+    warnings: [],
   },
   warnings: [],
 };
@@ -974,6 +998,7 @@ export const App = () => {
           gesture={status.runtime.gesture}
           trackingBackend={trackingBackend}
           previewAvailable={previewAvailable}
+          questBridge={status.questBridge}
           pinchStrength={status.runtime.pinchStrength}
           pointerControlEnabled={status.runtime.pointerControlEnabled}
           pushToTalkGesture={settings.pushToTalkGesture}
@@ -1003,7 +1028,12 @@ export const App = () => {
           workspaceDirection={status.runtime.mapper.workspaceDirection}
         />
       ) : (
-        <SettingsPage settings={settings} onSave={saveSettings} />
+        <SettingsPage
+          settings={settings}
+          serviceRunning={status.running}
+          questBridge={status.questBridge}
+          onSave={saveSettings}
+        />
       )}
     </main>
   );

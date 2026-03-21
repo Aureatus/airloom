@@ -25,6 +25,11 @@ import {
 import { normalizedToScreenPosition, resolveInputAdapter } from "./input";
 import { getLinuxX11DependencyWarning } from "./input/linux-x11";
 import { createPreviewStreamDecoder } from "./preview-stream";
+import {
+  type QuestBridgeInfo,
+  getQuestBridgeInfo,
+  prepareQuestBridgeTls,
+} from "./quest-bridge";
 import { loadSettings, saveSettings } from "./settings-store";
 
 type ServiceStatus = {
@@ -34,6 +39,7 @@ type ServiceStatus = {
   runtime: RuntimeState;
   capture: AirloomCaptureStateEvent;
   debugRecording: DebugRecordingState;
+  questBridge: QuestBridgeInfo;
   warnings: string[];
 };
 
@@ -92,6 +98,10 @@ const getPlatformWarnings = () => {
   return warnings;
 };
 
+const getQuestBridgeStatus = () => {
+  return getQuestBridgeInfo(currentSettings, app.getPath("userData"));
+};
+
 let mainWindow: BrowserWindow | null = null;
 let commandHudWindow: BrowserWindow | null = null;
 let cameraHudWindow: BrowserWindow | null = null;
@@ -133,6 +143,7 @@ const ignoredVisionLogPatterns = [
 ];
 
 const getServiceStatus = (): ServiceStatus => {
+  const questBridge = getQuestBridgeStatus();
   return {
     running: serviceProcess !== null,
     adapter: adapter.platform,
@@ -140,7 +151,8 @@ const getServiceStatus = (): ServiceStatus => {
     runtime: runtime.getState(),
     capture: captureState,
     debugRecording: debugRecordingState,
-    warnings: getPlatformWarnings(),
+    questBridge,
+    warnings: [...getPlatformWarnings(), ...questBridge.warnings],
   };
 };
 
@@ -462,6 +474,11 @@ const startVisionService = () => {
     return getServiceStatus();
   }
 
+  const questTlsMaterial = prepareQuestBridgeTls(
+    currentSettings,
+    app.getPath("userData"),
+  );
+  const questBridgeStatus = getQuestBridgeStatus();
   const fixture = readEnv("INCANTATION_FIXTURE", "AIRLOOM_FIXTURE");
   const args = [
     "run",
@@ -496,6 +513,26 @@ const startVisionService = () => {
         currentSettings.questRequirePointerClutch ? "1" : "0",
       AIRLOOM_QUEST_REQUIRE_POINTER_CLUTCH:
         currentSettings.questRequirePointerClutch ? "1" : "0",
+      INCANTATION_QUEST_RECOMMENDED_URL:
+        questBridgeStatus.recommendedUrl ??
+        questBridgeStatus.desktopSelfTestUrl,
+      AIRLOOM_QUEST_RECOMMENDED_URL:
+        questBridgeStatus.recommendedUrl ??
+        questBridgeStatus.desktopSelfTestUrl,
+      INCANTATION_QUEST_CANDIDATE_URLS: JSON.stringify(
+        questBridgeStatus.candidateUrls,
+      ),
+      AIRLOOM_QUEST_CANDIDATE_URLS: JSON.stringify(
+        questBridgeStatus.candidateUrls,
+      ),
+      INCANTATION_QUEST_TLS_CERT:
+        questTlsMaterial?.certPath ?? process.env.INCANTATION_QUEST_TLS_CERT,
+      AIRLOOM_QUEST_TLS_CERT:
+        questTlsMaterial?.certPath ?? process.env.AIRLOOM_QUEST_TLS_CERT,
+      INCANTATION_QUEST_TLS_KEY:
+        questTlsMaterial?.keyPath ?? process.env.INCANTATION_QUEST_TLS_KEY,
+      AIRLOOM_QUEST_TLS_KEY:
+        questTlsMaterial?.keyPath ?? process.env.AIRLOOM_QUEST_TLS_KEY,
       INCANTATION_CAPTURE_DIR: join(app.getPath("userData"), "captures"),
       AIRLOOM_CAPTURE_DIR: join(app.getPath("userData"), "captures"),
       INCANTATION_CAPTURE_EXPORT_DIR: join(

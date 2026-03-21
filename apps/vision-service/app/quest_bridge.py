@@ -29,6 +29,33 @@ def _build_bridge_url(port: int, tls_enabled: bool) -> str:
     return f"{scheme}://localhost:{port}/"
 
 
+def _resolve_bridge_urls(port: int, tls_enabled: bool) -> tuple[str, list[str]]:
+    recommended = os.environ.get("INCANTATION_QUEST_RECOMMENDED_URL") or os.environ.get(
+        "AIRLOOM_QUEST_RECOMMENDED_URL"
+    )
+    raw_candidates = os.environ.get("INCANTATION_QUEST_CANDIDATE_URLS") or os.environ.get(
+        "AIRLOOM_QUEST_CANDIDATE_URLS"
+    )
+
+    candidate_urls: list[str] = []
+    if raw_candidates:
+        try:
+            decoded = json.loads(raw_candidates)
+            if isinstance(decoded, list):
+                candidate_urls = [value for value in decoded if isinstance(value, str)]
+        except json.JSONDecodeError:
+            candidate_urls = []
+
+    bridge_url = recommended if isinstance(recommended, str) and recommended else None
+    if bridge_url is None:
+        bridge_url = candidate_urls[0] if candidate_urls else _build_bridge_url(port, tls_enabled)
+
+    if bridge_url not in candidate_urls:
+        candidate_urls = [bridge_url, *candidate_urls]
+
+    return (bridge_url, candidate_urls)
+
+
 def emit_capture_state(emit_event: Any) -> None:
     emit_event(
         {
@@ -48,6 +75,8 @@ def emit_capture_state(emit_event: Any) -> None:
 @dataclass(slots=True)
 class QuestBridgeState:
     bridge_url: str
+    bridge_urls: list[str]
+    tls_enabled: bool
     heartbeat_timeout_s: float
     _latest_payload: dict[str, object] | None = None
     _latest_version: int = 0
@@ -89,6 +118,9 @@ class QuestBridgeState:
 
 
 class QuestBridgeRequestHandler(BaseHTTPRequestHandler):
+    def _quest_server(self) -> QuestBridgeHttpServer:
+        return cast(QuestBridgeHttpServer, self.server)
+
     def do_GET(self) -> None:  # noqa: N802
         if self.path in {"/", "/index.html"}:
             self._serve_static("index.html", "text/html; charset=utf-8")
@@ -97,10 +129,12 @@ class QuestBridgeRequestHandler(BaseHTTPRequestHandler):
             self._serve_static("client.js", "application/javascript; charset=utf-8")
             return
         if self.path == "/api/status":
+            quest_server = self._quest_server()
             self._write_json(
                 {
-                    "bridgeUrl": self.server.bridge_state.bridge_url,
-                    "tlsEnabled": self.server.tls_enabled,
+                    "bridgeUrl": quest_server.bridge_state.bridge_url,
+                    "candidateUrls": quest_server.bridge_state.bridge_urls,
+                    "tlsEnabled": quest_server.tls_enabled,
                 }
             )
             return
@@ -128,7 +162,9 @@ class QuestBridgeRequestHandler(BaseHTTPRequestHandler):
             self.send_error(HTTPStatus.BAD_REQUEST)
             return
 
-        self.server.bridge_state.publish(cast(dict[str, object], payload), now=time.monotonic())
+        self._quest_server().bridge_state.publish(
+            cast(dict[str, object], payload), now=time.monotonic()
+        )
         self.send_response(HTTPStatus.NO_CONTENT)
         self.end_headers()
 
@@ -137,7 +173,7 @@ class QuestBridgeRequestHandler(BaseHTTPRequestHandler):
         return
 
     def _serve_static(self, name: str, content_type: str) -> None:
-        path = self.server.static_dir / name
+        path = self._quest_server().static_dir / name
         if not path.exists():
             self.send_error(HTTPStatus.NOT_FOUND)
             return
@@ -182,9 +218,11 @@ def create_quest_bridge_server(port: int) -> QuestBridgeHttpServer:
         "AIRLOOM_QUEST_TLS_KEY"
     )
     tls_enabled = bool(cert_path and key_path)
-    bridge_url = _build_bridge_url(port, tls_enabled)
+    bridge_url, bridge_urls = _resolve_bridge_urls(port, tls_enabled)
     bridge_state = QuestBridgeState(
         bridge_url=bridge_url,
+        bridge_urls=bridge_urls,
+        tls_enabled=tls_enabled,
         heartbeat_timeout_s=float(
             _env_value(
                 "INCANTATION_QUEST_HEARTBEAT_TIMEOUT_MS",
