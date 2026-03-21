@@ -4,7 +4,7 @@ import { createActionMapper } from "../../src/main/action-mapper";
 const createSettings = () => ({
   trackingBackend: "webcam" as const,
   leapOrientation: "normal" as const,
-  questBridgePort: 38419,
+  questBridgePort: 8443,
   questPointerHand: "right" as const,
   questActionHand: "left" as const,
   questRequirePointerClutch: true,

@@ -19,7 +19,7 @@ export const commandHudPositionSchema = z.enum([
 export const settingsSchema = z.object({
   trackingBackend: trackingBackendSchema.default("webcam"),
   leapOrientation: leapOrientationSchema.default("normal"),
-  questBridgePort: z.number().int().min(1024).max(65535).default(38419),
+  questBridgePort: z.number().int().min(1024).max(65535).default(8443),
   questPointerHand: handPreferenceSchema.default("right"),
   questActionHand: handPreferenceSchema.default("left"),
   questRequirePointerClutch: z.boolean().default(true),

@@ -5,8 +5,10 @@ type QuestBridgeStatus = {
   enabled: boolean;
   port: number;
   recommendedUrl: string | null;
+  recommendedAddress: string | null;
   candidateUrls: string[];
   desktopSelfTestUrl: string;
+  desktopSelfTestAddress: string;
   smokeTestCommand: string;
   httpsReady: boolean;
   certificateMode: "manual" | "auto" | "none";
@@ -266,6 +268,9 @@ export const SettingsPage = ({
                 Start the service, then open the Quest page shown here. The
                 headset streams hand landmarks into the existing desktop mapper,
                 so your Linux X11 path and push-to-talk flow stay unchanged.
+                Once that is saved, jump to the `Quest Test` tab for the
+                shortest address, automatic smoke test, and live pass/fail
+                checklist.
               </p>
               <div className="metric-grid compact">
                 <div className="metric-card">
@@ -314,6 +319,10 @@ export const SettingsPage = ({
                 <p className="panel-copy">{copyFeedback}</p>
               ) : null}
               <div className="quest-url-list monospace">
+                <div>
+                  Short address:{" "}
+                  {questBridge.recommendedAddress ?? "No LAN IP yet"}
+                </div>
                 {questBridge.recommendedUrl ? (
                   <div>Quest URL: {questBridge.recommendedUrl}</div>
                 ) : (
@@ -321,7 +330,9 @@ export const SettingsPage = ({
                     No LAN URL detected yet. Connect the laptop to Wi-Fi first.
                   </div>
                 )}
-                <div>Desktop self-test: {questBridge.desktopSelfTestUrl}</div>
+                <div>
+                  Desktop self-test: {questBridge.desktopSelfTestAddress}
+                </div>
                 <div>Smoke command: {questBridge.smokeTestCommand}</div>
                 {questBridge.candidateUrls.slice(1).map((url) => (
                   <div key={url}>Alternate URL: {url}</div>

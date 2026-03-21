@@ -21,12 +21,13 @@ Quest Bridge is the Stage-1 `Meta Quest 3 -> local Linux laptop` path for Incant
 ## Fastest human test path
 
 1. In the desktop app, switch to `Quest Bridge` and save.
-2. Press `Start service`.
-3. Copy the Quest URL shown in Settings or Calibration.
-4. Run `bun run test:quest` on the laptop. This should succeed before you even touch the headset.
-5. In Quest Browser, open the shown Quest URL.
+2. Open the `Quest Test` tab.
+3. Press `Start service`.
+4. Wait for the automatic laptop smoke test to pass. If it fails, do not touch the headset yet.
+5. Type the short address shown in `Quest Test` into Quest Browser. The default path now aims for the easier `:8443` port, and the tab also renders a QR code for the full URL if that is more convenient.
 6. If Quest warns about the certificate, continue past the warning once.
-7. In Calibration, wait for:
+7. Press `Start hand bridge` on the Quest page.
+8. In `Quest Test` or `Calibration`, wait for:
    - `Bridge link = connected`
    - `Hands tracked > 0`
    - clutch and push-to-talk checks to flip from `Wait` to `Ready`
@@ -37,6 +38,7 @@ Quest Bridge is the Stage-1 `Meta Quest 3 -> local Linux laptop` path for Incant
 - If you prefer your own certificate, set `INCANTATION_QUEST_TLS_CERT` and `INCANTATION_QUEST_TLS_KEY`.
 - Quest Bridge does not currently provide a live preview image; the calibration page is the main pairing/debug surface.
 - Capture/export remains webcam-only.
+- The `Quest Test` tab is now the recommended primary validation surface; Settings keeps the raw configuration, Calibration keeps the lower-level runtime/debug view, and the Quest tab now also exposes a QR code for the browser-ready URL.
 
 ## Safety checks
 

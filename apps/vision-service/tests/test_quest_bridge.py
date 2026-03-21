@@ -6,7 +6,7 @@ from app.quest_bridge import run_quest_bridge
 
 class _FakeBridgeState:
     def __init__(self) -> None:
-        self.bridge_url = "http://localhost:38419/"
+        self.bridge_url = "http://localhost:8443/"
         self._updates = [
             None,
             (
@@ -63,7 +63,7 @@ class _FakeTracker:
             "open_palm_hold": False,
             "closed_fist": tracking,
             "bridge_connected": bool(payload.get("bridge_connected", False)),
-            "bridge_url": cast(str, payload.get("bridge_url", "http://localhost:38419/")),
+            "bridge_url": cast(str, payload.get("bridge_url", "http://localhost:8443/")),
             "hands_tracked": len(cast(list[object], payload.get("hands", []))),
             "confidence": 0.9 if tracking else 0.0,
             "brightness": 0.5,
@@ -90,7 +90,7 @@ class _FakeMachine:
             "openPalmHold": frame["open_palm_hold"],
             "secondaryPinchStrength": frame["secondary_pinch_strength"],
             "bridgeConnected": frame.get("bridge_connected", False),
-            "bridgeUrl": frame.get("bridge_url", "http://localhost:38419/"),
+            "bridgeUrl": frame.get("bridge_url", "http://localhost:8443/"),
             "handsTracked": frame.get("hands_tracked", 0),
         }
         if "fallback_reason" in frame:

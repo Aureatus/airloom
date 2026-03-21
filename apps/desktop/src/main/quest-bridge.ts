@@ -8,8 +8,10 @@ export type QuestBridgeInfo = {
   enabled: boolean;
   port: number;
   recommendedUrl: string | null;
+  recommendedAddress: string | null;
   candidateUrls: string[];
   desktopSelfTestUrl: string;
+  desktopSelfTestAddress: string;
   smokeTestCommand: string;
   httpsReady: boolean;
   certificateMode: "manual" | "auto" | "none";
@@ -135,6 +137,18 @@ const buildUrls = (scheme: "http" | "https", port: number, hosts: string[]) => {
   return hosts.map((host) => `${scheme}://${host}:${port}/`);
 };
 
+const toAddressLabel = (value: string | null) => {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return new URL(value).host;
+  } catch {
+    return value;
+  }
+};
+
 export const getQuestBridgeInfo = (
   settings: AirloomSettings,
   userDataPath: string,
@@ -153,6 +167,9 @@ export const getQuestBridgeInfo = (
   );
   const recommendedUrl = candidateUrls[0] ?? null;
   const desktopSelfTestUrl = `${scheme}://127.0.0.1:${port}/`;
+  const recommendedAddress = toAddressLabel(recommendedUrl);
+  const desktopSelfTestAddress =
+    toAddressLabel(desktopSelfTestUrl) ?? `127.0.0.1:${port}`;
   const warnings: string[] = [];
 
   if (enabled && candidateUrls.length === 0) {
@@ -179,9 +196,11 @@ export const getQuestBridgeInfo = (
     enabled,
     port,
     recommendedUrl,
+    recommendedAddress,
     candidateUrls,
     desktopSelfTestUrl,
-    smokeTestCommand: "bun run test:quest",
+    desktopSelfTestAddress,
+    smokeTestCommand: `bun run test:quest -- --url ${desktopSelfTestUrl}`,
     httpsReady,
     certificateMode: tlsMaterial?.mode ?? "none",
     warnings,

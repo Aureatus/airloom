@@ -258,7 +258,7 @@ def run_quest_bridge(
 ) -> None:
     emit_capture_state(emit_event)
 
-    port = int(_env_value("INCANTATION_QUEST_BRIDGE_PORT", "AIRLOOM_QUEST_BRIDGE_PORT", "38419"))
+    port = int(_env_value("INCANTATION_QUEST_BRIDGE_PORT", "AIRLOOM_QUEST_BRIDGE_PORT", "8443"))
     server_builder = server_factory or create_quest_bridge_server
     server = server_builder(port)
     tracker = tracker_factory()

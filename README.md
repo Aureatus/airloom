@@ -37,7 +37,8 @@ bun run check
 - The Python service supports replay fixtures so gesture behavior can be validated without a live webcam.
 - Quest Bridge adds a browser-served Stage-1 `Quest 3 -> local Linux laptop` path that keeps the existing Python gesture engine and X11 desktop mapper in place.
 - Quest Bridge currently serves a lightweight WebXR client from `apps/vision-service/web/quest-bridge`; set `INCANTATION_QUEST_TLS_CERT` and `INCANTATION_QUEST_TLS_KEY` if you want the built-in bridge server to run over HTTPS/WSS for Quest Browser secure-context requirements.
-- If `openssl` is available, Incantation now auto-generates a local self-signed HTTPS certificate for Quest Bridge on first launch, then shows the exact Quest URL and laptop self-test command in the desktop UI.
+- If `openssl` is available, Incantation now auto-generates a local self-signed HTTPS certificate for Quest Bridge on first launch, defaults the bridge to the easier-to-type port `8443`, and shows both a short `host:port` address and the full Quest URL in the desktop UI.
+- The desktop app now has a dedicated `Quest Test` tab that auto-runs a laptop smoke test, shows a step-by-step headset checklist, keeps the shortest Quest address visible, and renders a QR code for the full headset URL.
 - The scripted Gemini install currently targets Ubuntu/Debian-style Linux systems with `apt-get`, `sudo`, and the official Ultraleap repository.
 - On first live vision startup, Incantation may download the MediaPipe hand landmarker model into `~/.cache/incantation/models`.
 - Default gestures are index tracking for pointer move, thumb-index pinch for click/drag with a configurable hold threshold, thumb-middle pinch for right click, and open-palm hold for mapped keybinds.

@@ -40,6 +40,7 @@ type ServiceStatus = {
   capture: AirloomCaptureStateEvent;
   debugRecording: DebugRecordingState;
   questBridge: QuestBridgeInfo;
+  questSmoke: QuestSmokeState;
   warnings: string[];
 };
 
@@ -48,6 +49,14 @@ type DebugRecordingState = {
   sessionPath: string | null;
   frames: number;
   events: number;
+};
+
+type QuestSmokeState = {
+  running: boolean;
+  success: boolean | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  output: string;
 };
 
 type OverlayMode = "command-hud" | "camera-hud";
@@ -76,6 +85,14 @@ const defaultDebugRecordingState: DebugRecordingState = {
   sessionPath: null,
   frames: 0,
   events: 0,
+};
+
+const defaultQuestSmokeState: QuestSmokeState = {
+  running: false,
+  success: null,
+  startedAt: null,
+  completedAt: null,
+  output: "No Quest smoke test run yet.",
 };
 
 const getPlatformWarnings = () => {
@@ -110,6 +127,8 @@ let serviceProcess: ChildProcess | null = null;
 let lastEvent: AirloomInputEvent | null = null;
 let captureState: AirloomCaptureStateEvent = defaultCaptureState;
 let debugRecordingState: DebugRecordingState = defaultDebugRecordingState;
+let questSmokeState: QuestSmokeState = defaultQuestSmokeState;
+let questSmokeProcess: ChildProcess | null = null;
 let eventDispatcher: ReturnType<typeof createEventDispatcher> | null = null;
 let currentSettings: AirloomSettings = settingsSchema.parse({});
 const commandHudEnabled = false;
@@ -152,6 +171,7 @@ const getServiceStatus = (): ServiceStatus => {
     capture: captureState,
     debugRecording: debugRecordingState,
     questBridge,
+    questSmoke: questSmokeState,
     warnings: [...getPlatformWarnings(), ...questBridge.warnings],
   };
 };
@@ -282,6 +302,130 @@ const broadcastStatus = () => {
   for (const window of BrowserWindow.getAllWindows()) {
     window.webContents.send(`${APP_NAMESPACE}:status`, status);
   }
+};
+
+const resetQuestSmokeState = () => {
+  questSmokeState = defaultQuestSmokeState;
+};
+
+const runQuestSmokeTest = () => {
+  if (questSmokeProcess !== null) {
+    return Promise.resolve(getServiceStatus());
+  }
+
+  const finish = (
+    success: boolean,
+    output: string,
+    resolveStatus: (status: ServiceStatus) => void,
+  ) => {
+    questSmokeState = {
+      running: false,
+      success,
+      startedAt: questSmokeState.startedAt,
+      completedAt: new Date().toISOString(),
+      output,
+    };
+    questSmokeProcess = null;
+    broadcastStatus();
+    resolveStatus(getServiceStatus());
+  };
+
+  return new Promise<ServiceStatus>((resolveStatus) => {
+    if (currentSettings.trackingBackend !== "quest-bridge") {
+      questSmokeState = {
+        running: false,
+        success: false,
+        startedAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+        output:
+          "Quest smoke test skipped because the active backend is not Quest Bridge.",
+      };
+      broadcastStatus();
+      resolveStatus(getServiceStatus());
+      return;
+    }
+
+    if (serviceProcess === null) {
+      questSmokeState = {
+        running: false,
+        success: false,
+        startedAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+        output:
+          "Quest smoke test could not run because the service is stopped.",
+      };
+      broadcastStatus();
+      resolveStatus(getServiceStatus());
+      return;
+    }
+
+    const questBridge = getQuestBridgeStatus();
+    const args = [
+      "run",
+      "--directory",
+      "apps/vision-service",
+      "python",
+      "tools/quest_bridge_smoke_test.py",
+      "--url",
+      questBridge.desktopSelfTestUrl,
+    ];
+    questSmokeState = {
+      running: true,
+      success: null,
+      startedAt: new Date().toISOString(),
+      completedAt: null,
+      output: `Running quest smoke test against ${questBridge.desktopSelfTestUrl}`,
+    };
+    broadcastStatus();
+
+    const child = spawn("uv", args, {
+      cwd: rootDir,
+      env: process.env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    questSmokeProcess = child;
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout?.on("data", (chunk) => {
+      stdout += chunk.toString();
+    });
+
+    child.stderr?.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+
+    child.on("error", (error) => {
+      finish(
+        false,
+        `Quest smoke test failed to launch.\n\n${error.message}`,
+        resolveStatus,
+      );
+    });
+
+    child.on("exit", (code, signal) => {
+      const output = [stdout.trim(), stderr.trim()]
+        .filter(Boolean)
+        .join("\n\n");
+      const succeeded = code === 0;
+      if (signal) {
+        finish(
+          false,
+          `Quest smoke test was interrupted by signal ${signal}.\n\n${output}`.trim(),
+          resolveStatus,
+        );
+        return;
+      }
+      finish(
+        succeeded,
+        succeeded
+          ? `Quest smoke test passed.\n\n${output}`.trim()
+          : `Quest smoke test failed with exit code ${code}.\n\n${output}`.trim(),
+        resolveStatus,
+      );
+    });
+  });
 };
 
 const resolveOverlayBounds = (
@@ -474,6 +618,7 @@ const startVisionService = () => {
     return getServiceStatus();
   }
 
+  resetQuestSmokeState();
   const questTlsMaterial = prepareQuestBridgeTls(
     currentSettings,
     app.getPath("userData"),
@@ -613,6 +758,17 @@ const startVisionService = () => {
 
 const stopVisionService = async () => {
   await runtime.releaseHeldActions();
+  if (questSmokeProcess !== null) {
+    questSmokeProcess.kill();
+    questSmokeProcess = null;
+    questSmokeState = {
+      running: false,
+      success: false,
+      startedAt: questSmokeState.startedAt,
+      completedAt: new Date().toISOString(),
+      output: "Quest smoke test was cancelled because the service stopped.",
+    };
+  }
   if (serviceProcess !== null) {
     serviceProcess.kill();
     serviceProcess = null;
@@ -799,6 +955,7 @@ app.whenReady().then(async () => {
   });
   registerIpcHandler("start-debug-recording", () => startDebugRecording());
   registerIpcHandler("stop-debug-recording", () => stopDebugRecording());
+  registerIpcHandler("run-quest-smoke-test", () => runQuestSmokeTest());
   registerIpcHandler(
     "send-event",
     async (_event, payload: AirloomInputEvent) => {

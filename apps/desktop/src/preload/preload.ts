@@ -23,6 +23,8 @@ const api = {
     ipcRenderer.invoke(`${APP_NAMESPACE}:start-debug-recording`),
   stopDebugRecording: () =>
     ipcRenderer.invoke(`${APP_NAMESPACE}:stop-debug-recording`),
+  runQuestSmokeTest: () =>
+    ipcRenderer.invoke(`${APP_NAMESPACE}:run-quest-smoke-test`),
   sendEvent: (payload: AirloomInputEvent) =>
     ipcRenderer.invoke(`${APP_NAMESPACE}:send-event`, payload),
   onStatus: (listener: (value: unknown) => void) => {

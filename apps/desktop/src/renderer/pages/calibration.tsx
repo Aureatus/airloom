@@ -87,8 +87,10 @@ type CalibrationProps = {
     enabled: boolean;
     port: number;
     recommendedUrl: string | null;
+    recommendedAddress: string | null;
     candidateUrls: string[];
     desktopSelfTestUrl: string;
+    desktopSelfTestAddress: string;
     smokeTestCommand: string;
     httpsReady: boolean;
     certificateMode: "manual" | "auto" | "none";
@@ -774,10 +776,16 @@ export const CalibrationPage = ({
               </p>
               <div className="quest-url-list monospace">
                 <div>
+                  Short address:{" "}
+                  {questBridge.recommendedAddress ?? "No LAN IP yet"}
+                </div>
+                <div>
                   Quest URL:{" "}
                   {questBridge.recommendedUrl ?? "No LAN URL detected yet"}
                 </div>
-                <div>Desktop self-test: {questBridge.desktopSelfTestUrl}</div>
+                <div>
+                  Desktop self-test: {questBridge.desktopSelfTestAddress}
+                </div>
                 <div>Smoke command: {questBridge.smokeTestCommand}</div>
                 {questBridge.candidateUrls.slice(1).map((url) => (
                   <div key={url}>Alternate URL: {url}</div>

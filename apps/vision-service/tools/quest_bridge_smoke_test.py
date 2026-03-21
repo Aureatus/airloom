@@ -11,7 +11,7 @@ from urllib.request import Request, urlopen
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Smoke test a running Incantation Quest Bridge")
-    parser.add_argument("--url", help="bridge base URL, for example https://127.0.0.1:38419/")
+    parser.add_argument("--url", help="bridge base URL, for example https://127.0.0.1:8443/")
     parser.add_argument(
         "--frames",
         type=int,
@@ -100,7 +100,7 @@ def _frame(index: int) -> dict[str, object]:
 def main() -> int:
     args = _parse_args()
     candidate_urls = (
-        [args.url] if args.url else ["https://127.0.0.1:38419/", "http://127.0.0.1:38419/"]
+        [args.url] if args.url else ["https://127.0.0.1:8443/", "http://127.0.0.1:8443/"]
     )
 
     base_url: str | None = None

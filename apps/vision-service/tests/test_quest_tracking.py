@@ -48,7 +48,7 @@ def test_quest_tracker_maps_bridge_fields_and_roles() -> None:
     frame = tracker.process(
         {
             "bridge_connected": True,
-            "bridge_url": "http://localhost:38419/",
+            "bridge_url": "http://localhost:8443/",
             "hands": [
                 _hand(0.7, handedness="right"),
                 _hand(0.3, handedness="left", pinch=True),
@@ -57,14 +57,14 @@ def test_quest_tracker_maps_bridge_fields_and_roles() -> None:
     )
 
     assert frame["tracking"] is True
-    assert frame["tracking_backend"] == "quest-bridge"
-    assert frame["preview_available"] is False
-    assert frame["bridge_connected"] is True
-    assert frame["bridge_url"] == "http://localhost:38419/"
-    assert frame["hands_tracked"] == 2
-    assert frame["pointer_hand"] == "right"
-    assert frame["action_hand"] == "left"
-    assert frame["action_hand_separate"] is True
+    assert frame.get("tracking_backend") == "quest-bridge"
+    assert frame.get("preview_available") is False
+    assert frame.get("bridge_connected") is True
+    assert frame.get("bridge_url") == "http://localhost:8443/"
+    assert frame.get("hands_tracked") == 2
+    assert frame.get("pointer_hand") == "right"
+    assert frame.get("action_hand") == "left"
+    assert frame.get("action_hand_separate") is True
     assert frame["pinch_strength"] > 0.6
 
 
@@ -74,13 +74,13 @@ def test_quest_tracker_reports_no_hands_disconnect() -> None:
     frame = tracker.process(
         {
             "bridge_connected": False,
-            "bridge_url": "http://localhost:38419/",
+            "bridge_url": "http://localhost:8443/",
             "hands": [],
         }
     )
 
     assert frame["tracking"] is False
-    assert frame["tracking_backend"] == "quest-bridge"
-    assert frame["bridge_connected"] is False
-    assert frame["hands_tracked"] == 0
-    assert frame["fallback_reason"] == "no-hands"
+    assert frame.get("tracking_backend") == "quest-bridge"
+    assert frame.get("bridge_connected") is False
+    assert frame.get("hands_tracked") == 0
+    assert frame.get("fallback_reason") == "no-hands"
